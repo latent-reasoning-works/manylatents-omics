@@ -1,0 +1,29 @@
+[project]
+name = "manylatents-omics"
+version = "0.1.0"
+description = "Genetics and genomics extension for manylatents"
+authors = [
+    { name = "César Miguel Valdez Córdova", email = "cesar.valdez@mila.quebec" },
+    { name = "Matthew Scicluna", email = "matthew.scicluna@mila.quebec"}
+]
+readme = "README.md"
+requires-python = ">=3.10, <3.13"
+
+dependencies = [
+    "manylatents @ git+https://github.com/latent-reasoning-works/manylatents.git",
+    "pandas-plink>=2.2.9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["manylatents"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
