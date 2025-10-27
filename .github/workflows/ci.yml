@@ -26,6 +26,7 @@ jobs:
         repository: latent-reasoning-works/manylatents
         ref: main
         path: manylatents
+        token: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
@@ -53,7 +54,7 @@ jobs:
     - name: Run omics package tests
       working-directory: manylatents-omics
       run: |
-        uv run pytest tests/ -v || echo "No omics-specific tests yet"
+        uv run pytest tests/ -v
     
     - name: Test namespace package imports
       working-directory: manylatents-omics
@@ -70,7 +71,7 @@ jobs:
         print('✅ Imported GeographicPreservation, AdmixturePreservation')
         
         # Test that we can import core manylatents too
-        from manylatents.data import SwissRoll
+        from manylatents.data.synthetic_dataset import SwissRoll
         print('✅ Can also import core manylatents (SwissRoll)')
         
         # Verify namespace package structure
