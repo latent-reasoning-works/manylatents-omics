@@ -38,6 +38,14 @@ jobs:
       with:
         enable-cache: true
     
+    - name: Override git sources in pyproject.toml
+      working-directory: manylatents-omics
+      run: |
+        # Replace git source with local path for CI
+        sed -i 's|git = "https://github.com/latent-reasoning-works/manylatents.git"|path = "../manylatents", editable = true|' pyproject.toml
+        echo "Updated pyproject.toml:"
+        grep -A 2 "\[tool.uv.sources\]" pyproject.toml
+    
     - name: Install manylatents (core)
       working-directory: manylatents
       run: |
@@ -46,16 +54,8 @@ jobs:
     - name: Install manylatents-omics with local manylatents
       working-directory: manylatents-omics
       run: |
-        # Create venv and install dependencies
-        uv venv
-        # Install manylatents from local checkout (not git)
-        uv pip install -e ../manylatents --no-deps
-        # Install manylatents dependencies
-        cd ../manylatents && uv pip install -e . && cd ../manylatents-omics
-        # Install manylatents-omics (excluding manylatents since we already installed it)
-        uv pip install --no-deps -e .
-        # Install remaining omics dependencies
-        uv pip install pandas-plink
+        # Now install with local path reference
+        uv sync
     
     - name: Run omics package tests
       working-directory: manylatents-omics
