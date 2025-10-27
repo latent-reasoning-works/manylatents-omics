@@ -10,7 +10,6 @@ readme = "README.md"
 requires-python = ">=3.10, <3.13"
 
 dependencies = [
-    "manylatents @ git+https://github.com/latent-reasoning-works/manylatents.git",
     "pandas-plink>=2.2.9",
 ]
 
