@@ -1,19 +1,25 @@
 """Genetics and genomics datasets"""
 
 from .plink_dataset import PlinkDataset
+from .precomputed_mixin import PrecomputedMixin
 from .hgdp_dataset import HGDPDataset
-from .hgdp import HGDPData
+from .hgdp import HGDPDataModule
 from .aou_dataset import AOUDataset
-from .aou import AOUData
+from .aou import AOUDataModule
 from .ukbb_dataset import UKBBDataset
-from .ukbb import UKBBData
+from .ukbb import UKBBDataModule
+from .mhi_dataset import MHIDataset
+from .mhi import MHIDataModule
 
 __all__ = [
     "PlinkDataset",
-    "HGDPDataset", 
-    "HGDPData",
+    "PrecomputedMixin",
+    "HGDPDataset",
+    "HGDPDataModule",
     "AOUDataset",
-    "AOUData", 
+    "AOUDataModule",
     "UKBBDataset",
-    "UKBBData",
+    "UKBBDataModule",
+    "MHIDataset",
+    "MHIDataModule",
 ]
