@@ -43,13 +43,19 @@ jobs:
       run: |
         uv sync
     
-    - name: Install manylatents-omics
+    - name: Install manylatents-omics with local manylatents
       working-directory: manylatents-omics
       run: |
-        # Install with local manylatents instead of pulling from git
+        # Create venv and install dependencies
         uv venv
-        uv pip install -e ../manylatents
-        uv pip install -e .
+        # Install manylatents from local checkout (not git)
+        uv pip install -e ../manylatents --no-deps
+        # Install manylatents dependencies
+        cd ../manylatents && uv pip install -e . && cd ../manylatents-omics
+        # Install manylatents-omics (excluding manylatents since we already installed it)
+        uv pip install --no-deps -e .
+        # Install remaining omics dependencies
+        uv pip install pandas-plink
     
     - name: Run omics package tests
       working-directory: manylatents-omics
