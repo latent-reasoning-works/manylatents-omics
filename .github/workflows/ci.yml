@@ -46,15 +46,10 @@ jobs:
         echo "Updated pyproject.toml:"
         grep -A 2 "\[tool.uv.sources\]" pyproject.toml
     
-    - name: Install manylatents (core)
-      working-directory: manylatents
-      run: |
-        uv sync
-    
-    - name: Install manylatents-omics with local manylatents
+    - name: Install manylatents-omics (with local manylatents)
       working-directory: manylatents-omics
       run: |
-        # Now install with local path reference
+        # Install everything together - manylatents will be pulled from ../manylatents
         uv sync
     
     - name: Run omics package tests
@@ -93,7 +88,8 @@ jobs:
         "
     
     - name: Run manylatents core tests (smoke test)
-      working-directory: manylatents
+      working-directory: manylatents-omics
       run: |
-        uv run pytest manylatents/data/test_data.py -v
+        # Run core tests from the omics environment (manylatents is installed there)
+        uv run pytest ../manylatents/manylatents/data/test_data.py -v
         echo "✅ Core manylatents tests still work with omics installed"
