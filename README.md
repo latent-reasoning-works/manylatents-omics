@@ -10,17 +10,17 @@ Genetics and genomics extension for [manylatents](https://github.com/latent-reas
 
 First install the core manylatents package:
 ```bash
-pip install git+https://github.com/latent-reasoning-works/manylatents.git
+uv add git+https://github.com/latent-reasoning-works/manylatents.git
 ```
 
 Then install manylatents-omics:
 ```bash
-pip install git+https://github.com/latent-reasoning-works/manylatents-omics.git
+uv add git+https://github.com/latent-reasoning-works/manylatents-omics.git
 ```
 
 Or install both together:
 ```bash
-pip install git+https://github.com/latent-reasoning-works/manylatents.git git+https://github.com/latent-reasoning-works/manylatents-omics.git
+uv add git+https://github.com/latent-reasoning-works/manylatents.git git+https://github.com/latent-reasoning-works/manylatents-omics.git
 ```
 
 ## Features
@@ -202,29 +202,6 @@ This architecture provides:
 - **Independent maintenance**: Genetics team owns omics repository
 - **Unified API**: Import from `manylatents.omics.*` alongside core `manylatents.*`
 - **Optional installation**: Install omics extension only when needed
-
-## Development
-
-### Setup Development Environment
-
-```bash
-git clone https://github.com/latent-reasoning-works/manylatents-omics.git
-cd manylatents-omics
-pip install -e ".[dev]"
-```
-
-### Running Tests
-
-```bash
-pytest tests/
-```
-
-### Code Formatting
-
-```bash
-black manylatents/
-ruff check manylatents/
-```
 
 ## Citation
 
