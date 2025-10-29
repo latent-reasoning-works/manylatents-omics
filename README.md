@@ -8,21 +8,25 @@ Genetics and genomics extension for [manylatents](https://github.com/latent-reas
 
 ## Installation
 
-First install the core manylatents package:
+First add the core manylatents package:
 ```bash
 uv add git+https://github.com/latent-reasoning-works/manylatents.git
 ```
 
-Then install manylatents-omics:
+Then add manylatents-omics:
 ```bash
 uv add git+https://github.com/latent-reasoning-works/manylatents-omics.git
 ```
 
-Or install both together:
+Or add both together:
 ```bash
 uv add git+https://github.com/latent-reasoning-works/manylatents.git git+https://github.com/latent-reasoning-works/manylatents-omics.git
 ```
 
+Finally, install all packages locally using `sync`.
+```bash
+uv sync
+```
 ## Features
 
 ### Datasets
