@@ -5,15 +5,15 @@ from .preservation import (
     AdmixturePreservation,
     AdmixturePreservationK,
     AdmixtureLaplacian,
-    GroundTruthPreservation,
 )
-from .sample_id import sample_id
+from .sample_id import SampleId
+
+# GroundTruthPreservation has been moved to core manylatents.metrics.preservation
 
 __all__ = [
     "GeographicPreservation",
     "AdmixturePreservation",
     "AdmixturePreservationK",
     "AdmixtureLaplacian",
-    "GroundTruthPreservation",
-    "sample_id",
+    "SampleId",
 ]
