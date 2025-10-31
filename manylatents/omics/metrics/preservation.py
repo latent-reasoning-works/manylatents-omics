@@ -4,38 +4,21 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import pdist, squareform
-from scipy.stats import spearmanr
 
-from manylatents.algorithms.latent_module_base import LatentModule
+from manylatents.algorithms.latent.latent_module_base import LatentModule
 from manylatents.utils.metrics import (
     compute_average_smoothness,
     compute_geodesic_distances,
     compute_knn_laplacian,
     haversine_vectorized,
 )
+# Import core preservation functions from manylatents
+from manylatents.metrics.preservation import (
+    preservation_metric,
+    _scale_embedding_dimensions,
+)
 
 logger = logging.getLogger(__name__)
-
-##############################################################################
-# 1) Core metric: Spearman correlation of distances
-##############################################################################
-
-def preservation_metric(gt_dists, ac_dists, num_dists=50000, only_far=False):
-    """
-    Spearman correlation between two distance arrays (flattened).
-    Optionally sample for performance, optionally only consider
-    "far" pairs (above 10th percentile).
-    """
-    if only_far:
-        cutoff = np.percentile(gt_dists, 10)
-        mask = gt_dists >= cutoff
-        gt_dists = gt_dists[mask]
-        ac_dists = ac_dists[mask]
-
-    # Subsample
-    subset = np.random.choice(len(ac_dists), min(num_dists, len(ac_dists)), replace=False)
-    corr, _ = spearmanr(gt_dists[subset], ac_dists[subset])
-    return corr
 
 
 ##############################################################################
@@ -234,18 +217,10 @@ def compute_continental_admixture_metric_laplacian(
     return compute_average_smoothness(laplacian, admixture_ratios)
 
 ##############################################################################
-# 4) Ground Truth based metrics
+# 4) Ground Truth based metrics (moved to core manylatents)
 ##############################################################################
-
-def compute_ground_truth_preservation(ancestry_coords,
-                                      gt_dists,
-                                      **kwargs):
-    
-    gt_dists = gt_dists[np.triu_indices(gt_dists.shape[0], k=1)]
-    ac_dists = pdist(ancestry_coords)
-    return preservation_metric(gt_dists, 
-                               ac_dists, 
-                               **kwargs)
+# compute_ground_truth_preservation() and GroundTruthPreservation() are now in
+# manylatents.metrics.preservation for generic use with any ground truth distances
 
 
 ##############################################################################
@@ -322,46 +297,9 @@ def compute_quality_metrics(
 
 
 ##############################################################################
-# 6) Helper function for embedding scaling
+# 6) Single-Value Wrappers (conform to Metric(Protocol))
 ##############################################################################
-
-def _scale_embedding_dimensions(embeddings: np.ndarray) -> np.ndarray:
-    """
-    Scale each embedding dimension to [0, 1] using min-max normalization.
-
-    This ensures that no single dimension dominates distance calculations
-    due to scale differences (e.g., UMAP dim 1: [-10, 10] vs dim 2: [-1, 1]).
-
-    Parameters
-    ----------
-    embeddings : np.ndarray
-        Input embeddings to rescale
-
-    Returns
-    -------
-    np.ndarray
-        Embeddings with all dimensions scaled to [0, 1]
-    """
-    # Convert to numpy if needed (handle PyTorch tensors)
-    if hasattr(embeddings, 'cpu'):
-        embeddings = embeddings.cpu().numpy()
-    embeddings = np.asarray(embeddings)
-
-    emb_min = embeddings.min(axis=0)
-    emb_max = embeddings.max(axis=0)
-    emb_range = emb_max - emb_min
-
-    # Avoid division by zero for constant dimensions
-    emb_range = np.where(emb_range == 0, 1, emb_range)
-
-    # Min-max normalization: (x - min) / (max - min)
-    scaled_embeddings = (embeddings - emb_min) / emb_range
-
-    return scaled_embeddings
-
-##############################################################################
-# 7) Single-Value Wrappers (conform to Metric(Protocol))
-##############################################################################
+# _scale_embedding_dimensions() is now imported from manylatents.metrics.preservation
 
 def GeographicPreservation(embeddings: np.ndarray,
                            dataset,
@@ -436,23 +374,5 @@ def AdmixtureLaplacian(embeddings: np.ndarray,
         admixture_ratios=dataset.admixture_ratios
     )
 
-def GroundTruthPreservation(embeddings: np.ndarray,
-                            dataset,
-                            module: Optional[LatentModule] = None,
-                            scale_embeddings: bool = True,
-                            **kwargs) -> float:
-    """
-    Computes preservation of embedding distance versus ground truth distance (on synthetic data)
-    Do not pass use_medians as a kwarg
-    """
-    if scale_embeddings:
-        embeddings = _scale_embedding_dimensions(embeddings)
-
-    assert hasattr(dataset, 'get_gt_dists')
-    gt_dists = dataset.get_gt_dists()
-    if "use_medians" in kwargs:
-        raise ValueError("'use_medians' argument is not allowed.")
-
-    return compute_ground_truth_preservation(embeddings,
-                                             gt_dists,
-                                             **kwargs)
+# GroundTruthPreservation() has been moved to manylatents.metrics.preservation
+# for generic use with any dataset having ground truth distances
