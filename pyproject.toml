@@ -28,7 +28,7 @@ packages = ["manylatents"]
 managed = true
 
 [tool.uv.sources]
-manylatents = { git = "https://github.com/latent-reasoning-works/manylatents.git" }
+manylatents = { git = "ssh://git@github.com/latent-reasoning-works/manylatents.git" }
 archetypes = { git = "https://github.com/aleixalcacer/archetypes.git" }
 
 [tool.pytest.ini_options]
