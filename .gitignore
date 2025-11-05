@@ -12,3 +12,4 @@ build/
 .coverage
 htmlcov/
 uv.lock
+.ipynb_checkpoints
