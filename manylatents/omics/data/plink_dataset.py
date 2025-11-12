@@ -90,6 +90,7 @@ class PlinkDataset(Dataset):
         self._qc_filter_indices = self.extract_qc_filter_indices()
         self._related_indices = self.extract_related_indices()
         self._geographic_preservation_indices = self.extract_geographic_preservation_indices()
+        self._nan_filter_indices = self.extract_nan_filter_indices()
         self.admixture_ratios = self.load_admixture_ratios(self.admixture_path, self.admixture_ks)
 
 
@@ -130,7 +131,8 @@ class PlinkDataset(Dataset):
             self.metadata = self.metadata.iloc[split_idx].reset_index(drop=True)
             for name in [
                 "_latitude", "_longitude", "_population_label",
-                "_qc_filter_indices", "_related_indices", "_geographic_preservation_indices"
+                "_qc_filter_indices", "_related_indices", "_geographic_preservation_indices",
+                "_nan_filter_indices"
             ]:
                 val = getattr(self, name)
                 if val is None:
@@ -215,22 +217,25 @@ class PlinkDataset(Dataset):
             recent_migrant_filter = self.geographic_preservation_indices
         else:
             recent_migrant_filter = np.ones(len(self.metadata), dtype=bool)
-        
+
         if balance_filter:
             balanced_set = self.balance_filter(balance_filter)
         else:
             balanced_set = np.ones(len(self.metadata), dtype=bool)
 
+        # Apply NaN filter (samples with valid data, no NaN values)
+        nan_filter = self.nan_filter_indices
+
         if test_all:
             # for test set, include both related and unrelated
-            fit_idx = related_indices & filtered_indices & recent_migrant_filter & balanced_set
-            #trans_idx = filtered_indices & recent_migrant_filter & balanced_set
-            trans_idx = np.ones(len(self.metadata), dtype=bool)
+            fit_idx = related_indices & filtered_indices & recent_migrant_filter & balanced_set & nan_filter
+            #trans_idx = filtered_indices & recent_migrant_filter & balanced_set & nan_filter
+            trans_idx = np.ones(len(self.metadata), dtype=bool) & nan_filter
         else:
             # otherwise train on unrelated and test on the related individuals
-            fit_idx = related_indices & filtered_indices & recent_migrant_filter & balanced_set
-            #trans_idx = (~related_indices) & filtered_indices & recent_migrant_filter & balanced_set
-            trans_idx = filtered_indices & recent_migrant_filter & balanced_set
+            fit_idx = related_indices & filtered_indices & recent_migrant_filter & balanced_set & nan_filter
+            #trans_idx = (~related_indices) & filtered_indices & recent_migrant_filter & balanced_set & nan_filter
+            trans_idx = filtered_indices & recent_migrant_filter & balanced_set & nan_filter
 
         # Apply random subsampling if requested
         if subsample_n is not None:
@@ -370,7 +375,23 @@ class PlinkDataset(Dataset):
     @abstractmethod
     def balance_filter(self, balance_filter) -> np.array:
         pass
-    
+
+    @abstractmethod
+    def extract_nan_filter_indices(self) -> np.ndarray:
+        """
+        Extracts NaN filter indices from metadata.
+
+        Returns boolean array where True means the sample has valid data (no NaN),
+        False means the sample has NaN values and should be filtered out.
+
+        Default implementation should return all True (no filtering).
+        Subclasses can override to read from a metadata column (e.g., 'has_pca_data').
+
+        Returns:
+            np.ndarray: Boolean array of length len(self.metadata)
+        """
+        pass
+
     @property
     def latitude(self) -> pd.Series:
         return self._latitude
@@ -394,3 +415,7 @@ class PlinkDataset(Dataset):
     @property
     def geographic_preservation_indices(self) -> pd.Series:
         return self._geographic_preservation_indices
+
+    @property
+    def nan_filter_indices(self) -> np.array:
+        return self._nan_filter_indices

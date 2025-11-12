@@ -333,7 +333,7 @@ def AdmixturePreservation(embeddings: np.ndarray,
 
     return compute_continental_admixture_metric_dists(
         ancestry_coords=embeddings,
-        admixture_ratios=dataset.admixture_ratios['5'],
+        admixture_ratios=dataset.admixture_ratios['5'], # fixed at 5
         population_label=dataset.population_label,
         **kwargs
     )

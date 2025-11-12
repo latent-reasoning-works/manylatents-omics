@@ -15,14 +15,28 @@ class PrecomputedMixin:
             logger.info(f"Resolved precomputed path: {abs_path}")
             if os.path.exists(abs_path):
                 logger.info(f"Loading precomputed embeddings from {abs_path}")
+                data = None
                 if abs_path.endswith(".npy"):
-                    return np.load(abs_path, mmap_mode=mmap_mode)
+                    data = np.load(abs_path, mmap_mode=mmap_mode)
                 elif abs_path.endswith(".csv"):
                     # Use genfromtxt to skip the header and select numeric columns.
                     # Adjust `usecols` as needed; here we assume columns 0 and 1 are numeric.
-                    return np.genfromtxt(abs_path, delimiter=",", skip_header=1)
+                    data = np.genfromtxt(abs_path, delimiter=",", skip_header=1)
                 else:
                     raise ValueError(f"Unsupported file format: {abs_path}")
+
+                # Check for NaN values and warn
+                if data is not None:
+                    nan_mask = np.any(np.isnan(data), axis=1)
+                    nan_count = nan_mask.sum()
+                    if nan_count > 0:
+                        logger.warning(
+                            f"Precomputed data contains {nan_count} samples with NaN values "
+                            f"(out of {data.shape[0]} total samples). "
+                            f"These may cause errors during training if not filtered out via metadata filters."
+                        )
+
+                return data
         logger.info("No precomputed embeddings found or path does not exist.")
         return None
 
