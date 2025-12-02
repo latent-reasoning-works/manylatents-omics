@@ -190,3 +190,20 @@ class UKBBDataset(PlinkDataset, PrecomputedMixin):
         boolean_idx = self.metadata.MetadataIDs.isin(idxs)
 
         return boolean_idx
+
+    def extract_nan_filter_indices(self) -> np.ndarray:
+        """
+        Extracts NaN filter from metadata.
+
+        Checks for 'has_pca_data' column in metadata. If present, returns it as a boolean array.
+        If not present, returns all True (no filtering).
+
+        Returns:
+            np.ndarray: Boolean array where True = valid data, False = has NaN
+        """
+        if 'has_pca_data' in self.metadata.columns:
+            # Convert to boolean (1 -> True, 0 -> False)
+            return self.metadata['has_pca_data'].astype(bool).values
+        else:
+            # No NaN filter column, return all True (backward compatible)
+            return np.ones(len(self.metadata), dtype=bool)

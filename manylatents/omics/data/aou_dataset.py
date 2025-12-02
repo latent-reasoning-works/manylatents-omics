@@ -131,7 +131,10 @@ class AOUDataset(PlinkDataset, PrecomputedMixin):
         # Check if the index has the required name; if not, try to set it.
         if metadata.index.name is None or metadata.index.name.strip() != 'sample_id':
             if 'sample_id' in metadata.columns:
-                metadata = metadata.set_index('sample_id')
+                # Keep sample_id as a regular column (matching UKBB pattern with 'IDs' and 'sample_id')
+                # This ensures sample IDs survive reset_index(drop=True) calls in PlinkDataset
+                # Note: sample_id column already exists, so we just need to preserve it
+                metadata = metadata.set_index('sample_id', drop=False)
             else:
                 raise ValueError("Missing required column: 'sample_id' in metadata.")
 
@@ -159,7 +162,9 @@ class AOUDataset(PlinkDataset, PrecomputedMixin):
         """
         Returns sample IDs for the dataset.
         """
-        return self.metadata.index.values
+        # Return from 'sample_id' column (not index) to match UKBB pattern
+        # This ensures sample IDs are preserved after reset_index(drop=True) in PlinkDataset
+        return self.metadata['sample_id'].values
     
     def balance_filter(self, balance_filter) -> np.array:
 
@@ -184,3 +189,14 @@ class AOUDataset(PlinkDataset, PrecomputedMixin):
         boolean_idx = self.metadata.person_id.isin(idxs)
 
         return boolean_idx
+
+    def extract_nan_filter_indices(self) -> np.ndarray:
+        """
+        Extracts NaN filter from metadata.
+
+        For AoU, returns all True (no NaN filtering needed).
+
+        Returns:
+            np.ndarray: Boolean array of all True
+        """
+        return np.ones(len(self.metadata), dtype=bool)

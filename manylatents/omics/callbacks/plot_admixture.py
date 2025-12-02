@@ -109,6 +109,7 @@ class PlotAdmixture(PlotEmbeddings):
     def _plot_admixture_grid(self, embeddings_2d: np.ndarray, admixture_df: pd.DataFrame) -> str:
         """Create admixture proportion subplot grid."""
         admixture_numeric = admixture_df.iloc[:, 1:]
+
         K = min(self.admixture_K, admixture_numeric.shape[1])
         nrows, ncols = self._get_subplot_layout(K)
 

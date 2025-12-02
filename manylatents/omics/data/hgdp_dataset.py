@@ -207,3 +207,14 @@ class HGDPDataset(PlinkDataset, PrecomputedMixin):
         if balance_filter:
             logger.info(f"balance filter ignored for HGDP+1KGP. Data is already pretty balanced")
         return np.ones(len(self.metadata), dtype=bool)
+
+    def extract_nan_filter_indices(self) -> np.ndarray:
+        """
+        Extracts NaN filter from metadata.
+
+        For HGDP, returns all True (no NaN filtering needed).
+
+        Returns:
+            np.ndarray: Boolean array of all True
+        """
+        return np.ones(len(self.metadata), dtype=bool)

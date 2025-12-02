@@ -201,3 +201,14 @@ class MHIDataset(PlinkDataset, PrecomputedMixin):
         boolean_idx = self.metadata.index.isin(idxs)
 
         return boolean_idx
+
+    def extract_nan_filter_indices(self) -> np.ndarray:
+        """
+        Extracts NaN filter from metadata.
+
+        For MHI, returns all True (no NaN filtering needed).
+
+        Returns:
+            np.ndarray: Boolean array of all True
+        """
+        return np.ones(len(self.metadata), dtype=bool)
