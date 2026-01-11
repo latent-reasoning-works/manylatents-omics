@@ -1,7 +1,7 @@
 [project]
 name = "manylatents-omics"
 version = "0.1.0"
-description = "Genetics and genomics extension for manylatents"
+description = "Genetics, genomics, and single-cell omics extension for manylatents"
 authors = [
     { name = "César Miguel Valdez Córdova", email = "cesar.valdez@mila.quebec" },
     { name = "Matthew Scicluna", email = "matthew.scicluna@mila.quebec"}
@@ -12,6 +12,12 @@ requires-python = ">=3.10, <3.13"
 dependencies = [
     "manylatents",
     "pandas-plink>=2.2.9",
+]
+
+[project.optional-dependencies]
+singlecell = [
+    "anndata>=0.11.3",
+    "scanpy>=1.11.5",
 ]
 
 [build-system]
