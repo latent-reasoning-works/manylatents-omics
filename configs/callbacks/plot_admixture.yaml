@@ -1,5 +1,5 @@
 plot_admixture:
-  _target_: manylatents.omics.callbacks.plot_admixture.PlotAdmixture
+  _target_: manylatents.popgen.callbacks.plot_admixture.PlotAdmixture
   save_dir: ${hydra:runtime.output_dir}
   experiment_name: ${name}
   admixture_K: 5

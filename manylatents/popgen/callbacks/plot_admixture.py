@@ -8,7 +8,7 @@ import pandas as pd
 
 import wandb
 from manylatents.callbacks.embedding.plot_embeddings import PlotEmbeddings
-from manylatents.omics.data.plink_dataset import PlinkDataset
+from manylatents.popgen.data.plink_dataset import PlinkDataset
 
 logger = logging.getLogger(__name__)
 

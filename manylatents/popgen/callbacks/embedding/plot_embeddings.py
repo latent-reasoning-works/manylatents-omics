@@ -6,14 +6,14 @@ Extends the core PlotEmbeddings to add support for genomics datasets
 """
 
 from manylatents.callbacks.embedding.plot_embeddings import PlotEmbeddings as PlotEmbeddingsBase
-from manylatents.omics.data.hgdp_dataset import HGDPDataset
-from manylatents.omics.data.ukbb_dataset import UKBBDataset
-from manylatents.omics.data.mhi_dataset import MHIDataset
-from manylatents.omics.data.aou_dataset import AOUDataset
-from manylatents.omics.utils.mappings import cmap_pop as cmap_pop_HGDP
-from manylatents.omics.utils.mappings import cmap_ukbb_superpops as cmap_pop_UKBB
-from manylatents.omics.utils.mappings import cmap_mhi_superpops as cmap_pop_MHI
-from manylatents.omics.utils.mappings import race_ethnicity_only_pca_colors as cmap_pop_AOU
+from manylatents.popgen.data.hgdp_dataset import HGDPDataset
+from manylatents.popgen.data.ukbb_dataset import UKBBDataset
+from manylatents.popgen.data.mhi_dataset import MHIDataset
+from manylatents.popgen.data.aou_dataset import AOUDataset
+from manylatents.popgen.utils.mappings import cmap_pop as cmap_pop_HGDP
+from manylatents.popgen.utils.mappings import cmap_ukbb_superpops as cmap_pop_UKBB
+from manylatents.popgen.utils.mappings import cmap_mhi_superpops as cmap_pop_MHI
+from manylatents.popgen.utils.mappings import race_ethnicity_only_pca_colors as cmap_pop_AOU
 
 
 class PlotEmbeddings(PlotEmbeddingsBase):

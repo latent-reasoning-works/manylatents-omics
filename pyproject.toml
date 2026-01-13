@@ -1,13 +1,20 @@
 [project]
 name = "manylatents-omics"
-version = "0.1.0"
-description = "Genetics, genomics, and single-cell omics extension for manylatents"
+version = "0.2.0"
+description = "Biological extensions for manylatents: popgen and central dogma encoders"
 authors = [
     { name = "César Miguel Valdez Córdova", email = "cesar.valdez@mila.quebec" },
     { name = "Matthew Scicluna", email = "matthew.scicluna@mila.quebec"}
 ]
 readme = "README.md"
 requires-python = ">=3.10, <3.13"
+keywords = [
+    "machine-learning",
+    "dimensionality-reduction",
+    "population-genetics",
+    "foundation-models",
+    "central-dogma",
+]
 
 dependencies = [
     "manylatents",
@@ -19,6 +26,9 @@ singlecell = [
     "anndata>=0.11.3",
     "scanpy>=1.11.5",
 ]
+esm = ["esm>=3.0"]
+evo2 = ["evo2"]
+dogma = ["esm>=3.0", "evo2"]
 
 [build-system]
 requires = ["hatchling"]

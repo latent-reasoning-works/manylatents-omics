@@ -7,13 +7,13 @@ import pytest
 
 def test_omics_package_import():
     """Test that the omics package can be imported."""
-    import manylatents.omics
-    assert manylatents.omics.__version__ == "0.1.0"
+    import manylatents.popgen
+    assert manylatents.popgen.__version__ == "0.1.0"
 
 
 def test_data_module_imports():
     """Test that all data classes can be imported."""
-    from manylatents.omics.data import (
+    from manylatents.popgen.data import (
         PlinkDataset,
         PrecomputedMixin,
         HGDPDataset,
@@ -41,7 +41,7 @@ def test_data_module_imports():
 
 def test_metrics_module_imports():
     """Test that all metrics can be imported."""
-    from manylatents.omics.metrics import (
+    from manylatents.popgen.metrics import (
         GeographicPreservation,
         AdmixturePreservation,
         AdmixturePreservationK,
@@ -61,17 +61,17 @@ def test_metrics_module_imports():
 
 def test_namespace_package_structure():
     """Test that omics is properly set up as a namespace package."""
-    import manylatents.omics
+    import manylatents.popgen
     
     # Check that expected modules exist
-    assert hasattr(manylatents.omics, 'data')
-    assert hasattr(manylatents.omics, 'metrics')
-    assert hasattr(manylatents.omics, 'callbacks')
-    assert hasattr(manylatents.omics, 'utils')
+    assert hasattr(manylatents.popgen, 'data')
+    assert hasattr(manylatents.popgen, 'metrics')
+    assert hasattr(manylatents.popgen, 'callbacks')
+    assert hasattr(manylatents.popgen, 'utils')
     
     # Check __all__ exports
-    assert 'data' in manylatents.omics.__all__
-    assert 'metrics' in manylatents.omics.__all__
+    assert 'data' in manylatents.popgen.__all__
+    assert 'metrics' in manylatents.popgen.__all__
 
 
 def test_core_manylatents_accessible():

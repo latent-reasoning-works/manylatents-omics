@@ -82,8 +82,8 @@ Data preprocessing and analysis scripts:
 
 ```python
 from manylatents.algorithms import PHATE, UMAP
-from manylatents.omics.data import HGDPDataset
-from manylatents.omics.metrics import GeographicPreservation
+from manylatents.popgen.data import HGDPDataset
+from manylatents.popgen.metrics import GeographicPreservation
 
 # Load genetics dataset
 dataset = HGDPDataset(
@@ -111,7 +111,7 @@ print(f"Geographic preservation: {score}")
 ### With Lightning DataModule
 
 ```python
-from manylatents.omics.data import HGDPData
+from manylatents.popgen.data import HGDPData
 from manylatents.experiment import DimensionalityReductionExperiment
 
 # Create data module
@@ -134,7 +134,7 @@ experiment.run()
 
 ```yaml
 # configs/data/hgdp.yaml
-_target_: manylatents.omics.data.HGDPData
+_target_: manylatents.popgen.data.HGDPData
 files:
   plink: ${paths.data_dir}/HGDP+1KGP/genotypes/hgdp_wgs
 cache_dir: ${paths.cache_dir}
@@ -144,7 +144,7 @@ filter_related: true
 batch_size: 256
 
 # configs/metrics/geographic_preservation.yaml
-_target_: manylatents.omics.metrics.GeographicPreservation
+_target_: manylatents.popgen.metrics.GeographicPreservation
 scale_embedding_dimensions: true
 k_values: [5, 10, 20, 50]
 ```
@@ -199,12 +199,12 @@ manylatents-omics/
 `manylatents-omics` uses Python namespace packages to extend `manylatents` with genetics-specific functionality:
 
 - **Core manylatents** (`manylatents.*`): Algorithms, base datasets, core metrics
-- **Omics extension** (`manylatents.omics.*`): Genetics datasets, preservation metrics
+- **Omics extension** (`manylatents.popgen.*`): Genetics datasets, preservation metrics
 
 This architecture provides:
 - **Separation of concerns**: Core DR algorithms vs. genetics applications
 - **Independent maintenance**: Genetics team owns omics repository
-- **Unified API**: Import from `manylatents.omics.*` alongside core `manylatents.*`
+- **Unified API**: Import from `manylatents.popgen.*` alongside core `manylatents.*`
 - **Optional installation**: Install omics extension only when needed
 
 ## Citation
