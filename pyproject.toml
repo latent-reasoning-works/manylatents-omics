@@ -50,6 +50,10 @@ archetypes = { git = "https://github.com/aleixalcacer/archetypes.git" }
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "gpu: tests requiring GPU and model weights",
+    "slow: tests that take significant time to run",
+]
 
 # Inherit dependency metadata overrides from manylatents
 [[tool.uv.dependency-metadata]]
