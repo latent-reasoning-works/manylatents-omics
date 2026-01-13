@@ -46,17 +46,18 @@ def test_metrics_module_imports():
         AdmixturePreservation,
         AdmixturePreservationK,
         AdmixtureLaplacian,
-        GroundTruthPreservation,
-        sample_id,
+        SampleId,
     )
-    
+    # GroundTruthPreservation moved to core manylatents.metrics.preservation
+    from manylatents.metrics.preservation import GroundTruthPreservation
+
     # Verify they're all callable
     assert callable(GeographicPreservation)
     assert callable(AdmixturePreservation)
     assert callable(AdmixturePreservationK)
     assert callable(AdmixtureLaplacian)
     assert callable(GroundTruthPreservation)
-    assert callable(sample_id)
+    assert callable(SampleId)
 
 
 def test_namespace_package_structure():
