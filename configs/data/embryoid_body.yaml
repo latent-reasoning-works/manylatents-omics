@@ -1,7 +1,7 @@
 defaults:
   - default
 
-_target_: manylatents.omics.data.anndata.AnnDataModule
+_target_: manylatents.popgen.data.anndata.AnnDataModule
 adata_path: ${paths.data_dir}/scRNAseq/EBT_counts.h5ad
 label_key: sample_labels
 layer: null

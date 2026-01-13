@@ -1,6 +1,6 @@
 """Tests for PlotAdmixture callback."""
 import pytest
-from manylatents.omics.callbacks import PlotAdmixture
+from manylatents.popgen.callbacks import PlotAdmixture
 
 
 def test_plot_admixture_import():

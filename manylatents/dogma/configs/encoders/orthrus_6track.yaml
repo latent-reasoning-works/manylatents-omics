@@ -1,0 +1,3 @@
+_target_: manylatents.dogma.encoders.OrthrusEncoder
+n_tracks: 6
+device: cuda
