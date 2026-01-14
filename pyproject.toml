@@ -17,6 +17,7 @@ keywords = [
 ]
 
 dependencies = [
+    "httpx>=0.28.1",
     "manylatents",
     "pandas-plink>=2.2.9",
 ]
@@ -26,9 +27,11 @@ singlecell = [
     "anndata>=0.11.3",
     "scanpy>=1.11.5",
 ]
+# Foundation model encoders (install individually or use dogma for all)
 esm = ["esm>=3.0"]
 evo2 = ["evo2"]
-dogma = ["esm>=3.0", "evo2"]
+orthrus = ["orthrus"]
+dogma = ["esm>=3.0", "evo2", "orthrus"]
 
 [build-system]
 requires = ["hatchling"]

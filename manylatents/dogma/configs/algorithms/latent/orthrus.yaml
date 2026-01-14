@@ -1,0 +1,4 @@
+# Orthrus RNA encoder (inference only)
+_target_: manylatents.dogma.encoders.OrthrusEncoder
+n_tracks: 4
+device: cuda

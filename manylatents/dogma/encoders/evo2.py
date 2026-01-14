@@ -68,8 +68,9 @@ class Evo2Encoder(FoundationEncoder):
         model_name: str = "evo2_1b_base",
         layer_name: Optional[str] = None,
         device: str = "cuda",
+        **kwargs,
     ):
-        super().__init__(device=device)
+        super().__init__(device=device, **kwargs)
 
         if model_name not in self.MODELS:
             raise ValueError(
@@ -107,52 +108,24 @@ class Evo2Encoder(FoundationEncoder):
         Returns:
             Embedding tensor of shape (1, embedding_dim).
         """
-        self._load_model()
+        self._ensure_loaded()
 
-        # Tokenize the sequence
         input_ids = torch.tensor(
             self._model.tokenizer.tokenize(sequence),
             dtype=torch.int,
         ).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            # Get embeddings from specified layer
             _, embeddings = self._model(
                 input_ids,
                 return_embeddings=True,
                 layer_names=[self.layer_name],
             )
-
-            # Mean pool over sequence length
-            # embeddings[layer_name] shape: (1, seq_len, hidden_dim)
             embedding = embeddings[self.layer_name].mean(dim=1)
 
         return embedding
 
-    def encode_batch(self, sequences: List[str]) -> Tensor:
-        """Encode multiple DNA sequences.
-
-        Note: Currently processes sequences one at a time due to variable lengths.
-        For large batches, consider padding and batching manually.
-
-        Args:
-            sequences: List of DNA nucleotide sequences.
-
-        Returns:
-            Embedding tensor of shape (batch_size, embedding_dim).
-        """
-        self._load_model()
-
-        embeddings = []
-        for seq in sequences:
-            emb = self.encode(seq)
-            embeddings.append(emb.squeeze(0))
-
-        return torch.stack(embeddings, dim=0)
-
-    @property
-    def embedding_dim(self) -> int:
-        return self._embedding_dim
+    # encode_batch() uses base class default (loops over encode())
 
     @property
     def modality(self) -> str:

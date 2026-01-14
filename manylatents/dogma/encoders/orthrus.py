@@ -61,8 +61,9 @@ class OrthrusEncoder(FoundationEncoder):
         run_path: Optional[str] = None,
         checkpoint: Optional[str] = None,
         device: str = "cuda",
+        **kwargs,
     ):
-        super().__init__(device=device)
+        super().__init__(device=device, **kwargs)
 
         if n_tracks not in self.MODELS:
             raise ValueError(f"n_tracks must be 4 or 6, got {n_tracks}")
@@ -111,7 +112,7 @@ class OrthrusEncoder(FoundationEncoder):
         Returns:
             Embedding tensor of shape (1, embedding_dim).
         """
-        self._load_model()
+        self._ensure_loaded()
 
         # Convert sequence to one-hot encoding
         # seq_to_oh returns shape (n_tracks, seq_len), we need (batch, seq_len, n_tracks)
@@ -119,40 +120,14 @@ class OrthrusEncoder(FoundationEncoder):
         oh = torch.tensor(oh.T, dtype=torch.float32)  # (seq_len, n_tracks)
         oh = oh.unsqueeze(0).to(self.device)  # (1, seq_len, n_tracks)
 
-        # Orthrus expects (batch, n_tracks, seq_len) for channel_last=False
-        # or (batch, seq_len, n_tracks) for channel_last=True
         lengths = torch.tensor([oh.shape[1]], device=self.device)
 
         with torch.no_grad():
-            # representation() returns mean-pooled embedding
             embedding = self._model.representation(oh, lengths, channel_last=True)
 
         return embedding
 
-    def encode_batch(self, sequences: List[str]) -> Tensor:
-        """Encode multiple RNA sequences.
-
-        Note: Currently processes sequences one at a time due to variable lengths.
-        For large batches, consider padding and batching manually.
-
-        Args:
-            sequences: List of RNA nucleotide sequences.
-
-        Returns:
-            Embedding tensor of shape (batch_size, embedding_dim).
-        """
-        self._load_model()
-
-        embeddings = []
-        for seq in sequences:
-            emb = self.encode(seq)
-            embeddings.append(emb.squeeze(0))
-
-        return torch.stack(embeddings, dim=0)
-
-    @property
-    def embedding_dim(self) -> int:
-        return self._embedding_dim
+    # encode_batch() uses base class default (loops over encode())
 
     @property
     def modality(self) -> str:

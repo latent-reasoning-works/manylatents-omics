@@ -1,0 +1,6 @@
+# Protein sequence data for ESM3 encoding
+_target_: manylatents.dogma.data.sequence_dataset.SequenceDataModule
+modality: protein
+preset: gfp
+batch_size: 1
+mode: full

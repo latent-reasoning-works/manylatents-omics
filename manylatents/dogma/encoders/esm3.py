@@ -40,8 +40,9 @@ class ESM3Encoder(FoundationEncoder):
         self,
         weights_path: Optional[str] = None,
         device: str = "cuda",
+        **kwargs,
     ):
-        super().__init__(device=device)
+        super().__init__(device=device, **kwargs)
         self.weights_path = weights_path or self.DEFAULT_WEIGHTS
         self._model = None
         self._embedding_dim = 1536  # ESM3-small hidden dim
@@ -53,15 +54,21 @@ class ESM3Encoder(FoundationEncoder):
 
         try:
             from esm.models.esm3 import ESM3
+            import os
 
-            # Try loading from local path first
-            if self.weights_path and self.weights_path != self.DEFAULT_WEIGHTS:
-                self._model = torch.load(self.weights_path, map_location=self.device)
+            # Use local weights if path exists
+            if self.weights_path and os.path.exists(self.weights_path):
+                # Set HF cache to local weights directory for ESM3's data_root()
+                weights_root = os.path.dirname(os.path.dirname(os.path.dirname(self.weights_path)))
+                os.environ["HF_HOME"] = weights_root
+                os.environ["HF_HUB_OFFLINE"] = "1"
+                self._model = ESM3.from_pretrained("esm3_sm_open_v1")
             else:
-                # Load from HuggingFace (requires login)
+                # Load from HuggingFace (requires login for gated model)
                 self._model = ESM3.from_pretrained("esm3_sm_open_v1")
 
-            self._model = self._model.to(self.device).eval()
+            # Keep model in float32 to avoid dtype mismatch bug in ESM3 library
+            self._model = self._model.to(self.device).float().eval()
 
         except ImportError as e:
             raise ImportError(
@@ -77,46 +84,24 @@ class ESM3Encoder(FoundationEncoder):
         Returns:
             Embedding tensor of shape (1, 1536).
         """
-        self._load_model()
+        self._ensure_loaded()
 
         from esm.sdk.api import ESMProtein
 
         protein = ESMProtein(sequence=sequence)
 
         with torch.no_grad():
-            # ESM3 returns per-residue embeddings, we mean-pool
-            output = self._model.encode(protein)
+            # Tokenize and run forward pass for embeddings
+            protein_tensor = self._model.encode(protein)
+            # Add batch dimension for forward pass
+            seq_tokens = protein_tensor.sequence.unsqueeze(0).to(self._model.device)
+            output = self._model.forward(sequence_tokens=seq_tokens)
             # output.embeddings shape: (1, seq_len, hidden_dim)
-            embedding = output.embeddings.mean(dim=1)  # (1, hidden_dim)
+            embedding = output.embeddings.mean(dim=1).float()
 
         return embedding
 
-    def encode_batch(self, sequences: List[str]) -> Tensor:
-        """Encode multiple protein sequences.
-
-        Args:
-            sequences: List of amino acid sequences.
-
-        Returns:
-            Embedding tensor of shape (batch_size, 1536).
-        """
-        self._load_model()
-
-        from esm.sdk.api import ESMProtein
-
-        embeddings = []
-        with torch.no_grad():
-            for seq in sequences:
-                protein = ESMProtein(sequence=seq)
-                output = self._model.encode(protein)
-                emb = output.embeddings.mean(dim=1)
-                embeddings.append(emb.squeeze(0))
-
-        return torch.stack(embeddings, dim=0)
-
-    @property
-    def embedding_dim(self) -> int:
-        return self._embedding_dim
+    # encode_batch() uses base class default (loops over encode())
 
     @property
     def modality(self) -> str:

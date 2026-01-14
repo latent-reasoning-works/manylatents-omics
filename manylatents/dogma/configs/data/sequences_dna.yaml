@@ -1,0 +1,6 @@
+# DNA sequence data for Evo2 encoding
+_target_: manylatents.dogma.data.sequence_dataset.SequenceDataModule
+modality: dna
+preset: gfp
+batch_size: 1
+mode: full

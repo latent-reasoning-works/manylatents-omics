@@ -1,0 +1,6 @@
+# RNA sequence data for Orthrus encoding
+_target_: manylatents.dogma.data.sequence_dataset.SequenceDataModule
+modality: rna
+preset: gfp
+batch_size: 1
+mode: full
