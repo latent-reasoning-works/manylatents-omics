@@ -27,6 +27,35 @@ Finally, install all packages locally using `sync`.
 ```bash
 uv sync
 ```
+
+### Foundation Model Encoders (Optional)
+
+Foundation model encoders (ESM3, Orthrus, Evo2) require additional CUDA dependencies that **must be built on an Ampere+ GPU** (compute capability ≥8.0).
+
+| GPU | Compute Capability | Supported |
+|-----|-------------------|-----------|
+| RTX 8000, RTX 3090 | 7.5 (Turing) | ❌ No |
+| A100, A6000 | 8.0 (Ampere) | ✅ Yes |
+| L40S, L4 | 8.9 (Ada Lovelace) | ✅ Yes |
+| H100, H200 | 9.0 (Hopper) | ✅ Yes |
+
+**Installation on HPC clusters:**
+```bash
+# 1. Request an Ampere+ GPU allocation
+salloc --gpus=l40s:1  # or a100, h100
+
+# 2. Load CUDA module
+module load cuda/12.6.0
+
+# 3. Install with optional extras
+uv sync --extra esm      # ESM3 only (no special GPU needed)
+uv sync --extra orthrus  # Orthrus (needs Ampere+ for mamba-ssm)
+uv sync --extra evo2     # Evo2 (needs Ampere+ for transformer-engine)
+uv sync --extra dogma    # All foundation encoders
+```
+
+**Why?** Packages like `mamba-ssm`, `flash-attn`, and `transformer-engine` use CUDA kernels that require Ampere+ architecture. Building on older GPUs will fail with cryptic nvcc errors.
+
 ## Features
 
 ### Datasets
