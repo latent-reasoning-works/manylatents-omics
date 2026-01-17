@@ -60,6 +60,44 @@ uv sync --extra dogma    # All foundation encoders
 
 ### Datasets
 
+#### Single-Cell RNA-seq Datasets
+- **AnnDataModule**: LightningDataModule for loading .h5ad files (scanpy format)
+  - Supports any AnnData-formatted single-cell dataset
+  - Flexible metadata loading via `label_key` parameter
+  - Compatible with scRNA-seq, scATAC-seq, CITE-seq, and other single-cell modalities
+
+**Available Datasets:**
+- **Embryoid Body (EBD)**: Developmental time series dataset
+  - Config: `configs/data/embryoid_body.yaml`
+  - Label key: `sample_labels`
+
+- **PBMC (Peripheral Blood Mononuclear Cells)**: 10X Genomics datasets
+  - PBMC 3k: ~3,000 cells, ideal for testing and rapid prototyping
+    - Config: `configs/data/pbmc_3k.yaml`
+  - PBMC 10k: ~10,000 cells, medium-scale dataset
+    - Config: `configs/data/pbmc_10k.yaml`
+  - PBMC 68k: ~68,000 cells, large-scale comprehensive dataset
+    - Config: `configs/data/pbmc_68k.yaml`
+  - Label key: `leiden` (clustering results) or `null` for unsupervised learning
+
+**Downloading PBMC Data:**
+```bash
+# Download all PBMC datasets
+python scripts/download_pbmc.py --dataset all --output-dir /path/to/data/single_cell
+
+# Or download a specific size
+python scripts/download_pbmc.py --dataset 3k --output-dir /path/to/data/single_cell
+```
+
+**Using with Hydra configs:**
+```bash
+# Use PBMC 3k dataset
+python -m manylatents.dogma.main data=pbmc_3k
+
+# Use embryoid body dataset
+python -m manylatents.dogma.main data=embryoid_body
+```
+
 #### PLINK-based Genetics Datasets
 - **PlinkDataset**: Base class for loading PLINK format genetics data
 - **HGDP+1KGP**: Human Genome Diversity Project + 1000 Genomes Project
@@ -160,6 +198,41 @@ experiment.run()
 ```
 
 ### Configuration with Hydra
+
+#### Data Paths
+The project uses a centralized paths configuration (`configs/paths/default.yaml`) to manage data locations:
+
+```yaml
+# Default paths - can be overridden via environment variables
+data_dir: ${oc.env:MANYLATENTS_DATA_DIR,/network/scratch/c/cesar.valdez/manylatents-omics/data}
+cache_dir: ${oc.env:MANYLATENTS_CACHE_DIR,/network/scratch/c/cesar.valdez/manylatents-omics/cache}
+output_dir: ${oc.env:MANYLATENTS_OUTPUT_DIR,/network/scratch/c/cesar.valdez/manylatents-omics/outputs}
+```
+
+**Directory Structure:**
+```
+${paths.data_dir}/
+├── single_cell/          # Single-cell datasets (scRNA, scATAC, etc.)
+│   ├── pbmc_3k.h5ad
+│   ├── pbmc_10k.h5ad
+│   ├── pbmc_68k.h5ad
+│   └── EBT_counts.h5ad
+├── HGDP+1KGP/           # Population genetics datasets
+│   └── genotypes/
+└── ...
+```
+
+**Overriding paths:**
+```bash
+# Via environment variables
+export MANYLATENTS_DATA_DIR=/custom/data/path
+python -m manylatents.dogma.main data=pbmc_3k
+
+# Via command line
+python -m manylatents.dogma.main data=pbmc_3k paths.data_dir=/custom/data/path
+```
+
+#### Dataset Configurations
 
 ```yaml
 # configs/data/hgdp.yaml

@@ -19,12 +19,14 @@ keywords = [
 dependencies = [
     "httpx>=0.28.1",
     "manylatents",
+    "ninja>=1.13.0",
     "pandas-plink>=2.2.9",
 ]
 
 [project.optional-dependencies]
 singlecell = [
     "anndata>=0.11.3",
+    "python-igraph>=1.0.0",
     "scanpy>=1.11.5",
 ]
 # Foundation model encoders
@@ -55,6 +57,11 @@ managed = true
 # CUDA packages need torch available at build time
 no-build-isolation-package = ["mamba_ssm", "transformer_engine", "flash_attn"]
 
+[tool.uv.extra-build-dependencies]
+mamba_ssm = [{ requirement = "torch", match-runtime = true }]
+transformer_engine = [{ requirement = "torch", match-runtime = true }]
+flash_attn = [{ requirement = "torch", match-runtime = true }]
+
 [tool.uv.sources]
 manylatents = { git = "ssh://git@github.com/latent-reasoning-works/manylatents.git" }
 archetypes = { git = "https://github.com/aleixalcacer/archetypes.git" }
@@ -75,7 +82,7 @@ requires-dist = ["numpy>=1.25"]
 
 [[tool.uv.dependency-metadata]]
 name = "archetypes"
-version = "0.6.2"
+version = "0.11.1"
 requires-dist = ["scipy>=1.8,<1.15"]
 
 [[tool.uv.dependency-metadata]]
@@ -84,17 +91,4 @@ version = "0.1.0"
 requires-dist = ["torch>=2.4.1,<3.0.0", "scipy>=1.13.0,<1.15"]
 
 # CUDA packages that need torch at build time
-[[tool.uv.dependency-metadata]]
-name = "mamba_ssm"
-version = "2.3.0"
-requires-sdist = ["torch"]
-
-[[tool.uv.dependency-metadata]]
-name = "transformer_engine"
-version = "2.2.0"
-requires-sdist = ["torch"]
-
-[[tool.uv.dependency-metadata]]
-name = "flash_attn"
-version = "2.7.4"
-requires-sdist = ["torch"]
+# Note: Build dependencies are now specified in [tool.uv.extra-build-dependencies]

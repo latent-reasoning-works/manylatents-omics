@@ -2,8 +2,8 @@ defaults:
   - default
 
 _target_: manylatents.popgen.data.anndata.AnnDataModule
-adata_path: ${paths.data_dir}/single_cell/EBT_counts.h5ad
-label_key: sample_labels
+adata_path: ${paths.data_dir}/single_cell/pbmc_10k.h5ad
+label_key: null  # Set to a metadata field if you have labels; null for unsupervised learning
 layer: null
 use_raw: false
 mode: full

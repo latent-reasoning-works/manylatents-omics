@@ -1,0 +1,10 @@
+# Default paths for data and outputs
+#
+# The paths can be overridden via:
+# 1. Environment variables (MANYLATENTS_DATA_DIR, MANYLATENTS_CACHE_DIR, MANYLATENTS_OUTPUT_DIR)
+# 2. Command line: paths.data_dir=/custom/path
+# 3. Custom paths config: paths=cluster
+
+data_dir: ${oc.env:MANYLATENTS_DATA_DIR,/network/scratch/c/cesar.valdez/manylatents-omics/data}
+cache_dir: ${oc.env:MANYLATENTS_CACHE_DIR,/network/scratch/c/cesar.valdez/manylatents-omics/cache}
+output_dir: ${oc.env:MANYLATENTS_OUTPUT_DIR,/network/scratch/c/cesar.valdez/manylatents-omics/outputs}
