@@ -2,8 +2,16 @@
 """
 Download and prepare 10X Genomics PBMC datasets.
 
-This script downloads PBMC datasets (3k, 10k, or 68k cells) and converts them
-to .h5ad format for use with the manylatents AnnData infrastructure.
+This script downloads PBMC datasets and converts them to .h5ad format for use
+with the manylatents AnnData infrastructure.
+
+Available datasets:
+  - 3k:  ~3,000 cells (full dataset)
+  - 10k: ~10,000 cells (requires manual download from 10X Genomics)
+  - 68k: ~700 cells (reduced/subsampled version, good for quick testing)
+
+Note: The "68k" dataset is a pre-processed reduced version with only 700 cells.
+      For the full 68,000-cell dataset, see manual download instructions below.
 
 Usage:
     python scripts/download_pbmc.py --dataset 3k --output-dir data/single_cell
@@ -28,7 +36,7 @@ DATASET_INFO = {
     },
     "68k": {
         "function": sc.datasets.pbmc68k_reduced,
-        "description": "PBMC 68k dataset (~68,000 cells, reduced for memory efficiency)",
+        "description": "PBMC 68k reduced dataset (~700 cells, subsampled from 68k for quick testing)",
         "filename": "pbmc_68k.h5ad",
     },
 }
@@ -133,6 +141,20 @@ def main():
     logger.info("\n" + "="*60)
     logger.info("Done! Downloaded datasets are ready to use with AnnDataModule.")
     logger.info(f"Location: {args.output_dir}")
+    logger.info("="*60)
+
+    # Add note about full PBMC 68k
+    logger.info("\n" + "="*60)
+    logger.info("NOTE: Full PBMC 68k Dataset")
+    logger.info("="*60)
+    logger.info("The downloaded 68k dataset is a reduced version with ~700 cells.")
+    logger.info("For the full 68,000-cell dataset:")
+    logger.info("  1. Download from: https://www.10xgenomics.com/datasets/fresh-68-k-pbm-cs-donor-a-1-standard-1-1-0")
+    logger.info("  2. Extract filtered_gene_bc_matrices_h5.h5")
+    logger.info("  3. Convert to h5ad:")
+    logger.info("       import scanpy as sc")
+    logger.info("       adata = sc.read_10x_h5('filtered_gene_bc_matrices_h5.h5')")
+    logger.info("       adata.write_h5ad('data/single_cell/pbmc_68k_full.h5ad')")
     logger.info("="*60)
 
 

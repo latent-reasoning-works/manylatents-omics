@@ -11,7 +11,7 @@ This repository extends the manyLatents dimensionality reduction framework with 
 | Module | Domain | Data Types | Key Datasets |
 |--------|--------|------------|--------------|
 | **`manylatents.popgen`** | Population genetics | PLINK-based genotype data | HGDP, AOU, UKBB, MHI |
-| **`manylatents.singlecell`** | Single-cell omics | AnnData (.h5ad) | PBMC (3k/10k/68k), Embryoid Body |
+| **`manylatents.singlecell`** | Single-cell omics | AnnData (.h5ad) | PBMC (3k/10k/68k-reduced), Embryoid Body |
 | **`manylatents.dogma`** | Central dogma sequences | FASTA/DNA/RNA/Protein | GFP, synthetic sequences |
 
 **Design Principle**: Separation by biological domain and data format.
@@ -54,8 +54,9 @@ python -m manylatents.main data=hgdp algorithm=umap
 
 **Available Datasets**:
 - **PBMC 3k** - ~3,000 cells, testing/rapid prototyping
-- **PBMC 10k** - ~10,000 cells, medium-scale experiments
-- **PBMC 68k** - ~68,000 cells, large-scale benchmarking
+- **PBMC 10k** - ~10,000 cells, medium-scale experiments (requires manual download)
+- **PBMC 68k (reduced)** - ~700 cells, subsampled version for quick testing/parsing
+  - Note: This is a pre-processed reduced dataset from scanpy. For the full 68k-cell dataset, see README.md.
 - **Embryoid Body** - Developmental time series with cell type labels
 
 **Key Components**:

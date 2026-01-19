@@ -74,11 +74,12 @@ uv sync --extra dogma    # All foundation encoders
 - **PBMC (Peripheral Blood Mononuclear Cells)**: 10X Genomics datasets
   - PBMC 3k: ~3,000 cells, ideal for testing and rapid prototyping
     - Config: `configs/data/pbmc_3k.yaml`
-  - PBMC 10k: ~10,000 cells, medium-scale dataset
+  - PBMC 10k: ~10,000 cells, medium-scale dataset (requires manual download)
     - Config: `configs/data/pbmc_10k.yaml`
-  - PBMC 68k: ~68,000 cells, large-scale comprehensive dataset
+  - PBMC 68k (reduced): ~700 cells, subsampled version for quick testing/parsing
     - Config: `configs/data/pbmc_68k.yaml`
-  - Label key: `leiden` (clustering results) or `null` for unsupervised learning
+    - Note: This is a pre-processed reduced dataset. For the full 68k-cell dataset, see instructions below.
+  - Label key: `bulk_labels` (cell types), `louvain` (clustering), or `null` for unsupervised learning
 
 **Downloading PBMC Data:**
 ```bash
@@ -97,6 +98,31 @@ python -m manylatents.dogma.main data=pbmc_3k
 # Use embryoid body dataset
 python -m manylatents.dogma.main data=embryoid_body
 ```
+
+**Full PBMC 68k Dataset:**
+
+The scanpy version is a reduced dataset with only 700 cells. For the full 68,000-cell dataset:
+
+1. Download from 10X Genomics:
+   ```bash
+   wget https://cf.10xgenomics.com/samples/cell-exp/1.1.0/fresh_68k_pbmc_donor_a/fresh_68k_pbmc_donor_a_filtered_gene_bc_matrices_h5.h5
+   ```
+
+2. Convert to h5ad format:
+   ```python
+   import scanpy as sc
+   adata = sc.read_10x_h5('fresh_68k_pbmc_donor_a_filtered_gene_bc_matrices_h5.h5')
+   adata.write_h5ad('data/single_cell/pbmc_68k_full.h5ad')
+   ```
+
+3. Create a config file `configs/data/pbmc_68k_full.yaml`:
+   ```yaml
+   _target_: manylatents.singlecell.data.anndata.AnnDataModule
+   adata_path: ${paths.data_dir}/single_cell/pbmc_68k_full.h5ad
+   label_key: null
+   batch_size: 64
+   test_split: 0.2
+   ```
 
 #### PLINK-based Genetics Datasets
 - **PlinkDataset**: Base class for loading PLINK format genetics data
