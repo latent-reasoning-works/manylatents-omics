@@ -1,7 +1,7 @@
 defaults:
   - default
 
-_target_: manylatents.popgen.data.anndata.AnnDataModule
+_target_: manylatents.singlecell.data.anndata.AnnDataModule
 adata_path: ${paths.data_dir}/single_cell/pbmc_68k.h5ad
 label_key: null  # Set to a metadata field if you have labels; null for unsupervised learning
 layer: null

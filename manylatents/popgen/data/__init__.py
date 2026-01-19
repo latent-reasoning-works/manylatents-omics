@@ -1,4 +1,4 @@
-"""Genetics, genomics, and single-cell omics datasets."""
+"""Population genetics datasets."""
 
 from .plink_dataset import PlinkDataset
 from .precomputed_mixin import PrecomputedMixin
@@ -10,8 +10,6 @@ from .ukbb_dataset import UKBBDataset
 from .ukbb import UKBBDataModule
 from .mhi_dataset import MHIDataset
 from .mhi import MHIDataModule
-from .anndata_dataset import AnnDataset
-from .anndata import AnnDataModule
 
 __all__ = [
     # Core
@@ -26,7 +24,4 @@ __all__ = [
     "UKBBDataModule",
     "MHIDataset",
     "MHIDataModule",
-    # Single-cell (AnnData-based)
-    "AnnDataset",
-    "AnnDataModule",
 ]
