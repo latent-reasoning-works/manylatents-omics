@@ -13,6 +13,13 @@ def test_omics_package_import():
 
 def test_data_module_imports():
     """Test that all data classes can be imported."""
+    # New manifold-genetics interface
+    from manylatents.popgen.data import (
+        ManifoldGeneticsDataset,
+        ManifoldGeneticsDataModule,
+    )
+    
+    # Legacy PLINK-based datasets
     from manylatents.popgen.data import (
         PlinkDataset,
         PrecomputedMixin,
@@ -26,7 +33,11 @@ def test_data_module_imports():
         MHIDataModule,
     )
     
-    # Verify they're all defined
+    # Verify new interface is defined
+    assert ManifoldGeneticsDataset is not None
+    assert ManifoldGeneticsDataModule is not None
+    
+    # Verify legacy classes are still defined
     assert PlinkDataset is not None
     assert PrecomputedMixin is not None
     assert HGDPDataset is not None

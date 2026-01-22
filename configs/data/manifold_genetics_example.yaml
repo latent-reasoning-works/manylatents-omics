@@ -1,0 +1,59 @@
+# Example configuration for ManifoldGeneticsDataModule
+# 
+# This config demonstrates how to use the new dataset-agnostic interface
+# that consumes manifold-genetics standardized outputs.
+#
+# Expected manifold-genetics directory structure:
+#   ${paths.data_dir}/hgdp/manifold_genetics/
+#   ├── pca/
+#   │   ├── fit_pca_50.csv       # PCA for training samples
+#   │   └── transform_pca_50.csv # PCA for test samples
+#   ├── admixture/
+#   │   ├── fit.K5.csv           # Admixture K=5 for training
+#   │   ├── transform.K5.csv     # Admixture K=5 for test
+#   │   ├── fit.K7.csv           # Admixture K=7 for training
+#   │   └── transform.K7.csv     # Admixture K=7 for test
+#   ├── labels.csv               # Sample metadata with sample_id column
+#   └── colormap.json            # Label-to-color mapping for visualization
+#
+# All CSVs must have a 'sample_id' column for alignment.
+
+defaults:
+  - default
+
+_target_: manylatents.popgen.data.ManifoldGeneticsDataModule
+
+# DataLoader settings
+batch_size: 128
+num_workers: 4
+mode: split  # 'split' for train/test separation, 'full' for same data
+shuffle_traindata: true
+
+# PCA paths (fit = train, transform = test)
+fit_pca_path: ${paths.data_dir}/hgdp/manifold_genetics/pca/fit_pca_50.csv
+transform_pca_path: ${paths.data_dir}/hgdp/manifold_genetics/pca/transform_pca_50.csv
+
+# Admixture paths (optional - can specify multiple K values)
+fit_admixture_paths:
+  5: ${paths.data_dir}/hgdp/manifold_genetics/admixture/fit.K5.csv
+  7: ${paths.data_dir}/hgdp/manifold_genetics/admixture/fit.K7.csv
+transform_admixture_paths:
+  5: ${paths.data_dir}/hgdp/manifold_genetics/admixture/transform.K5.csv
+  7: ${paths.data_dir}/hgdp/manifold_genetics/admixture/transform.K7.csv
+
+# Optional: Custom embeddings (e.g., from neural network encoder)
+# fit_embedding_path: ${paths.data_dir}/hgdp/manifold_genetics/embeddings/fit_embedding.csv
+# transform_embedding_path: ${paths.data_dir}/hgdp/manifold_genetics/embeddings/transform_embedding.csv
+
+# Labels and visualization
+labels_path: ${paths.data_dir}/hgdp/manifold_genetics/labels.csv
+colormap_path: ${paths.data_dir}/hgdp/manifold_genetics/colormap.json
+label_column: Population  # Column name in labels.csv to use for coloring
+
+# Notes:
+# - No filter_qc, filter_related, remove_recent_migration, etc.
+#   All filtering is done upstream by manifold-genetics
+# - This config works for ANY biobank (HGDP, AOU, UKBB, MHI, etc.)
+#   Just change the paths to point to different manifold-genetics outputs
+# - To add a new cohort, run manifold-genetics pipeline and update paths
+#   No Python code changes needed!

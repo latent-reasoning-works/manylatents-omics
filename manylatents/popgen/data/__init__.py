@@ -1,5 +1,10 @@
 """Population genetics datasets."""
 
+# New manifold-genetics based interface (recommended)
+from .manifold_genetics_dataset import ManifoldGeneticsDataset
+from .manifold_genetics import ManifoldGeneticsDataModule
+
+# Legacy PLINK-based datasets (deprecated - use ManifoldGeneticsDataset instead)
 from .plink_dataset import PlinkDataset
 from .precomputed_mixin import PrecomputedMixin
 from .hgdp_dataset import HGDPDataset
@@ -12,10 +17,12 @@ from .mhi_dataset import MHIDataset
 from .mhi import MHIDataModule
 
 __all__ = [
-    # Core
+    # New interface (manifold-genetics based)
+    "ManifoldGeneticsDataset",
+    "ManifoldGeneticsDataModule",
+    # Legacy (PLINK-based) - deprecated
     "PlinkDataset",
     "PrecomputedMixin",
-    # Genomics (PLINK-based)
     "HGDPDataset",
     "HGDPDataModule",
     "AOUDataset",
