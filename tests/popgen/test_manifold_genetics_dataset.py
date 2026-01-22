@@ -24,12 +24,12 @@ def temp_manifold_dir():
         # Create sample IDs
         sample_ids = [f"sample_{i:03d}" for i in range(100)]
         
-        # Create PCA CSV
+        # Create PCA CSV with correct column names (dim_1, dim_2, etc.)
         pca_data = {
             'sample_id': sample_ids,
-            'PC1': np.random.randn(100),
-            'PC2': np.random.randn(100),
-            'PC3': np.random.randn(100),
+            'dim_1': np.random.randn(100),
+            'dim_2': np.random.randn(100),
+            'dim_3': np.random.randn(100),
         }
         pca_df = pd.DataFrame(pca_data)
         pca_path = tmpdir / "pca.csv"
@@ -186,11 +186,11 @@ def test_dataset_latitude_longitude_properties(temp_manifold_dir):
 
 def test_dataset_missing_sample_id_column(temp_manifold_dir):
     """Test error handling when sample_id column is missing."""
-    # Create a CSV without sample_id
+    # Create a CSV without sample_id (using dim_1, dim_2 for consistency)
     bad_pca_path = temp_manifold_dir['dir'] / "bad_pca.csv"
     bad_pca_df = pd.DataFrame({
-        'PC1': np.random.randn(10),
-        'PC2': np.random.randn(10),
+        'dim_1': np.random.randn(10),
+        'dim_2': np.random.randn(10),
     })
     bad_pca_df.to_csv(bad_pca_path, index=False)
     
@@ -218,13 +218,13 @@ def test_dataset_missing_label_column(temp_manifold_dir):
 
 def test_dataset_partial_sample_overlap(temp_manifold_dir):
     """Test behavior when only some samples overlap between data sources."""
-    # Create PCA with different sample IDs
+    # Create PCA with different sample IDs (using dim_1, dim_2 columns)
     partial_pca_path = temp_manifold_dir['dir'] / "partial_pca.csv"
     partial_sample_ids = [f"sample_{i:03d}" for i in range(50, 150)]  # 50-149
     partial_pca_df = pd.DataFrame({
         'sample_id': partial_sample_ids,
-        'PC1': np.random.randn(100),
-        'PC2': np.random.randn(100),
+        'dim_1': np.random.randn(100),
+        'dim_2': np.random.randn(100),
     })
     partial_pca_df.to_csv(partial_pca_path, index=False)
     

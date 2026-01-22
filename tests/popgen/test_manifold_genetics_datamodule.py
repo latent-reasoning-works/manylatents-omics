@@ -22,12 +22,12 @@ def temp_manifold_split_data():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         
-        # Training samples (fit)
+        # Training samples (fit) - use dim_1, dim_2 column names
         fit_sample_ids = [f"train_{i:03d}" for i in range(80)]
         fit_pca_data = {
             'sample_id': fit_sample_ids,
-            'PC1': np.random.randn(80),
-            'PC2': np.random.randn(80),
+            'dim_1': np.random.randn(80),
+            'dim_2': np.random.randn(80),
         }
         fit_pca_path = tmpdir / "fit_pca.csv"
         pd.DataFrame(fit_pca_data).to_csv(fit_pca_path, index=False)
@@ -41,12 +41,12 @@ def temp_manifold_split_data():
         fit_admix_path = tmpdir / "fit.K3.csv"
         pd.DataFrame(fit_admix_data).to_csv(fit_admix_path, index=False)
         
-        # Test samples (transform)
+        # Test samples (transform) - use dim_1, dim_2 column names
         transform_sample_ids = [f"test_{i:03d}" for i in range(20)]
         transform_pca_data = {
             'sample_id': transform_sample_ids,
-            'PC1': np.random.randn(20),
-            'PC2': np.random.randn(20),
+            'dim_1': np.random.randn(20),
+            'dim_2': np.random.randn(20),
         }
         transform_pca_path = tmpdir / "transform_pca.csv"
         pd.DataFrame(transform_pca_data).to_csv(transform_pca_path, index=False)

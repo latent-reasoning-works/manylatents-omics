@@ -6,8 +6,8 @@
 # Expected manifold-genetics directory structure:
 #   ${paths.data_dir}/hgdp/manifold_genetics/
 #   ├── pca/
-#   │   ├── fit_pca_50.csv       # PCA for training samples
-#   │   └── transform_pca_50.csv # PCA for test samples
+#   │   ├── fit_pca_50.csv       # PCA for training samples (columns: sample_id, dim_1, dim_2, ..., dim_50)
+#   │   └── transform_pca_50.csv # PCA for test samples (columns: sample_id, dim_1, dim_2, ..., dim_50)
 #   ├── admixture/
 #   │   ├── fit.K5.csv           # Admixture K=5 for training
 #   │   ├── transform.K5.csv     # Admixture K=5 for test
@@ -17,6 +17,7 @@
 #   └── colormap.json            # Label-to-color mapping for visualization
 #
 # All CSVs must have a 'sample_id' column for alignment.
+# PCA columns are named: dim_1, dim_2, dim_3, ... dim_n
 
 defaults:
   - default

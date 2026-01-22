@@ -58,10 +58,10 @@ class ManifoldGeneticsDataset(Dataset):
         
     CSV Format Requirements:
         - All CSVs must have a 'sample_id' column for joining
-        - PCA CSV: sample_id, PC1, PC2, ..., PCn
-        - Admixture CSV: sample_id, Ancestry1, Ancestry2, ..., AncestryK
+        - PCA CSV: sample_id, dim_1, dim_2, ..., dim_n
+        - Admixture CSV: sample_id, Ancestry1, Ancestry2, ..., AncestryK (or numbered columns)
         - Labels CSV: sample_id, <label_column>, [other metadata columns]
-        - Embeddings CSV: sample_id, Dim1, Dim2, ..., Dimn
+        - Embeddings CSV: sample_id, dim_1, dim_2, ..., dim_n (or custom column names)
     """
     
     def __init__(
@@ -94,14 +94,16 @@ class ManifoldGeneticsDataset(Dataset):
         """Load and merge all data sources by sample_id."""
         dfs_to_merge = []
         
-        # Load PCA
+        # Load PCA (columns: sample_id, dim_1, dim_2, ..., dim_n)
         if self.pca_path:
             logger.info(f"Loading PCA from {self.pca_path}")
             pca_df = pd.read_csv(self.pca_path)
             if 'sample_id' not in pca_df.columns:
                 raise ValueError(f"PCA CSV must contain 'sample_id' column. Found: {pca_df.columns.tolist()}")
             dfs_to_merge.append(pca_df)
-            logger.info(f"Loaded {len(pca_df)} samples with {len(pca_df.columns)-1} PCA components")
+            # Count dimensions (columns that start with 'dim_' or all columns except sample_id)
+            dim_cols = [c for c in pca_df.columns if c.startswith('dim_') or (c != 'sample_id' and c not in ['latitude', 'longitude'])]
+            logger.info(f"Loaded {len(pca_df)} samples with {len(dim_cols)} PCA dimensions (columns: dim_1, dim_2, ...)")
         
         # Load Admixture
         if self.admixture_paths:
