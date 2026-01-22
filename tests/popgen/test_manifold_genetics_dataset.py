@@ -35,12 +35,12 @@ def temp_manifold_dir():
         pca_path = tmpdir / "pca.csv"
         pca_df.to_csv(pca_path, index=False)
         
-        # Create Admixture CSVs for K=3 and K=5
+        # Create Admixture CSVs for K=3 and K=5 (use component_i format)
         admix_k3_data = {
             'sample_id': sample_ids,
-            'Ancestry1': np.random.dirichlet([1, 1, 1], 100)[:, 0],
-            'Ancestry2': np.random.dirichlet([1, 1, 1], 100)[:, 1],
-            'Ancestry3': np.random.dirichlet([1, 1, 1], 100)[:, 2],
+            'component_1': np.random.dirichlet([1, 1, 1], 100)[:, 0],
+            'component_2': np.random.dirichlet([1, 1, 1], 100)[:, 1],
+            'component_3': np.random.dirichlet([1, 1, 1], 100)[:, 2],
         }
         admix_k3_df = pd.DataFrame(admix_k3_data)
         admix_k3_path = tmpdir / "admix_k3.csv"
@@ -48,7 +48,7 @@ def temp_manifold_dir():
         
         admix_k5_data = {
             'sample_id': sample_ids,
-            **{f'Ancestry{i}': np.random.dirichlet([1]*5, 100)[:, i-1] for i in range(1, 6)}
+            **{f'component_{i}': np.random.dirichlet([1]*5, 100)[:, i-1] for i in range(1, 6)}
         }
         admix_k5_df = pd.DataFrame(admix_k5_data)
         admix_k5_path = tmpdir / "admix_k5.csv"
@@ -58,6 +58,7 @@ def temp_manifold_dir():
         labels_data = {
             'sample_id': sample_ids,
             'Population': [f'Pop{i % 5}' for i in range(100)],
+            'Genetic_region': [f'Region{i % 3}' for i in range(100)],
             'latitude': np.random.uniform(-90, 90, 100),
             'longitude': np.random.uniform(-180, 180, 100),
         }
@@ -65,13 +66,20 @@ def temp_manifold_dir():
         labels_path = tmpdir / "labels.csv"
         labels_df.to_csv(labels_path, index=False)
         
-        # Create colormap JSON
+        # Create colormap JSON (nested by label type)
         colormap = {
-            'Pop0': '#FF0000',
-            'Pop1': '#00FF00',
-            'Pop2': '#0000FF',
-            'Pop3': '#FFFF00',
-            'Pop4': '#FF00FF',
+            'Population': {
+                'Pop0': '#FF0000',
+                'Pop1': '#00FF00',
+                'Pop2': '#0000FF',
+                'Pop3': '#FFFF00',
+                'Pop4': '#FF00FF',
+            },
+            'Genetic_region': {
+                'Region0': '#FF6B6B',
+                'Region1': '#4ECDC4',
+                'Region2': '#95E1D3',
+            }
         }
         colormap_path = tmpdir / "colormap.json"
         with open(colormap_path, 'w') as f:
@@ -143,18 +151,33 @@ def test_dataset_init_with_labels(temp_manifold_dir):
 
 
 def test_dataset_with_colormap(temp_manifold_dir):
-    """Test loading dataset with colormap."""
+    """Test loading dataset with nested colormap."""
     dataset = ManifoldGeneticsDataset(
         pca_path=temp_manifold_dir['pca_path'],
         labels_path=temp_manifold_dir['labels_path'],
         colormap_path=temp_manifold_dir['colormap_path'],
+        label_column='Population',
     )
     
     colormap = dataset.get_colormap()
     assert colormap is not None
-    assert len(colormap) == 5
+    assert len(colormap) == 5  # 5 populations
     assert 'Pop0' in colormap
     assert colormap['Pop0'] == '#FF0000'
+    
+    # Test with different label column
+    dataset2 = ManifoldGeneticsDataset(
+        pca_path=temp_manifold_dir['pca_path'],
+        labels_path=temp_manifold_dir['labels_path'],
+        colormap_path=temp_manifold_dir['colormap_path'],
+        label_column='Genetic_region',
+    )
+    
+    colormap2 = dataset2.get_colormap()
+    assert colormap2 is not None
+    assert len(colormap2) == 3  # 3 regions
+    assert 'Region0' in colormap2
+    assert colormap2['Region0'] == '#FF6B6B'
 
 
 def test_dataset_sample_id_alignment(temp_manifold_dir):

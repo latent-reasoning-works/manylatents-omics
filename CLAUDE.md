@@ -170,10 +170,32 @@ All CSVs must have a `sample_id` column for alignment.
 **CSV Format Requirements**:
 - **PCA CSV**: `sample_id, dim_1, dim_2, ..., dim_n`
   - Example: `HG00096,0.07330787,0.212584,-0.01297431,...`
-- **Admixture CSV**: `sample_id, Ancestry1, Ancestry2, ..., AncestryK` (or numbered columns)
-- **Labels CSV**: `sample_id, <label_column>, [latitude, longitude, other metadata]`
+- **Admixture CSV**: `sample_id, component_1, component_2, ..., component_K`
+  - Components sum to 1.0 per sample
+  - Example: `HGDP00001,0.9996,0.0004`
+- **Labels CSV**: `sample_id, <label_column>, [other label columns], [latitude, longitude]`
+  - Example:
+    ```
+    sample_id,Population,Genetic_region,latitude,longitude
+    HGDP00001,Yoruba,Africa,6.5244,3.3792
+    HGDP00002,Yoruba,Africa,6.5244,3.3792
+    HGDP00003,Han,EastAsia,39.9042,116.4074
+    ```
 - **Embeddings CSV**: `sample_id, dim_1, dim_2, ..., dim_n` (or custom column names)
-- **colormap.json**: `{"label1": "#FF0000", "label2": "#00FF00", ...}`
+- **Colormap JSON**: Nested dict by label type:
+  ```json
+  {
+    "Population": {
+      "Yoruba": "#FF0000",
+      "Han": "#00FF00"
+    },
+    "Genetic_region": {
+      "Africa": "#FF6B6B",
+      "EastAsia": "#4ECDC4"
+    }
+  }
+  ```
+  Each label type (Population, Genetic_region) maps to a dict of label values to hex colors.
 
 ### Migration Example
 

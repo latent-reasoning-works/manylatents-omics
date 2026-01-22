@@ -18,6 +18,7 @@
 #
 # All CSVs must have a 'sample_id' column for alignment.
 # PCA columns are named: dim_1, dim_2, dim_3, ... dim_n
+# Admixture columns are named: component_1, component_2, ... component_K (sum to 1.0)
 
 defaults:
   - default

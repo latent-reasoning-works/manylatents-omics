@@ -59,9 +59,14 @@ class ManifoldGeneticsDataset(Dataset):
     CSV Format Requirements:
         - All CSVs must have a 'sample_id' column for joining
         - PCA CSV: sample_id, dim_1, dim_2, ..., dim_n
-        - Admixture CSV: sample_id, Ancestry1, Ancestry2, ..., AncestryK (or numbered columns)
-        - Labels CSV: sample_id, <label_column>, [other metadata columns]
+        - Admixture CSV: sample_id, component_1, component_2, ..., component_K
+        - Labels CSV: sample_id, <label_column>, [other label columns], [latitude, longitude]
         - Embeddings CSV: sample_id, dim_1, dim_2, ..., dim_n (or custom column names)
+        - Colormap JSON: Nested dict by label type, e.g.:
+          {
+            "Population": {"Yoruba": "#FF0000", "Han": "#00FF00"},
+            "Genetic_region": {"Africa": "#FF6B6B", "EastAsia": "#4ECDC4"}
+          }
     """
     
     def __init__(
@@ -153,12 +158,17 @@ class ManifoldGeneticsDataset(Dataset):
             self.data_df = self.data_df.merge(self.labels_df, on='sample_id', how='inner')
             logger.info(f"After merging labels: {len(self.data_df)} samples with labels")
         
-        # Load colormap
+        # Load colormap (nested by label type)
         if self.colormap_path:
             logger.info(f"Loading colormap from {self.colormap_path}")
             with open(self.colormap_path, 'r') as f:
                 self.colormap = json.load(f)
-            logger.info(f"Loaded colormap with {len(self.colormap)} entries")
+            if isinstance(self.colormap, dict):
+                # Count total unique colors across all label types
+                total_colors = sum(len(v) if isinstance(v, dict) else 0 for v in self.colormap.values())
+                logger.info(f"Loaded colormap with {len(self.colormap)} label types, {total_colors} total colors")
+            else:
+                logger.warning(f"Colormap is not a dict, got {type(self.colormap)}")
         
         # Extract sample IDs
         self.sample_ids = self.data_df['sample_id'].values
@@ -223,7 +233,24 @@ class ManifoldGeneticsDataset(Dataset):
         return self.sample_ids
     
     def get_colormap(self) -> Optional[Dict[str, str]]:
-        """Get colormap for visualization."""
+        """
+        Get colormap for visualization.
+        
+        If colormap is nested by label type (e.g., {"Population": {...}, "Genetic_region": {...}}),
+        returns the colormap for the current label_column.
+        Otherwise returns the full colormap.
+        
+        Returns:
+            Dict mapping label values to colors, or None if no colormap loaded
+        """
+        if self.colormap is None:
+            return None
+        
+        # If colormap is nested by label type, extract the relevant one
+        if isinstance(self.colormap, dict) and self.label_column in self.colormap:
+            return self.colormap[self.label_column]
+        
+        # Otherwise return full colormap (backward compatibility)
         return self.colormap
     
     @property
