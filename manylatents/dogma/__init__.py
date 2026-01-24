@@ -27,6 +27,24 @@ Example:
 
 __version__ = "0.1.0"
 
+# Auto-register Hydra SearchPathPlugin when dogma is imported
+# This ensures omics configs are available regardless of how the package is installed
+# (editable, git, wheel). Hydra's namespace-based plugin discovery doesn't work reliably
+# for editable installs from another project.
+def _register_hydra_plugin():
+    """Register OmicsSearchPathPlugin with Hydra if not already registered."""
+    from hydra.core.plugins import Plugins
+    from hydra.plugins.search_path_plugin import SearchPathPlugin
+    from manylatents.omics_plugin import OmicsSearchPathPlugin
+
+    plugins = Plugins.instance()
+    # Check if already registered (avoid duplicate registration)
+    existing = list(plugins.discover(SearchPathPlugin))
+    if OmicsSearchPathPlugin not in existing:
+        plugins.register(OmicsSearchPathPlugin)
+
+_register_hydra_plugin()
+
 # Direct submodule imports - required for Hydra's instantiate/get_class to work correctly
 # The lazy __getattr__ pattern causes "maximum recursion depth exceeded" with Hydra
 from . import encoders

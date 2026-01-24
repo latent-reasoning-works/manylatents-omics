@@ -23,6 +23,27 @@ This repository extends the manyLatents dimensionality reduction framework with 
 
 ---
 
+## Entry Point
+
+**Always use the omics entry point** to ensure Hydra discovers omics configs:
+
+```bash
+# Load CUDA on HPC clusters first
+module load anaconda/3 cuda/12.4.1
+
+# Run experiments
+python -m manylatents.omics.main --config-name=config experiment=single_algorithm
+python -m manylatents.omics.main --config-name=config experiment=central_dogma_fusion
+```
+
+**Why `manylatents.omics.main` instead of `manylatents.main`?**
+
+The omics entry point registers `OmicsSearchPathPlugin` before Hydra initializes, making dogma/popgen/singlecell configs available on the search path. The standard `manylatents.main` doesn't know about omics configs.
+
+See `docs/README.md` for detailed installation and usage guide.
+
+---
+
 ## Repository Architecture
 
 ### Three-Module Structure
@@ -60,7 +81,7 @@ This repository extends the manyLatents dimensionality reduction framework with 
 **Example Usage**:
 ```bash
 # HGDP experiment
-python -m manylatents.main data=hgdp algorithm=umap
+python -m manylatents.omics.main --config-name=config experiment=single_algorithm data=hgdp algorithms/latent=umap
 ```
 
 ---
@@ -87,10 +108,10 @@ python -m manylatents.main data=hgdp algorithm=umap
 **Example Usage**:
 ```bash
 # PBMC unsupervised learning
-python -m manylatents.main data=pbmc_10k algorithm=phate
+python -m manylatents.omics.main --config-name=config experiment=single_algorithm data=pbmc_10k algorithms/latent=phate
 
 # Embryoid body with labels
-python -m manylatents.main data=embryoid_body algorithm=umap
+python -m manylatents.omics.main --config-name=config experiment=single_algorithm data=embryoid_body algorithms/latent=umap
 ```
 
 **Config Structure**:
@@ -220,10 +241,10 @@ Use Hydra's composition to combine data, algorithm, and cluster configs:
 
 ```bash
 # Local testing
-python -m manylatents.main data=pbmc_3k algorithm=umap
+python -m manylatents.omics.main data=pbmc_3k algorithm=umap
 
 # Cluster submission (via Shop)
-python -m manylatents.main -m \
+python -m manylatents.omics.main -m \
   cluster=mila_remote \
   resources=gpu \
   data=pbmc_68k \
@@ -240,12 +261,12 @@ from manylatents.popgen.data import HGDPDataModule, PlinkDataset
 
 **Config Tests**: Verify Hydra can parse configs
 ```bash
-python -m manylatents.main --cfg job data=pbmc_10k
+python -m manylatents.omics.main --cfg job data=pbmc_10k
 ```
 
 **E2E Tests**: Run with minimal resources
 ```bash
-python -m manylatents.main data=pbmc_3k cluster=local resources=test
+python -m manylatents.omics.main data=pbmc_3k cluster=local resources=test
 ```
 
 ---
@@ -258,7 +279,7 @@ python -m manylatents.main data=pbmc_3k cluster=local resources=test
 Use shop's Hydra launcher for all sweep jobs:
 
 ```bash
-uv run python -m manylatents.main -m \
+uv run python -m manylatents.omics.main -m \
   cluster=mila_remote \
   resources=gpu \
   data=pbmc_68k \
@@ -345,10 +366,10 @@ Set `MANYLATENTS_DATA_DIR` environment variable to override default location.
 python scripts/download_pbmc.py
 
 # Run UMAP on PBMC 10k
-python -m manylatents.main data=pbmc_10k algorithm=umap
+python -m manylatents.omics.main data=pbmc_10k algorithm=umap
 
 # Cluster sweep with multiple algorithms
-python -m manylatents.main -m \
+python -m manylatents.omics.main -m \
   cluster=mila_remote \
   resources=gpu \
   data=pbmc_68k \
@@ -359,10 +380,10 @@ python -m manylatents.main -m \
 
 ```bash
 # HGDP analysis
-python -m manylatents.main data=hgdp algorithm=pca
+python -m manylatents.omics.main data=hgdp algorithm=pca
 
 # Sweep across datasets
-python -m manylatents.main -m \
+python -m manylatents.omics.main -m \
   cluster=mila_remote \
   resources=cpu_high_mem \
   data=hgdp,aou,ukbb \
@@ -391,7 +412,7 @@ All three encoders work in the same environment - no separate setup needed.
 sbatch scripts/run_e2e_test.sh
 
 # Or via Hydra
-python -m manylatents.main --config-name=config experiment=central_dogma_fusion
+python -m manylatents.omics.main --config-name=config experiment=central_dogma_fusion
 ```
 
 **Encoders** (all mamba-ssm 2.x compatible):
@@ -426,13 +447,13 @@ This downloads variant_summary from NCBI FTP and fetches sequences from Ensembl 
 
 ```bash
 # Local (requires L40S/H100)
-python -m manylatents.main --config-name=config experiment=clinvar/encode_dna
+python -m manylatents.omics.main --config-name=config experiment=clinvar/encode_dna
 
 # Limit variants for testing
-python -m manylatents.main --config-name=config experiment=clinvar/encode_dna data.max_variants=100
+python -m manylatents.omics.main --config-name=config experiment=clinvar/encode_dna data.max_variants=100
 
 # Cluster submission
-python -m manylatents.main --config-name=config experiment=clinvar/encode_dna \
+python -m manylatents.omics.main --config-name=config experiment=clinvar/encode_dna \
   cluster=mila_remote resources=gpu
 ```
 
@@ -441,10 +462,10 @@ Output: `${paths.output_dir}/embeddings/clinvar/evo2.pt`
 #### Step 2: Encode Protein with ESM3
 
 ```bash
-python -m manylatents.main --config-name=config experiment=clinvar/encode_protein
+python -m manylatents.omics.main --config-name=config experiment=clinvar/encode_protein
 
 # Cluster submission (can run in parallel with DNA)
-python -m manylatents.main --config-name=config experiment=clinvar/encode_protein \
+python -m manylatents.omics.main --config-name=config experiment=clinvar/encode_protein \
   cluster=mila_remote resources=gpu
 ```
 
@@ -454,10 +475,10 @@ Output: `${paths.output_dir}/embeddings/clinvar/esm3.pt`
 
 ```bash
 # Fuse embeddings and compute PR, LID, TSA metrics
-python -m manylatents.main --config-name=config experiment=clinvar/geometric_analysis
+python -m manylatents.omics.main --config-name=config experiment=clinvar/geometric_analysis
 
 # With weighted fusion
-python -m manylatents.main --config-name=config experiment=clinvar/geometric_analysis \
+python -m manylatents.omics.main --config-name=config experiment=clinvar/geometric_analysis \
   algorithms.latent.strategy=weighted_sum \
   'algorithms.latent.weights={evo2: 0.5, esm3: 0.5}'
 ```

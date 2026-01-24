@@ -8,25 +8,24 @@ Genetics and genomics extension for [manylatents](https://github.com/latent-reas
 
 ## Installation
 
-First add the core manylatents package:
+### Quick Start (Development Install)
+
 ```bash
-uv add git+https://github.com/latent-reasoning-works/manylatents.git
+git clone https://github.com/latent-reasoning-works/manylatents-omics.git
+cd manylatents-omics
+uv sync  # Pulls manylatents from git automatically
 ```
 
-Then add manylatents-omics:
+### As a Dependency
+
+From another project:
+
 ```bash
 uv add git+https://github.com/latent-reasoning-works/manylatents-omics.git
-```
-
-Or add both together:
-```bash
-uv add git+https://github.com/latent-reasoning-works/manylatents.git git+https://github.com/latent-reasoning-works/manylatents-omics.git
-```
-
-Finally, install all packages locally using `sync`.
-```bash
 uv sync
 ```
+
+**Note**: Use git URL install, not editable install (`-e`). Editable installs from another project have Hydra plugin discovery issues.
 
 ### Foundation Model Encoders (Optional)
 
@@ -92,11 +91,14 @@ python scripts/download_pbmc.py --dataset 3k --output-dir /path/to/data/single_c
 
 **Using with Hydra configs:**
 ```bash
+# Load CUDA on HPC clusters first
+module load anaconda/3 cuda/12.4.1
+
 # Use PBMC 3k dataset
-python -m manylatents.dogma.main data=pbmc_3k
+python -m manylatents.omics.main --config-name=config experiment=single_algorithm data=pbmc_3k
 
 # Use embryoid body dataset
-python -m manylatents.dogma.main data=embryoid_body
+python -m manylatents.omics.main --config-name=config experiment=single_algorithm data=embryoid_body
 ```
 
 **Full PBMC 68k Dataset:**
@@ -252,10 +254,10 @@ ${paths.data_dir}/
 ```bash
 # Via environment variables
 export MANYLATENTS_DATA_DIR=/custom/data/path
-python -m manylatents.dogma.main data=pbmc_3k
+python -m manylatents.omics.main --config-name=config experiment=single_algorithm data=pbmc_3k
 
 # Via command line
-python -m manylatents.dogma.main data=pbmc_3k paths.data_dir=/custom/data/path
+python -m manylatents.omics.main --config-name=config experiment=single_algorithm data=pbmc_3k paths.data_dir=/custom/data/path
 ```
 
 #### Dataset Configurations

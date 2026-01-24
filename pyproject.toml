@@ -49,6 +49,9 @@ dogma = [
     "flash-attn>=2.0",  # Needs CUDA_HOME at build time
 ]
 
+[project.entry-points."hydra.searchpath"]
+manylatents-omics = "manylatents.omics_plugin:OmicsSearchPathPlugin"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -57,7 +60,7 @@ build-backend = "hatchling.build"
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["manylatents", "hydra_plugins"]
+packages = ["manylatents"]
 
 [tool.uv]
 managed = true
