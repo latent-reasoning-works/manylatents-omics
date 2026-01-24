@@ -1,0 +1,49 @@
+# Central Dogma Encoder Experiments - Main Config
+#
+# Usage:
+#   python -m manylatents.dogma.main +encoder=esm3
+#   python -m manylatents.dogma.main +encoder=orthrus
+#   python -m manylatents.dogma.main +encoder=evo2
+#
+# With experiment preset:
+#   python -m manylatents.dogma.main +experiment=central_dogma_test +encoder=esm3
+#
+# Sweep all encoders:
+#   python -m manylatents.dogma.main -m '+encoder=esm3,orthrus,evo2'
+#
+# With cluster:
+#   python -m manylatents.dogma.main -m cluster=mila_remote resources=gpu '+encoder=esm3,orthrus,evo2'
+
+defaults:
+  - _self_
+  - paths: default
+  - data: sequence_synthetic
+  - optional experiment: null
+  - optional cluster: null
+  - optional resources: null
+
+# Encoder config (required via +encoder=esm3/orthrus/evo2)
+encoder: ???
+
+# Project settings
+project: central-dogma-encoders
+name: encoder_test
+
+# Runtime
+seed: 42
+debug: false
+
+# Logger (WandB)
+logger:
+  _target_: wandb.init
+  project: ${project}
+  name: ${name}
+  mode: online
+
+# Hydra output directory
+hydra:
+  run:
+    dir: outputs/${name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: outputs/${name}/sweeps/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}

@@ -1,0 +1,46 @@
+# Central Dogma Fusion Experiment
+#
+# Encodes sequences using all 3 central dogma foundation models (Evo2, Orthrus, ESM3)
+# and concatenates the embeddings.
+#
+# Output: Embeddings of shape (batch, 3840) = DNA(2048) + RNA(256) + Protein(1536)
+#
+# Usage:
+#   # Primary: Use experiment config (preferred)
+#   python -m manylatents.main +experiment=central_dogma_fusion
+#
+#   # Override preset sequence
+#   python -m manylatents.main +experiment=central_dogma_fusion data.preset=synthetic_8aa
+#
+#   # Override preset to BRCA1 (pathogenic variant hotspot)
+#   python -m manylatents.main +experiment=central_dogma_fusion data.preset=brca1
+#
+#   # With normalization
+#   python -m manylatents.main +experiment=central_dogma_fusion algorithms.latent.normalize=true
+#
+#   # Config inspection (dry run)
+#   python -m manylatents.main --cfg job +experiment=central_dogma_fusion
+#
+#   # Cluster submission
+#   python -m manylatents.main -m \
+#     +experiment=central_dogma_fusion \
+#     cluster=mila_remote \
+#     resources=gpu \
+#     'data.preset=synthetic_8aa,gfp,brca1'
+
+# @package _global_
+
+defaults:
+  - override /data: sequence_central_dogma
+  - override /algorithms/latent: central_dogma_fusion
+
+# Project settings
+name: central_dogma_fusion
+project: central-dogma-encoders
+
+# Runtime
+seed: 42
+debug: false
+
+# Eval only - no training needed for foundation encoders
+eval_only: true

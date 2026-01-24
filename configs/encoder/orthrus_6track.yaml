@@ -1,0 +1,12 @@
+# Orthrus RNA Encoder (6-track)
+# Model: orthrus_large_6_track
+
+_target_: manylatents.dogma.encoders.OrthrusEncoder
+n_tracks: 6
+run_path: null  # Uses default path
+checkpoint: null  # Uses default checkpoint
+device: cuda
+
+# Metadata for config composition
+modality: rna
+embedding_dim: 512

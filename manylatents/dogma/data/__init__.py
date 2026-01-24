@@ -3,6 +3,7 @@
 Includes:
     - SequenceDataset: Base dataset for biological sequences
     - SequenceDataModule: LightningDataModule for sequence encoding
+    - CentralDogmaDataModule: DataModule for aligned DNA/RNA/Protein sequences
     - TEST_SEQUENCES: Preset test sequences for validation
 
 Future home for:
@@ -16,9 +17,15 @@ from .sequence_dataset import (
     SequenceDataModule,
     TEST_SEQUENCES,
 )
+from .central_dogma_dataset import (
+    CentralDogmaDataModule,
+    CentralDogmaDataset,
+)
 
 __all__ = [
     "SequenceDataset",
     "SequenceDataModule",
+    "CentralDogmaDataModule",
+    "CentralDogmaDataset",
     "TEST_SEQUENCES",
 ]

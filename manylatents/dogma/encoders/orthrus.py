@@ -83,6 +83,15 @@ class OrthrusEncoder(FoundationEncoder):
 
         import sys
 
+        # Compatibility shim: mamba-ssm 2.x moved Block to mamba_ssm.modules.block
+        # Orthrus expects it in mamba_ssm.modules.mamba_simple
+        try:
+            from mamba_ssm.modules.mamba_simple import Block
+        except ImportError:
+            from mamba_ssm.modules.block import Block
+            import mamba_ssm.modules.mamba_simple as mamba_simple
+            mamba_simple.Block = Block
+
         # Add Orthrus to path for imports
         orthrus_path = "/network/weights/orthrus/Orthrus"
         if orthrus_path not in sys.path:

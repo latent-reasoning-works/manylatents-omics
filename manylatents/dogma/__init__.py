@@ -19,10 +19,16 @@ Example:
     >>> protein_emb = ESM3Encoder().encode("MKFGVRA")
     >>> rna_emb = OrthrusEncoder().encode("AUGAAGUUUGGCGUCCGUGCCUGA")
     >>> dna_emb = Evo2Encoder().encode("ATGAAGTTTGGCGTCCGTGCCTGA")
+
+    >>> # Fusion: concatenate all three modalities
+    >>> from manylatents.dogma.algorithms import CentralDogmaFusion
+    >>> from manylatents.dogma.data import CentralDogmaDataModule
 """
 
 from . import encoders
+from . import algorithms
+from . import data
 
 __version__ = "0.1.0"
 
-__all__ = ["encoders"]
+__all__ = ["encoders", "algorithms", "data"]

@@ -1,3 +1,22 @@
+<!-- OPENSPEC:START -->
+# OpenSpec Instructions
+
+These instructions are for AI assistants working in this project.
+
+Always open `@/openspec/AGENTS.md` when the request:
+- Mentions planning or proposals (words like proposal, spec, change, plan)
+- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
+- Sounds ambiguous and you need the authoritative spec before coding
+
+Use `@/openspec/AGENTS.md` to learn:
+- How to create and apply change proposals
+- Spec format and conventions
+- Project structure and guidelines
+
+Keep this managed block so 'openspec update' can refresh the instructions.
+
+<!-- OPENSPEC:END -->
+
 # Manylatents-Omics - Multi-Omics Datasets and Foundation Model Encoders
 
 This repository extends the manyLatents dimensionality reduction framework with specialized datasets and encoders for omics data, including population genetics, single-cell omics, and central dogma sequences (DNA/RNA/Protein).
@@ -118,8 +137,26 @@ python -m manylatents.dogma.encode encoder=evo2 data=sequence_synthetic
 
 **GPU Requirements**:
 - **ESM3**: 16GB+ VRAM (batch_size=8)
-- **Evo2**: 24GB+ VRAM (long sequences)
+- **Evo2**: 24GB+ VRAM (long sequences), Ampere+ GPU (A100/L40S/H100) for FP8
 - **Orthrus**: 8GB+ VRAM (efficient Mamba architecture)
+
+**Installation** (requires wheelnext uv for prebuilt CUDA wheels):
+```bash
+# 1. Install wheelnext uv (one-time, replaces standard uv)
+curl -LsSf https://astral.sh/uv/install.sh | INSTALLER_DOWNLOAD_URL=https://wheelnext.astral.sh sh
+
+# 2. Lock and sync dogma extras (use unsafe-best-match for cross-index resolution)
+uv lock --index-strategy unsafe-best-match
+uv sync --extra dogma --index-strategy unsafe-best-match
+
+# 3. Verify imports (requires CUDA module on login nodes)
+module load cuda/12.4.1
+uv run python -c "import evo2, orthrus, esm; print('All encoders OK')"
+```
+
+**Why wheelnext?** Standard uv/pip can't find prebuilt wheels for transformer-engine-torch and mamba-ssm (they're on conda-forge, not PyPI). Wheelnext uv supports [wheel variants](https://astral.sh/blog/wheel-variants) which auto-detect GPU and select CUDA-compatible wheels.
+
+**Why `--index-strategy unsafe-best-match`?** torch 2.7.x is on PyPI, but the wheelnext PyTorch index only has 2.8.0. This flag allows uv to consider all indexes for version resolution.
 
 ---
 

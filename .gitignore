@@ -13,3 +13,12 @@ build/
 htmlcov/
 uv.lock
 .ipynb_checkpoints
+
+# Runtime artifacts
+logs/
+outputs/
+/data/
+*.log
+
+# Claude Code state
+.claude/

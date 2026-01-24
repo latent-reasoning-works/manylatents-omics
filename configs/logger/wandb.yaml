@@ -1,0 +1,10 @@
+# WandB logger configuration
+
+logger:
+  _target_: wandb.init
+  project: ${project}
+  name: ${name}
+  config: null  # Set programmatically
+  mode: online
+  tags:
+    - central-dogma

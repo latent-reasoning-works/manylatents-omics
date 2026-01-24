@@ -1,0 +1,10 @@
+# ESM3 Protein Encoder
+# Model: esm3-sm-open-v1 (1.4B params)
+
+_target_: manylatents.dogma.encoders.ESM3Encoder
+weights_path: null  # Uses HuggingFace by default
+device: cuda
+
+# Metadata for config composition
+modality: protein
+embedding_dim: 1536

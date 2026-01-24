@@ -1,0 +1,11 @@
+# @package _global_
+
+# Large GPU resources for bigger models (Evo2-7B, Orthrus-6track)
+
+hydra:
+  launcher:
+    cpus_per_task: 8
+    gpus_per_task: 1
+    mem: "64G"
+    time_limit: "04:00:00"
+    array_parallelism: 8
