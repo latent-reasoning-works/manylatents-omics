@@ -1,0 +1,28 @@
+# ClinVar Precomputed Embeddings DataModule
+#
+# Loads consolidated embeddings from HDF5 file for geometric analysis.
+# Use this after running the encoding experiments:
+#   1. python -m manylatents.main +experiment=clinvar/encode_dna
+#   2. python -m manylatents.main +experiment=clinvar/encode_protein
+#   3. python -m manylatents.main +experiment=clinvar/geometric_analysis
+#
+# The HDF5 file contains:
+#   /variant_ids: str[]
+#   /labels: int[] (0=benign, 1=pathogenic)
+#   /dna/evo2: float32[N, 2048]
+#   /rna/orthrus: float32[N, 256]
+#   /protein/esm3: float32[N, 1536]
+#   /fused: float32[N, 3840]
+#
+# Usage:
+#   python -m manylatents.main data=clinvar_precomputed +experiment=clinvar/geometric_analysis
+
+_target_: manylatents.dogma.data.ClinVarDataModule
+data_dir: ${paths.data_dir}/clinvar
+genes: null
+pathogenicity: all
+max_variants: null
+batch_size: 32
+
+# Path to precomputed embeddings (set by geometric_analysis experiment)
+precomputed_embeddings: ${paths.output_dir}/clinvar_unified.h5

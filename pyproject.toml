@@ -25,24 +25,26 @@ dependencies = [
 
 [project.optional-dependencies]
 singlecell = ["anndata>=0.11.3", "python-igraph>=1.0.0", "scanpy>=1.11.5"]
-# Foundation model encoders (ESM3, Evo2, Orthrus)
+# Foundation model encoders (ESM3, Evo2)
 # Installation requires:
 #   1. Wheelnext uv for prebuilt CUDA wheels (mamba-ssm, transformer-engine-torch):
 #      curl -LsSf https://astral.sh/uv/install.sh | INSTALLER_DOWNLOAD_URL=https://wheelnext.astral.sh sh
 #   2. Lock with: uv lock --index-strategy unsafe-best-match
 #   3. Sync with: uv sync --extra dogma --index-strategy unsafe-best-match
 #   4. For imports on login nodes: module load cuda/12.4.1 (SLURM GPU nodes have CUDA automatically)
+#
+# Note: Orthrus (RNA encoder) requires mamba-ssm 1.x which conflicts with Evo2's mamba-ssm 2.x.
+# Orthrus embeddings are precomputed using tools/orthrus-embed/ and loaded from cache.
+# See CLAUDE.md "Central Dogma Fusion" section for workflow.
 esm = ["esm>=3.0"]
 evo2 = ["evo2"]
-orthrus = ["orthrus", "mamba-ssm>=2.0"]
 dogma = [
     "torch>=2.7,<2.8",  # Pin for transformer-engine-torch ABI compatibility
     "torchvision>=0.22,<0.23",  # Must match torch version
     "nvidia-cudnn-cu12>=9.5",  # Needs actual runtime libs
     "esm>=3.0",
     "evo2",
-    "orthrus",
-    "mamba-ssm>=2.0",
+    "mamba-ssm>=2.0",  # Required by Evo2
     "transformer-engine-torch>=2.0",  # Required by vortex (evo2's backend)
     "flash-attn>=2.0",  # Needs CUDA_HOME at build time
 ]

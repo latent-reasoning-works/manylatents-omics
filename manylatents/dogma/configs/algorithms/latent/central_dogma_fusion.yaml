@@ -24,12 +24,13 @@ evo2_config:
   layer_name: null  # Uses default middle layer
   device: cuda
 
-# Orthrus RNA encoder configuration (4-track base model)
+# Orthrus RNA encoder configuration (loads precomputed embeddings)
+# Due to mamba-ssm version conflict, Orthrus embeddings must be precomputed.
+# See tools/orthrus-embed/README.md for instructions.
 orthrus_config:
   _target_: manylatents.dogma.encoders.OrthrusEncoder
-  n_tracks: 4
-  run_path: null  # Uses default path
-  checkpoint: null  # Uses default checkpoint
+  cache_dir: /network/scratch/c/cesar.valdez/embeddings/orthrus
+  embedding_dim: 256  # 4-track model
   device: cuda
 
 # ESM3 Protein encoder configuration

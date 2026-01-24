@@ -1,0 +1,21 @@
+# ClinVar Variant Sequences DataModule
+#
+# Loads preprocessed ClinVar variants with DNA, RNA, and Protein sequences.
+# Run scripts/download_clinvar.py first to download and preprocess data.
+#
+# Usage:
+#   python -m manylatents.main data=clinvar +experiment=clinvar/encode_dna
+#   python -m manylatents.main data=clinvar data.genes=[BRCA1,BRCA2]
+#   python -m manylatents.main data=clinvar data.pathogenicity=pathogenic
+#
+# Filtering options:
+#   genes: List of gene symbols to filter (null = all genes)
+#   pathogenicity: 'pathogenic', 'benign', or 'all'
+#   max_variants: Maximum number of variants to load (null = all)
+
+_target_: manylatents.dogma.data.ClinVarDataModule
+data_dir: ${paths.data_dir}/clinvar
+genes: null
+pathogenicity: all
+max_variants: null
+batch_size: 32

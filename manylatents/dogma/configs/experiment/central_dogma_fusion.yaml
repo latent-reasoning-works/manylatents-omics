@@ -32,7 +32,7 @@
 
 # Project settings
 name: central_dogma_fusion
-project: central-dogma-encoders
+project: merging-dogma
 
 # Runtime
 seed: 42
@@ -58,9 +58,8 @@ algorithms:
       device: cuda
     orthrus_config:
       _target_: manylatents.dogma.encoders.OrthrusEncoder
-      n_tracks: 4
-      run_path: null
-      checkpoint: null
+      cache_dir: /network/scratch/c/cesar.valdez/embeddings/orthrus
+      embedding_dim: 256  # 4-track model
       device: cuda
     esm3_config:
       _target_: manylatents.dogma.encoders.ESM3Encoder

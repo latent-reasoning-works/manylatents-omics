@@ -1,0 +1,76 @@
+# @package _global_
+#
+# ClinVar Geometric Analysis Experiment
+#
+# Computes intrinsic dimensionality metrics (PR, LID, TSA) on foundation model
+# embeddings of ClinVar variants across DNA, RNA, and protein modalities.
+#
+# Usage:
+#   # Full analysis with default metrics
+#   python -m manylatents.main --config-name=config experiment=clinvar_geometric
+#
+#   # Custom metrics
+#   python -m manylatents.main --config-name=config experiment=clinvar_geometric \
+#       'metrics.embedding=[pr,lid,tsa,trust]'
+#
+#   # Stratified by pathogenicity
+#   python -m manylatents.main --config-name=config experiment=clinvar_geometric \
+#       data.stratify_by=label
+
+# Project settings
+name: clinvar_geometric_analysis
+project: merging-dogma
+
+# Runtime
+seed: 42
+debug: false
+
+# Data configuration - loads from consolidated HDF5
+data:
+  _target_: manylatents.dogma.data.ConsolidatedEmbeddingsDataModule
+  embeddings_path: ${paths.embeddings_dir}/clinvar_consolidated.h5
+  modalities: [dna, rna, protein]
+  stratify_by: null  # Set to "label" for pathogenic/benign stratification
+  batch_size: 256
+
+# Algorithm - identity (just loads embeddings, no transformation)
+algorithms:
+  latent:
+    _target_: manylatents.algorithms.latent.Identity
+    n_components: null  # Inferred from data
+
+# Metrics configuration
+metrics:
+  defaults:
+    - embedding:
+      - participation_ratio
+      - lid
+      - tangent_space
+      - trustworthiness
+
+  embedding:
+    participation_ratio:
+      _target_: manylatents.metrics.ParticipationRatio
+      _partial_: true
+      n_neighbors: 25
+      return_per_sample: true
+
+    lid:
+      _target_: manylatents.metrics.LocalIntrinsicDimensionality
+      _partial_: true
+      k: 20
+
+    tangent_space:
+      _target_: manylatents.metrics.TangentSpaceApproximation
+      _partial_: true
+      n_neighbors: 25
+      variance_threshold: 0.95
+      return_per_sample: true
+
+    trustworthiness:
+      _target_: manylatents.metrics.Trustworthiness
+      _partial_: true
+      n_neighbors: 25
+
+# Output
+output_dir: ${paths.results_dir}/clinvar_geometric

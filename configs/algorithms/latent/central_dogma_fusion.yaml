@@ -9,7 +9,8 @@
 #
 # GPU Requirements:
 #   - ~24GB+ VRAM to load all 3 encoders simultaneously
-#   - Recommend A100/L40S/H100 GPUs
+#   - L40S or H100 GPUs REQUIRED (Evo2 uses FP8, needs compute capability 8.9+)
+#   - RTX 8000/A100 will NOT work due to FP8 requirements
 #
 # Usage:
 #   python -m manylatents.main +experiment=central_dogma_fusion
@@ -24,12 +25,11 @@ evo2_config:
   layer_name: null  # Uses default middle layer
   device: cuda
 
-# Orthrus RNA encoder configuration (4-track base model)
+# Orthrus RNA encoder configuration (4-track base model from HuggingFace)
 orthrus_config:
   _target_: manylatents.dogma.encoders.OrthrusEncoder
   n_tracks: 4
-  run_path: null  # Uses default path
-  checkpoint: null  # Uses default checkpoint
+  model_id: null  # Uses default: quietflamingo/orthrus-base-4-track
   device: cuda
 
 # ESM3 Protein encoder configuration

@@ -382,6 +382,121 @@ python -m manylatents.dogma.encode \
   resources=gpu
 ```
 
+### Central Dogma Fusion (DNA + RNA + Protein)
+
+All three encoders work in the same environment - no separate setup needed.
+
+```bash
+# Run E2E fusion test (GPU required)
+sbatch scripts/run_e2e_test.sh
+
+# Or via Hydra
+python -m manylatents.main --config-name=config experiment=central_dogma_fusion
+```
+
+**Encoders** (all mamba-ssm 2.x compatible):
+| Encoder | Modality | Embedding Dim | HuggingFace |
+|---------|----------|---------------|-------------|
+| **Evo2Encoder** | DNA | 1920 | arcinstitute/evo2_1b_base |
+| **OrthrusEncoder** | RNA | 256 | quietflamingo/orthrus-base-4-track |
+| **ESM3Encoder** | Protein | 1536 | esm3_sm_open_v1 |
+
+**Output**: 3712-dim fused embeddings (via MergingModule concat)
+
+**Implementation Note**: OrthrusEncoder was re-implemented to use mamba-ssm 2.x Block API
+(`mamba_ssm.modules.block.Block` with `mlp_cls=nn.Identity`), eliminating the version
+conflict with Evo2 that previously required a separate environment.
+
+---
+
+### ClinVar Variant Analysis Pipeline
+
+Hydra-composed pipeline for encoding ClinVar pathogenic/benign variants and computing geometric metrics on fused embeddings.
+
+#### Prerequisites
+
+1. **Download ClinVar data** (one-time):
+```bash
+python scripts/download_clinvar.py --genes BRCA1,BRCA2 --output data/clinvar/
+```
+
+This downloads variant_summary from NCBI FTP and fetches sequences from Ensembl REST API.
+
+#### Step 1: Encode DNA with Evo2
+
+```bash
+# Local (requires L40S/H100)
+python -m manylatents.main --config-name=config experiment=clinvar/encode_dna
+
+# Limit variants for testing
+python -m manylatents.main --config-name=config experiment=clinvar/encode_dna data.max_variants=100
+
+# Cluster submission
+python -m manylatents.main --config-name=config experiment=clinvar/encode_dna \
+  cluster=mila_remote resources=gpu
+```
+
+Output: `${paths.output_dir}/embeddings/clinvar/evo2.pt`
+
+#### Step 2: Encode Protein with ESM3
+
+```bash
+python -m manylatents.main --config-name=config experiment=clinvar/encode_protein
+
+# Cluster submission (can run in parallel with DNA)
+python -m manylatents.main --config-name=config experiment=clinvar/encode_protein \
+  cluster=mila_remote resources=gpu
+```
+
+Output: `${paths.output_dir}/embeddings/clinvar/esm3.pt`
+
+#### Step 3: Geometric Analysis on Fused Embeddings
+
+```bash
+# Fuse embeddings and compute PR, LID, TSA metrics
+python -m manylatents.main --config-name=config experiment=clinvar/geometric_analysis
+
+# With weighted fusion
+python -m manylatents.main --config-name=config experiment=clinvar/geometric_analysis \
+  algorithms.latent.strategy=weighted_sum \
+  'algorithms.latent.weights={evo2: 0.5, esm3: 0.5}'
+```
+
+#### Key Components
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `ClinVarDataModule` | `manylatents.dogma.data` | Load ClinVar sequences by modality |
+| `BatchEncoder` | `manylatents.dogma.algorithms` | Encode sequence batches with foundation models |
+| `MergingModule` | `manylatents.algorithms.latent` | Fuse multi-channel embeddings (concat, weighted_sum, mean) |
+| `PrecomputedDataModule` | `manylatents.data` | Load precomputed embeddings with `channels` param |
+
+#### Experiment Configs
+
+- `experiment=clinvar/encode_dna` - Evo2 DNA encoding
+- `experiment=clinvar/encode_protein` - ESM3 protein encoding
+- `experiment=clinvar/geometric_analysis` - Fuse embeddings + compute metrics
+
+#### Multi-Channel Embedding Support
+
+The pipeline uses manylatents core's multi-channel embedding support:
+
+```python
+# Load multiple embedding channels
+dm = PrecomputedDataModule(
+    path="embeddings/clinvar/",
+    channels=["evo2", "esm3"],
+)
+dm.setup()
+embs = dm.get_embeddings()  # {"evo2": Tensor, "esm3": Tensor}
+
+# Fuse embeddings
+merger = MergingModule(strategy="concat", datamodule=dm)
+fused = merger.fit_transform(dummy)
+```
+
+See [PR #193](https://github.com/latent-reasoning-works/manylatents/pull/193) for implementation details.
+
 ---
 
 ## Issue Tracking

@@ -47,7 +47,7 @@ def test_encoder_modalities():
     # Check modality without instantiating (would require model loading)
     # These are class attributes
     assert ESM3Encoder.DEFAULT_WEIGHTS is not None
-    assert OrthrusEncoder.MODELS is not None
+    assert OrthrusEncoder.MODEL_CONFIGS is not None
     assert Evo2Encoder.MODELS is not None
 
 

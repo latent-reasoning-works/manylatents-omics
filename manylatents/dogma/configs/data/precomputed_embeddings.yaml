@@ -1,0 +1,20 @@
+# Multi-channel precomputed embeddings loader
+#
+# Loads embeddings from multiple channel files for fusion/merging.
+# Supports .pt, .npy, .csv files or directories.
+#
+# Usage:
+#   python -m manylatents.main \
+#     data=precomputed_embeddings \
+#     data.path=/path/to/embeddings \
+#     data.channels=[dna_evo2,protein_esm3]
+
+_target_: manylatents.data.PrecomputedDataModule
+path: ${paths.output_dir}/embeddings
+channels: null  # List of channel names to load
+labels_path: null  # Optional path to labels file
+batch_size: 128
+num_workers: 0
+mode: full  # 'full' or 'split'
+test_split: 0.2
+seed: 42

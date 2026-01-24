@@ -25,10 +25,12 @@ Example:
     >>> from manylatents.dogma.data import CentralDogmaDataModule
 """
 
+__version__ = "0.1.0"
+
+# Direct submodule imports - required for Hydra's instantiate/get_class to work correctly
+# The lazy __getattr__ pattern causes "maximum recursion depth exceeded" with Hydra
 from . import encoders
 from . import algorithms
 from . import data
-
-__version__ = "0.1.0"
 
 __all__ = ["encoders", "algorithms", "data"]

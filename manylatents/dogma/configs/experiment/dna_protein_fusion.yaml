@@ -1,0 +1,59 @@
+# @package _global_
+#
+# DNA + Protein Fusion Experiment
+#
+# Encodes sequences using Evo2 (DNA) and ESM3 (Protein) foundation models.
+# Skips Orthrus (RNA) due to mamba-ssm version conflict with Evo2.
+#
+# Output: Embeddings of shape (batch, 3584) = DNA(2048) + Protein(1536)
+#
+# GPU Requirements:
+#   - L40S/H100 (compute 8.9+) for Evo2 FP8 operations
+#   - ~16GB VRAM
+#
+# Usage:
+#   # Local run
+#   python -m manylatents.main --config-name=config experiment=dna_protein_fusion
+#
+#   # Override preset
+#   python -m manylatents.main --config-name=config experiment=dna_protein_fusion data.preset=brca1
+#
+#   # Cluster submission
+#   python -m manylatents.main -m --config-name=config \
+#     experiment=dna_protein_fusion \
+#     cluster=mila_remote \
+#     resources=gpu \
+#     'data.preset=gfp,brca1'
+
+# Project settings
+name: dna_protein_fusion
+project: merging-dogma
+
+# Runtime
+seed: 42
+debug: false
+
+# Data configuration
+data:
+  _target_: manylatents.dogma.data.CentralDogmaDataModule
+  preset: gfp
+  batch_size: 1
+
+# Algorithm configuration
+# orthrus_config=null skips RNA encoding
+algorithms:
+  latent:
+    _target_: manylatents.dogma.algorithms.CentralDogmaFusion
+    _recursive_: false
+    evo2_config:
+      _target_: manylatents.dogma.encoders.Evo2Encoder
+      model_name: evo2_1b_base
+      layer_name: null
+      device: cuda
+    orthrus_config: null  # Skip RNA - blocked on mamba-ssm version conflict
+    esm3_config:
+      _target_: manylatents.dogma.encoders.ESM3Encoder
+      weights_path: null
+      device: cuda
+    normalize: false
+    n_components: 3584  # DNA(2048) + Protein(1536)

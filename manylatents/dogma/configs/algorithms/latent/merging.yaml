@@ -1,0 +1,22 @@
+# MergingModule - Multi-channel embedding merger
+#
+# Merges embeddings from multiple channels using various strategies.
+# Works with PrecomputedDataModule (channels param) or in-memory embeddings.
+#
+# Strategies:
+#   - concat: Concatenate embeddings (default)
+#   - weighted_sum: L2-normalize, scale by weights, sum (requires equal dims)
+#   - mean: Average embeddings (requires equal dims)
+#
+# Usage with datamodule:
+#   python -m manylatents.main \
+#     data=precomputed_embeddings \
+#     data.channels=[dna_evo2,protein_esm3] \
+#     algorithms/latent=merging
+
+_target_: manylatents.algorithms.latent.MergingModule
+strategy: concat
+channels: null  # Use all available channels
+weights: null   # For weighted_sum: {channel: weight}
+normalize: false
+n_components: null  # Auto-computed from merged output
