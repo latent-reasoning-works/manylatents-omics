@@ -3,6 +3,8 @@
 Provides LatentModule implementations for central dogma analysis:
     - CentralDogmaFusion: Concatenate DNA, RNA, and Protein embeddings
     - BatchEncoder: Encode batches of sequences with a single encoder
+    - AutoencoderFusion: Learned bottleneck fusion via autoencoder
+    - FrobeniusAEFusion: Autoencoder with Jacobian penalty (MBYL-style)
 
 Foundation model encoders can also be used directly via inference mode:
     algorithms:
@@ -26,9 +28,29 @@ Example (batch encoding):
     ...     datamodule=clinvar_dm,
     ... )
     >>> embeddings = encoder.fit_transform(dummy_tensor)
+
+Example (learned fusion):
+    >>> from manylatents.dogma.algorithms import AutoencoderFusion
+    >>> fusion = AutoencoderFusion(
+    ...     embeddings={"dna": dna_emb, "protein": prot_emb},
+    ...     target_dim=128,
+    ... )
+    >>> fused = fusion.fit_transform(dummy)
 """
 
 from .fusion import CentralDogmaFusion, CentralDogmaEmbeddings
 from .batch_encoder import BatchEncoder
+from .learned_fusion import (
+    AutoencoderFusion,
+    FrobeniusAEFusion,
+    LearnedFusionLoadings,
+)
 
-__all__ = ["CentralDogmaFusion", "CentralDogmaEmbeddings", "BatchEncoder"]
+__all__ = [
+    "CentralDogmaFusion",
+    "CentralDogmaEmbeddings",
+    "BatchEncoder",
+    "AutoencoderFusion",
+    "FrobeniusAEFusion",
+    "LearnedFusionLoadings",
+]

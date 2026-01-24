@@ -1,0 +1,21 @@
+# @package _global_
+#
+# Fusion: Simple Concatenation
+#
+# Baseline fusion strategy - concatenate embeddings without projection.
+# Output dimension = sum of channel dimensions.
+#
+# Usage:
+#   python -m manylatents.omics.main --config-name=config experiment=fusion/concat
+
+defaults:
+  - base
+
+name: fusion_concat
+
+algorithms:
+  latent:
+    _target_: manylatents.algorithms.latent.MergingModule
+    strategy: concat
+    channels: null  # Use all available
+    normalize: false

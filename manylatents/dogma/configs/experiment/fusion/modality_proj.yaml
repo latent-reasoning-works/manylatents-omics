@@ -1,0 +1,29 @@
+# @package _global_
+#
+# Fusion: Per-Modality Projection
+#
+# Apply PCA to each channel independently to a common dimension,
+# then concatenate (or average) the projected embeddings.
+#
+# This preserves modality-specific structure while normalizing dimensions.
+#
+# Usage:
+#   python -m manylatents.omics.main --config-name=config experiment=fusion/modality_proj
+#
+#   # Use mean instead of concat
+#   python -m manylatents.omics.main --config-name=config experiment=fusion/modality_proj \
+#     algorithms.latent.proj_aggregation=mean
+
+defaults:
+  - base
+
+name: fusion_modality_proj
+
+algorithms:
+  latent:
+    _target_: manylatents.algorithms.latent.MergingModule
+    strategy: modality_proj
+    channels: null
+    normalize: false
+    target_dim: 128
+    proj_aggregation: concat  # or 'mean'
