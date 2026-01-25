@@ -1,9 +1,0 @@
-# GFP sequence dataset for encoder testing
-#
-# Green Fluorescent Protein - well-characterized test case.
-
-_target_: manylatents.dogma.data.SequenceDataModule
-preset: gfp_fragment
-modality: ${encoder.modality}  # Match encoder modality
-batch_size: 1
-mode: full

@@ -1,8 +1,0 @@
-# Foundation Encoder as LatentModule adapter
-#
-# Wraps foundation encoders (ESM3, Orthrus, Evo2) to work with manylatents pipeline.
-# The actual encoder is specified via the +encoder config group.
-
-_target_: manylatents.dogma.algorithms.EncoderAsLatentModule
-encoder_config: ${encoder}
-n_components: ${encoder.embedding_dim}

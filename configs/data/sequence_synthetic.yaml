@@ -1,9 +1,0 @@
-# Synthetic sequence dataset for encoder testing
-#
-# Provides test sequences (DNA, RNA, protein) for foundation model validation.
-
-_target_: manylatents.dogma.data.SequenceDataModule
-preset: synthetic_short
-modality: ${encoder.modality}  # Match encoder modality
-batch_size: 1
-mode: full

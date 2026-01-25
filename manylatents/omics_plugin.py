@@ -22,8 +22,10 @@ class OmicsSearchPathPlugin(SearchPathPlugin):
         Called automatically by Hydra during initialization.
 
         Search path order (first = highest priority for same-name configs):
-        1. manylatents.dogma.configs (omics dogma - prepended, highest priority)
-        2. manylatents.configs (core manylatents - appended, lower priority)
+        1. manylatents.dogma.configs (prepended, highest priority)
+        2. manylatents.configs (core manylatents)
+        3. manylatents.popgen.configs (population genetics)
+        4. manylatents.singlecell.configs (single-cell omics)
         """
         # Add core manylatents configs (required dependency, always present)
         import manylatents.configs
@@ -33,8 +35,19 @@ class OmicsSearchPathPlugin(SearchPathPlugin):
         )
 
         # Add dogma configs with higher priority (prepend)
-        # Dogma configs can override/extend core manylatents configs
         search_path.prepend(
             provider="manylatents-omics",
             path="pkg://manylatents.dogma.configs",
+        )
+
+        # Add popgen configs
+        search_path.append(
+            provider="manylatents-omics",
+            path="pkg://manylatents.popgen.configs",
+        )
+
+        # Add singlecell configs
+        search_path.append(
+            provider="manylatents-omics",
+            path="pkg://manylatents.singlecell.configs",
         )

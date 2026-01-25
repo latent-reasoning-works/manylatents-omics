@@ -22,3 +22,4 @@ outputs/
 
 # Claude Code state
 .claude/
+wandb/
