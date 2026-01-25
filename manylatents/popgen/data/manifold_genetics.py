@@ -88,11 +88,12 @@ class ManifoldGeneticsDataModule(LightningDataModule):
         fit_embedding_path: Optional[str] = None,
         transform_embedding_path: Optional[str] = None,
         label_column: str = "Population",
+        geographic_labels_path: Optional[str] = None,
         mode: str = "split",
         shuffle_traindata: bool = True,
     ):
         super().__init__()
-        
+
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.fit_pca_path = fit_pca_path
@@ -104,9 +105,10 @@ class ManifoldGeneticsDataModule(LightningDataModule):
         self.fit_embedding_path = fit_embedding_path
         self.transform_embedding_path = transform_embedding_path
         self.label_column = label_column
+        self.geographic_labels_path = geographic_labels_path
         self.mode = mode
         self.shuffle_traindata = shuffle_traindata
-        
+
         # Datasets will be created in setup()
         self.train_dataset = None
         self.test_dataset = None
@@ -136,8 +138,9 @@ class ManifoldGeneticsDataModule(LightningDataModule):
                 colormap_path=self.colormap_path,
                 embedding_path=self.fit_embedding_path,
                 label_column=self.label_column,
+                geographic_labels_path=self.geographic_labels_path,
             )
-            
+
             # Test dataset from transform outputs
             logger.info("Creating test dataset from transform outputs")
             self.test_dataset = ManifoldGeneticsDataset(
@@ -147,14 +150,15 @@ class ManifoldGeneticsDataModule(LightningDataModule):
                 colormap_path=self.colormap_path,
                 embedding_path=self.transform_embedding_path,
                 label_column=self.label_column,
+                geographic_labels_path=self.geographic_labels_path,
             )
-            
+
         elif self.mode == "full":
             # Use transform data (or fit if transform not available) for both train and test
             pca_path = self.transform_pca_path or self.fit_pca_path
             admixture_paths = self.transform_admixture_paths or self.fit_admixture_paths
             embedding_path = self.transform_embedding_path or self.fit_embedding_path
-            
+
             logger.info("Creating full dataset (same data for train and test)")
             self.train_dataset = ManifoldGeneticsDataset(
                 pca_path=pca_path,
@@ -163,6 +167,7 @@ class ManifoldGeneticsDataModule(LightningDataModule):
                 colormap_path=self.colormap_path,
                 embedding_path=embedding_path,
                 label_column=self.label_column,
+                geographic_labels_path=self.geographic_labels_path,
             )
             self.test_dataset = self.train_dataset
             
