@@ -118,7 +118,7 @@ python -m manylatents.omics.main --config-name=config experiment=single_algorith
 ```yaml
 # configs/data/pbmc_10k.yaml
 _target_: manylatents.singlecell.data.anndata.AnnDataModule
-adata_path: ${paths.data_dir}/single_cell/pbmc_10k.h5ad
+adata_path: ${data_dir}/single_cell/pbmc_10k.h5ad
 label_key: null  # or 'cell_type', 'sample_labels', etc.
 layer: null      # or 'raw_counts', 'normalized', etc.
 use_raw: false
@@ -222,7 +222,7 @@ uv run python -c "import evo2, orthrus, esm; print('All encoders OK')"
 2. Create config in `configs/data/your_dataset.yaml`:
    ```yaml
    _target_: manylatents.singlecell.data.anndata.AnnDataModule
-   adata_path: ${paths.data_dir}/single_cell/your_data.h5ad
+   adata_path: ${data_dir}/single_cell/your_data.h5ad
    label_key: cell_type  # or null for unsupervised
    ```
 3. No new Python code needed - `AnnDataModule` is generic
@@ -232,7 +232,7 @@ uv run python -c "import evo2, orthrus, esm; print('All encoders OK')"
 2. Create config referencing appropriate encoder:
    ```yaml
    _target_: manylatents.dogma.data.SequenceDataModule
-   sequence_file: ${paths.data_dir}/sequences/your_seqs.fasta
+   sequence_file: ${data_dir}/sequences/your_seqs.fasta
    ```
 
 ### Config Composition Patterns
@@ -334,10 +334,18 @@ Copy from `../shop/shop/hydra/config_templates/` to your configs:
 
 ## Data Directory Structure
 
-Centralized paths configuration (see `configs/paths/default.yaml`):
+Path configuration uses top-level keys in the structured config (`data_dir`, `output_dir`). Override via CLI:
+
+```bash
+# Override data directory
+python -m manylatents.omics.main data=pbmc_3k data_dir=/custom/data/path
+
+# Override output directory
+python -m manylatents.omics.main data=pbmc_3k output_dir=/custom/output/path
+```
 
 ```
-${MANYLATENTS_DATA_DIR}/  # Default: ./data/
+${data_dir}/  # Default: ./data/
 ├── single_cell/
 │   ├── pbmc_3k.h5ad
 │   ├── pbmc_10k.h5ad
@@ -352,8 +360,6 @@ ${MANYLATENTS_DATA_DIR}/  # Default: ./data/
     ├── gfp.fasta
     └── synthetic.csv
 ```
-
-Set `MANYLATENTS_DATA_DIR` environment variable to override default location.
 
 ---
 
@@ -457,7 +463,7 @@ python -m manylatents.omics.main --config-name=config experiment=clinvar/encode_
   cluster=mila_remote resources=gpu
 ```
 
-Output: `${paths.output_dir}/embeddings/clinvar/evo2.pt`
+Output: `${output_dir}/embeddings/clinvar/evo2.pt`
 
 #### Step 2: Encode Protein with ESM3
 
@@ -469,7 +475,7 @@ python -m manylatents.omics.main --config-name=config experiment=clinvar/encode_
   cluster=mila_remote resources=gpu
 ```
 
-Output: `${paths.output_dir}/embeddings/clinvar/esm3.pt`
+Output: `${output_dir}/embeddings/clinvar/esm3.pt`
 
 #### Step 3: Geometric Analysis on Fused Embeddings
 

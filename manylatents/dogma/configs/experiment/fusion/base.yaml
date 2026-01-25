@@ -25,11 +25,11 @@ eval_only: true
 # Data: precomputed embeddings with labels
 data:
   _target_: manylatents.data.PrecomputedDataModule
-  path: ${paths.output_dir}/embeddings/clinvar
+  path: ${output_dir}/embeddings/clinvar
   channels:
     - evo2       # DNA embeddings
     - esm3       # Protein embeddings
-  labels_path: ${paths.output_dir}/embeddings/clinvar/labels.pt
+  labels_path: ${output_dir}/embeddings/clinvar/labels.pt
   batch_size: 128
   num_workers: 0
   mode: full
@@ -59,7 +59,7 @@ callbacks:
   embedding:
     save:
       _target_: manylatents.callbacks.embedding.SaveEmbeddings
-      save_dir: ${paths.output_dir}/fusion
+      save_dir: ${output_dir}/fusion
       experiment_name: ${name}
       save_format: npy
       use_timestamp: true

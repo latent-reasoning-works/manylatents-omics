@@ -14,7 +14,7 @@
 #   max_variants: Maximum number of variants to load (null = all)
 
 _target_: manylatents.dogma.data.ClinVarDataModule
-data_dir: ${paths.data_dir}/clinvar
+data_dir: ${data_dir}/clinvar
 genes: null
 pathogenicity: all
 max_variants: null

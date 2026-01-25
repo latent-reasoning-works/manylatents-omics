@@ -28,7 +28,7 @@ debug: false
 # Data configuration - loads from consolidated HDF5
 data:
   _target_: manylatents.dogma.data.ConsolidatedEmbeddingsDataModule
-  embeddings_path: ${paths.embeddings_dir}/clinvar_consolidated.h5
+  embeddings_path: ${output_dir}/embeddings/clinvar_consolidated.h5
   modalities: [dna, rna, protein]
   stratify_by: null  # Set to "label" for pathogenic/benign stratification
   batch_size: 256
@@ -73,4 +73,4 @@ metrics:
       n_neighbors: 25
 
 # Output
-output_dir: ${paths.results_dir}/clinvar_geometric
+output_dir: ${output_dir}/results/clinvar_geometric

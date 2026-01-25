@@ -3,7 +3,7 @@
 # ClinVar RNA Encoding Experiment
 #
 # Encodes ClinVar variant RNA sequences using Orthrus foundation model.
-# Outputs embeddings to ${paths.output_dir}/embeddings/clinvar/orthrus.pt
+# Outputs embeddings to ${output_dir}/embeddings/clinvar/orthrus.pt
 #
 # Usage:
 #   # Local
@@ -33,7 +33,7 @@ eval_only: true
 # Data configuration (inlined to avoid cross-provider defaults resolution)
 data:
   _target_: manylatents.dogma.data.ClinVarDataModule
-  data_dir: ${paths.data_dir}/clinvar
+  data_dir: ${data_dir}/clinvar
   genes: null
   pathogenicity: all
   max_variants: null
@@ -49,7 +49,7 @@ algorithms:
     batch_size: 16
     normalize: false
     n_components: 256
-    save_path: ${paths.output_dir}/embeddings/clinvar/orthrus.pt
+    save_path: ${output_dir}/embeddings/clinvar/orthrus.pt
     encoder_config:
       _target_: manylatents.dogma.encoders.OrthrusEncoder
       model_name: quietflamingo/orthrus-base-4-track

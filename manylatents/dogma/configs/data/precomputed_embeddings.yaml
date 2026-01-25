@@ -10,7 +10,7 @@
 #     data.channels=[dna_evo2,protein_esm3]
 
 _target_: manylatents.data.PrecomputedDataModule
-path: ${paths.output_dir}/embeddings
+path: ${output_dir}/embeddings
 channels: null  # List of channel names to load
 labels_path: null  # Optional path to labels file
 batch_size: 128

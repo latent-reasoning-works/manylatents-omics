@@ -37,11 +37,11 @@ eval_only: true
 # Loads precomputed embeddings from multiple channels
 data:
   _target_: manylatents.data.PrecomputedDataModule
-  path: ${paths.output_dir}/embeddings/clinvar
+  path: ${output_dir}/embeddings/clinvar
   channels:
     - evo2       # DNA embeddings from Evo2
     - esm3       # Protein embeddings from ESM3
-  labels_path: ${paths.output_dir}/embeddings/clinvar/labels.pt
+  labels_path: ${output_dir}/embeddings/clinvar/labels.pt
   batch_size: 128
   num_workers: 0
   mode: full

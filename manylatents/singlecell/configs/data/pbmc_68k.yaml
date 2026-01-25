@@ -5,7 +5,7 @@ defaults:
 # This is a pre-processed reduced version from scanpy for quick testing/parsing.
 # For the full 68,000-cell dataset, see README.md for download instructions.
 _target_: manylatents.singlecell.data.anndata.AnnDataModule
-adata_path: ${paths.data_dir}/single_cell/pbmc_68k.h5ad
+adata_path: ${data_dir}/single_cell/pbmc_68k.h5ad
 label_key: null  # Available: 'bulk_labels' (cell types), 'louvain' (clustering), or null for unsupervised
 layer: null
 use_raw: false

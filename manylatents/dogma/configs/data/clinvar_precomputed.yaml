@@ -18,11 +18,11 @@
 #   python -m manylatents.main data=clinvar_precomputed +experiment=clinvar/geometric_analysis
 
 _target_: manylatents.dogma.data.ClinVarDataModule
-data_dir: ${paths.data_dir}/clinvar
+data_dir: ${data_dir}/clinvar
 genes: null
 pathogenicity: all
 max_variants: null
 batch_size: 32
 
 # Path to precomputed embeddings (set by geometric_analysis experiment)
-precomputed_embeddings: ${paths.output_dir}/clinvar_unified.h5
+precomputed_embeddings: ${output_dir}/clinvar_unified.h5
