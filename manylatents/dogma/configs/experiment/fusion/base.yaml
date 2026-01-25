@@ -54,7 +54,7 @@ metrics:
       n_neighbors: [5, 10, 25, 50, 100]
       return_per_sample: true
 
-# Callbacks for saving and downstream evaluation
+# Callbacks for saving
 callbacks:
   embedding:
     save:
@@ -64,10 +64,3 @@ callbacks:
       save_format: npy
       use_timestamp: true
       save_metric_tables: true
-    probe:
-      _target_: manylatents.callbacks.embedding.LinearProbeCallback
-      embedding_key: embeddings
-      probes: [logistic, mlp]
-      cv_folds: 5
-      metrics: [accuracy, auroc, auprc]
-      scale_features: true
