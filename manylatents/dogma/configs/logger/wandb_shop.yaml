@@ -1,0 +1,20 @@
+# @package _global_
+#
+# WandB Logger Configuration (Shop-integrated)
+#
+# This config avoids the "config: null" field that causes conflicts with
+# manylatents' experiment.py which passes config= programmatically.
+#
+# Usage:
+#   python -m manylatents.main --config-name=config experiment=central_dogma_fusion logger=wandb_shop
+#
+
+logger:
+  _target_: wandb.init
+  project: ${project}
+  name: ${name}
+  config: null  # Set programmatically by experiment.py
+  mode: online
+  tags:
+    - central-dogma
+    - foundation-model

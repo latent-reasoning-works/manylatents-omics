@@ -1,0 +1,69 @@
+# @package _global_
+#
+# Central Dogma Fusion Experiment
+#
+# Encodes sequences using all 3 central dogma foundation models (Evo2, Orthrus, ESM3)
+# and concatenates the embeddings.
+#
+# Output: Embeddings of shape (batch, 3840) = DNA(2048) + RNA(256) + Protein(1536)
+#
+# Usage:
+#   # Primary: Use experiment config (preferred)
+#   python -m manylatents.main --config-name=config experiment=central_dogma_fusion
+#
+#   # Override preset sequence
+#   python -m manylatents.main --config-name=config experiment=central_dogma_fusion data.preset=synthetic_8aa
+#
+#   # Override preset to BRCA1 (pathogenic variant hotspot)
+#   python -m manylatents.main --config-name=config experiment=central_dogma_fusion data.preset=brca1
+#
+#   # With normalization
+#   python -m manylatents.main --config-name=config experiment=central_dogma_fusion algorithms.latent.normalize=true
+#
+#   # Config inspection (dry run)
+#   python -m manylatents.main --config-name=config --cfg job experiment=central_dogma_fusion
+#
+#   # Cluster submission
+#   python -m manylatents.main -m --config-name=config \
+#     experiment=central_dogma_fusion \
+#     cluster=mila_remote \
+#     resources=gpu \
+#     'data.preset=synthetic_8aa,gfp,brca1'
+
+# Project settings
+name: central_dogma_fusion
+project: merging-dogma
+
+# Runtime
+seed: 42
+debug: false
+
+# Data configuration (inlined to avoid cross-provider defaults resolution)
+data:
+  _target_: manylatents.dogma.data.CentralDogmaDataModule
+  preset: gfp
+  batch_size: 1
+
+# Algorithm configuration (inlined)
+# _recursive_: false prevents Hydra from pre-instantiating encoder configs
+# CentralDogmaFusion handles lazy encoder instantiation in _ensure_encoders_loaded()
+algorithms:
+  latent:
+    _target_: manylatents.dogma.algorithms.CentralDogmaFusion
+    _recursive_: false
+    evo2_config:
+      _target_: manylatents.dogma.encoders.Evo2Encoder
+      model_name: evo2_1b_base
+      layer_name: null
+      device: cuda
+    orthrus_config:
+      _target_: manylatents.dogma.encoders.OrthrusEncoder
+      cache_dir: /network/scratch/c/cesar.valdez/embeddings/orthrus
+      embedding_dim: 256  # 4-track model
+      device: cuda
+    esm3_config:
+      _target_: manylatents.dogma.encoders.ESM3Encoder
+      weights_path: null
+      device: cuda
+    normalize: false
+    n_components: 3840

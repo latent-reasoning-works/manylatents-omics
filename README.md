@@ -8,25 +8,24 @@ Genetics and genomics extension for [manylatents](https://github.com/latent-reas
 
 ## Installation
 
-First add the core manylatents package:
+### Quick Start (Development Install)
+
 ```bash
-uv add git+https://github.com/latent-reasoning-works/manylatents.git
+git clone https://github.com/latent-reasoning-works/manylatents-omics.git
+cd manylatents-omics
+uv sync  # Pulls manylatents from git automatically
 ```
 
-Then add manylatents-omics:
+### As a Dependency
+
+From another project:
+
 ```bash
 uv add git+https://github.com/latent-reasoning-works/manylatents-omics.git
-```
-
-Or add both together:
-```bash
-uv add git+https://github.com/latent-reasoning-works/manylatents.git git+https://github.com/latent-reasoning-works/manylatents-omics.git
-```
-
-Finally, install all packages locally using `sync`.
-```bash
 uv sync
 ```
+
+**Note**: Use git URL install, not editable install (`-e`). Editable installs from another project have Hydra plugin discovery issues.
 
 ### Foundation Model Encoders (Optional)
 
@@ -92,11 +91,14 @@ python scripts/download_pbmc.py --dataset 3k --output-dir /path/to/data/single_c
 
 **Using with Hydra configs:**
 ```bash
+# Load CUDA on HPC clusters first
+module load anaconda/3 cuda/12.4.1
+
 # Use PBMC 3k dataset
-python -m manylatents.dogma.main data=pbmc_3k
+python -m manylatents.omics.main --config-name=config experiment=single_algorithm data=pbmc_3k
 
 # Use embryoid body dataset
-python -m manylatents.dogma.main data=embryoid_body
+python -m manylatents.omics.main --config-name=config experiment=single_algorithm data=embryoid_body
 ```
 
 **Full PBMC 68k Dataset:**
@@ -118,7 +120,7 @@ The scanpy version is a reduced dataset with only 700 cells. For the full 68,000
 3. Create a config file `configs/data/pbmc_68k_full.yaml`:
    ```yaml
    _target_: manylatents.singlecell.data.anndata.AnnDataModule
-   adata_path: ${paths.data_dir}/single_cell/pbmc_68k_full.h5ad
+   adata_path: ${data_dir}/single_cell/pbmc_68k_full.h5ad
    label_key: null
    batch_size: 64
    test_split: 0.2
@@ -226,18 +228,18 @@ experiment.run()
 ### Configuration with Hydra
 
 #### Data Paths
-The project uses a centralized paths configuration (`configs/paths/default.yaml`) to manage data locations:
+The project uses top-level configuration keys in the structured config to manage data locations. These are defined in the core `manylatents` Config dataclass and can be overridden via CLI:
 
 ```yaml
-# Default paths - can be overridden via environment variables
-data_dir: ${oc.env:MANYLATENTS_DATA_DIR,/network/scratch/c/cesar.valdez/manylatents-omics/data}
-cache_dir: ${oc.env:MANYLATENTS_CACHE_DIR,/network/scratch/c/cesar.valdez/manylatents-omics/cache}
-output_dir: ${oc.env:MANYLATENTS_OUTPUT_DIR,/network/scratch/c/cesar.valdez/manylatents-omics/outputs}
+# Top-level keys in Config dataclass (manylatents/configs/config.py)
+data_dir: "./data"      # Override via CLI: data_dir=/custom/path
+output_dir: "./outputs" # Override via CLI: output_dir=/custom/path
+cache_dir: "outputs/cache"
 ```
 
 **Directory Structure:**
 ```
-${paths.data_dir}/
+${data_dir}/
 ├── single_cell/          # Single-cell datasets (scRNA, scATAC, etc.)
 │   ├── pbmc_3k.h5ad
 │   ├── pbmc_10k.h5ad
@@ -250,12 +252,11 @@ ${paths.data_dir}/
 
 **Overriding paths:**
 ```bash
-# Via environment variables
-export MANYLATENTS_DATA_DIR=/custom/data/path
-python -m manylatents.dogma.main data=pbmc_3k
+# Via command line (recommended)
+python -m manylatents.omics.main --config-name=config experiment=single_algorithm data=pbmc_3k data_dir=/custom/data/path
 
-# Via command line
-python -m manylatents.dogma.main data=pbmc_3k paths.data_dir=/custom/data/path
+# Or set multiple paths
+python -m manylatents.omics.main --config-name=config experiment=single_algorithm data=pbmc_3k data_dir=/data output_dir=/outputs
 ```
 
 #### Dataset Configurations
@@ -264,8 +265,8 @@ python -m manylatents.dogma.main data=pbmc_3k paths.data_dir=/custom/data/path
 # configs/data/hgdp.yaml
 _target_: manylatents.popgen.data.HGDPData
 files:
-  plink: ${paths.data_dir}/HGDP+1KGP/genotypes/hgdp_wgs
-cache_dir: ${paths.cache_dir}
+  plink: ${data_dir}/HGDP+1KGP/genotypes/hgdp_wgs
+cache_dir: ${cache_dir}
 data_split: full
 filter_qc: true
 filter_related: true

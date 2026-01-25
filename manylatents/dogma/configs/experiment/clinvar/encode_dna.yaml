@@ -1,0 +1,57 @@
+# @package _global_
+#
+# ClinVar DNA Encoding Experiment
+#
+# Encodes ClinVar variant DNA sequences using Evo2 foundation model.
+# Outputs embeddings to ${output_dir}/embeddings/clinvar/evo2.pt
+#
+# Usage:
+#   # Local (requires L40S/H100 for Evo2 FP8)
+#   python -m manylatents.main --config-name=config experiment=clinvar/encode_dna
+#
+#   # Filter to specific genes
+#   python -m manylatents.main --config-name=config experiment=clinvar/encode_dna data.genes=[BRCA1,BRCA2]
+#
+#   # Limit variants for testing
+#   python -m manylatents.main --config-name=config experiment=clinvar/encode_dna data.max_variants=100
+#
+#   # Cluster submission
+#   python -m manylatents.main --config-name=config experiment=clinvar/encode_dna cluster=mila_remote resources=gpu
+#
+#   # Config inspection (dry run)
+#   python -m manylatents.main --config-name=config --cfg job experiment=clinvar/encode_dna
+
+# Project settings
+name: clinvar_encode_dna
+project: merging-dogma
+
+# Runtime
+seed: 42
+debug: false
+eval_only: true
+
+# Data configuration (inlined to avoid cross-provider defaults resolution)
+data:
+  _target_: manylatents.dogma.data.ClinVarDataModule
+  data_dir: ${data_dir}/clinvar
+  genes: null
+  pathogenicity: all
+  max_variants: null
+  batch_size: 32
+
+# Algorithm configuration (inlined)
+# _recursive_: false prevents Hydra from pre-instantiating encoder configs
+algorithms:
+  latent:
+    _target_: manylatents.dogma.algorithms.BatchEncoder
+    _recursive_: false
+    modality: dna
+    batch_size: 8
+    normalize: false
+    n_components: 2048
+    save_path: ${output_dir}/embeddings/clinvar/evo2.pt
+    encoder_config:
+      _target_: manylatents.dogma.encoders.Evo2Encoder
+      model_name: evo2_1b_base
+      layer_name: blocks.14.mlp.l3
+      device: cuda

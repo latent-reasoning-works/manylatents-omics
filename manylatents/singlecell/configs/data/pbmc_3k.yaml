@@ -1,0 +1,12 @@
+defaults:
+  - default
+
+_target_: manylatents.singlecell.data.anndata.AnnDataModule
+adata_path: ${data_dir}/single_cell/pbmc_3k.h5ad
+label_key: null  # Set to a metadata field if you have labels; null for unsupervised learning
+layer: null
+use_raw: false
+mode: full
+batch_size: 128
+test_split: 0.2
+shuffle_traindata: false

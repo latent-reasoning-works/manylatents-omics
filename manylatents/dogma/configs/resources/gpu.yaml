@@ -1,0 +1,11 @@
+# @package _global_
+
+# GPU resources for foundation model inference
+
+hydra:
+  launcher:
+    cpus_per_task: 4
+    gpus_per_task: 1
+    mem: "32G"
+    time_limit: "02:00:00"
+    array_parallelism: 16

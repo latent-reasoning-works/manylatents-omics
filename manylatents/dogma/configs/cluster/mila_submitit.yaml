@@ -1,0 +1,34 @@
+# @package _global_
+
+# Mila cluster configuration using submitit_slurm launcher
+# Use this when running from a Mila login node
+
+defaults:
+  - override /hydra/launcher: submitit_slurm
+
+hydra:
+  mode: MULTIRUN
+  run:
+    dir: logs/${name}/runs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: logs/${name}/multiruns/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+
+  launcher:
+    # SLURM parameters
+    cpus_per_task: 4
+    gpus_per_task: 1
+    mem_gb: 32
+    timeout_min: 240
+    partition: main
+    tasks_per_node: 1
+    nodes: 1
+
+    # GPU report after job
+    additional_parameters:
+      epilog: nvidia-smi --query-accounted-apps=gpu_utilization,mem_utilization,max_memory_usage,time --format=csv | head -10
+
+    # Setup commands
+    setup:
+      - echo "Starting job on $(hostname)"
+      - echo "SLURM_JOB_ID $SLURM_JOB_ID"

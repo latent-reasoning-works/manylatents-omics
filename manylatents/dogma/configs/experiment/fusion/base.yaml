@@ -1,0 +1,73 @@
+# @package _global_
+#
+# Base configuration for fusion strategy comparison experiments.
+#
+# This config defines shared settings for evaluating different fusion strategies
+# on precomputed embeddings. Override `algorithms.latent` in derived configs.
+#
+# Prerequisites:
+#   Run encoding experiments first to generate embeddings:
+#   - experiment=clinvar/encode_dna
+#   - experiment=clinvar/encode_protein
+#
+# Usage (not directly - use derived configs):
+#   python -m manylatents.omics.main --config-name=config experiment=fusion/concat_pca
+
+# Project settings
+name: fusion_comparison
+project: merging-dogma
+
+# Runtime
+seed: 42
+debug: false
+eval_only: true
+
+# Data: precomputed embeddings with labels
+data:
+  _target_: manylatents.data.PrecomputedDataModule
+  path: ${output_dir}/embeddings/clinvar
+  channels:
+    - evo2       # DNA embeddings
+    - esm3       # Protein embeddings
+  labels_path: ${output_dir}/embeddings/clinvar/labels.pt
+  batch_size: 128
+  num_workers: 0
+  mode: full
+
+# Metrics with multi-k sweep and per-sample output
+# Uses shared-kNN infrastructure for efficiency
+metrics:
+  embedding:
+    lid:
+      _target_: manylatents.metrics.LocalIntrinsicDimensionality
+      _partial_: true
+      k: [5, 10, 25, 50, 100]
+      return_per_sample: true
+    pr:
+      _target_: manylatents.metrics.ParticipationRatio
+      _partial_: true
+      n_neighbors: [5, 10, 25, 50, 100]
+      return_per_sample: true
+    tsa:
+      _target_: manylatents.metrics.TangentSpaceApproximation
+      _partial_: true
+      n_neighbors: [5, 10, 25, 50, 100]
+      return_per_sample: true
+
+# Callbacks for saving and downstream evaluation
+callbacks:
+  embedding:
+    save:
+      _target_: manylatents.callbacks.embedding.SaveEmbeddings
+      save_dir: ${output_dir}/fusion
+      experiment_name: ${name}
+      save_format: npy
+      use_timestamp: true
+      save_metric_tables: true
+    probe:
+      _target_: manylatents.callbacks.embedding.LinearProbeCallback
+      embedding_key: embeddings
+      probes: [logistic, mlp]
+      cv_folds: 5
+      metrics: [accuracy, auroc, auprc]
+      scale_features: true

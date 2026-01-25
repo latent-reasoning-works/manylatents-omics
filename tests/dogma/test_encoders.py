@@ -51,11 +51,13 @@ class TestEncoderProperties:
 
     def test_orthrus_4track_embedding_dim(self):
         from manylatents.dogma.encoders import OrthrusEncoder
-        assert OrthrusEncoder.MODELS[4]["embedding_dim"] == 256
+        # 4-track model has 256-dim embeddings
+        assert OrthrusEncoder.MODEL_CONFIGS["quietflamingo/orthrus-base-4-track"]["d_model"] == 256
 
     def test_orthrus_6track_embedding_dim(self):
         from manylatents.dogma.encoders import OrthrusEncoder
-        assert OrthrusEncoder.MODELS[6]["embedding_dim"] == 512
+        # 6-track model has 512-dim embeddings
+        assert OrthrusEncoder.MODEL_CONFIGS["quietflamingo/orthrus-large-6-track"]["d_model"] == 512
 
     def test_evo2_1b_embedding_dim(self):
         from manylatents.dogma.encoders import Evo2Encoder
@@ -132,18 +134,18 @@ class TestOrthrusEncoderFunctional:
     """Functional tests for Orthrus encoder (requires GPU and model weights)."""
 
     @pytest.fixture
-    def encoder_4track(self):
+    def encoder(self):
         from manylatents.dogma.encoders import OrthrusEncoder
-        return OrthrusEncoder(n_tracks=4, device="cuda")
+        return OrthrusEncoder(device="cuda")
 
-    def test_encode_single_sequence(self, encoder_4track):
-        embedding = encoder_4track.encode(TEST_SEQUENCES["rna"])
+    def test_encode_single_sequence(self, encoder):
+        embedding = encoder.encode(TEST_SEQUENCES["rna"])
         assert embedding.shape[1] == 256
         assert embedding.dtype == torch.float32
 
-    def test_encode_batch(self, encoder_4track):
+    def test_encode_batch(self, encoder):
         sequences = [TEST_SEQUENCES["rna"], "AUGCAUGCAUGCAUGCAUGCAUGC"]
-        embeddings = encoder_4track.encode_batch(sequences)
+        embeddings = encoder.encode_batch(sequences)
         assert embeddings.shape == (2, 256)
 
 
@@ -178,7 +180,7 @@ class TestCentralDogmaConsistency:
         from manylatents.dogma.encoders import ESM3Encoder, OrthrusEncoder, Evo2Encoder
 
         esm3 = ESM3Encoder(device="cuda")
-        orthrus = OrthrusEncoder(n_tracks=4, device="cuda")
+        orthrus = OrthrusEncoder(device="cuda")
         evo2 = Evo2Encoder(model_name="evo2_1b_base", device="cuda")
 
         # Encode same biological information at each level

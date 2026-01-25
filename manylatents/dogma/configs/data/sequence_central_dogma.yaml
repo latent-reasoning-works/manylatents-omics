@@ -1,0 +1,17 @@
+# Central Dogma Sequence DataModule
+#
+# Provides aligned DNA, RNA, and Protein sequences for fusion experiments.
+# Used with CentralDogmaFusion algorithm.
+#
+# Available presets:
+#   - synthetic_8aa: Short synthetic sequence (8 amino acids)
+#   - gfp: Green Fluorescent Protein (238 aa)
+#   - brca1: BRCA1 exon 11 fragment (pathogenic variant hotspot)
+#
+# Usage:
+#   python -m manylatents.main +experiment=central_dogma_fusion
+#   python -m manylatents.main +experiment=central_dogma_fusion data.preset=brca1
+
+_target_: manylatents.dogma.data.CentralDogmaDataModule
+preset: gfp
+batch_size: 1

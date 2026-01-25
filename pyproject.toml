@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "Biological extensions for manylatents: popgen and central dogma encoders"
 authors = [
     { name = "César Miguel Valdez Córdova", email = "cesar.valdez@mila.quebec" },
-    { name = "Matthew Scicluna", email = "matthew.scicluna@mila.quebec"}
+    { name = "Matthew Scicluna", email = "matthew.scicluna@mila.quebec" },
 ]
 readme = "README.md"
 requires-python = ">=3.10, <3.13"
@@ -24,23 +24,33 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-singlecell = [
-    "anndata>=0.11.3",
-    "python-igraph>=1.0.0",
-    "scanpy>=1.11.5",
-]
-# Foundation model encoders
-# ⚠️  WARNING: orthrus/evo2 require Ampere+ GPU (A100, L40S, H100) to build!
-#     RTX 8000/3090 (Turing, sm_75) will FAIL with nvcc errors.
-#     See README.md for installation instructions.
-#     Quick: salloc --gpus=l40s:1 && module load cuda/12.6.0 && uv sync --extra orthrus
+singlecell = ["anndata>=0.11.3", "python-igraph>=1.0.0", "scanpy>=1.11.5"]
+# Foundation model encoders (ESM3, Evo2)
+# Installation requires:
+#   1. Wheelnext uv for prebuilt CUDA wheels (mamba-ssm, transformer-engine-torch):
+#      curl -LsSf https://astral.sh/uv/install.sh | INSTALLER_DOWNLOAD_URL=https://wheelnext.astral.sh sh
+#   2. Lock with: uv lock --index-strategy unsafe-best-match
+#   3. Sync with: uv sync --extra dogma --index-strategy unsafe-best-match
+#   4. For imports on login nodes: module load cuda/12.4.1 (SLURM GPU nodes have CUDA automatically)
+#
+# Note: Orthrus (RNA encoder) requires mamba-ssm 1.x which conflicts with Evo2's mamba-ssm 2.x.
+# Orthrus embeddings are precomputed using tools/orthrus-embed/ and loaded from cache.
+# See CLAUDE.md "Central Dogma Fusion" section for workflow.
 esm = ["esm>=3.0"]
-evo2 = ["evo2", "transformer-engine[pytorch]>=2.0"]
-orthrus = [
-    "orthrus",
-    "mamba-ssm>=2.0",
+evo2 = ["evo2"]
+dogma = [
+    "torch>=2.7,<2.8",  # Pin for transformer-engine-torch ABI compatibility
+    "torchvision>=0.22,<0.23",  # Must match torch version
+    "nvidia-cudnn-cu12>=9.5",  # Needs actual runtime libs
+    "esm>=3.0",
+    "evo2",
+    "mamba-ssm>=2.0",  # Required by Evo2
+    "transformer-engine-torch>=2.0",  # Required by vortex (evo2's backend)
+    "flash-attn>=2.0",  # Needs CUDA_HOME at build time
 ]
-dogma = ["esm>=3.0", "evo2", "orthrus", "mamba-ssm>=2.0", "transformer-engine[pytorch]>=2.0"]
+
+[project.entry-points."hydra.searchpath"]
+manylatents-omics = "manylatents.omics_plugin:OmicsSearchPathPlugin"
 
 [build-system]
 requires = ["hatchling"]
@@ -54,17 +64,11 @@ packages = ["manylatents"]
 
 [tool.uv]
 managed = true
-# CUDA packages need torch available at build time
-no-build-isolation-package = ["mamba_ssm", "transformer_engine", "flash_attn"]
-
-[tool.uv.extra-build-dependencies]
-mamba_ssm = [{ requirement = "torch", match-runtime = true }]
-transformer_engine = [{ requirement = "torch", match-runtime = true }]
-flash_attn = [{ requirement = "torch", match-runtime = true }]
 
 [tool.uv.sources]
-manylatents = { git = "ssh://git@github.com/latent-reasoning-works/manylatents.git" }
-archetypes = { git = "https://github.com/aleixalcacer/archetypes.git" }
+manylatents = { git = "https://github.com/latent-reasoning-works/manylatents.git" }
+# Archetypes already has a prebuilt wheel on PyPI, at exactly the version we want (0.11.1).
+# archetypes = { git = "https://github.com/aleixalcacer/archetypes.git" }
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
@@ -73,6 +77,9 @@ markers = [
     "gpu: tests requiring GPU and model weights",
     "slow: tests that take significant time to run",
 ]
+
+# Wheel variants (wheelnext uv) handles CUDA package selection automatically
+# See: https://astral.sh/blog/wheel-variants
 
 # Inherit dependency metadata overrides from manylatents
 [[tool.uv.dependency-metadata]]

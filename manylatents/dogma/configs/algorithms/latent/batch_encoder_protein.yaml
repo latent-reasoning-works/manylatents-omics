@@ -1,0 +1,16 @@
+# Batch Protein encoder using ESM3
+#
+# Encodes batches of protein sequences using ESM3 foundation model.
+# For use with ClinVarDataModule which provides lists of sequences.
+#
+# Output: Embeddings of shape (N, 1536) where N = number of sequences
+
+_target_: manylatents.dogma.algorithms.BatchEncoder
+modality: protein
+batch_size: 16
+normalize: false
+n_components: 1536
+
+encoder_config:
+  _target_: manylatents.dogma.encoders.ESM3Encoder
+  device: cuda

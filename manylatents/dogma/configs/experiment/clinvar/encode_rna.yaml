@@ -1,0 +1,56 @@
+# @package _global_
+#
+# ClinVar RNA Encoding Experiment
+#
+# Encodes ClinVar variant RNA sequences using Orthrus foundation model.
+# Outputs embeddings to ${output_dir}/embeddings/clinvar/orthrus.pt
+#
+# Usage:
+#   # Local
+#   python -m manylatents.main --config-name=config experiment=clinvar/encode_rna
+#
+#   # Filter to specific genes
+#   python -m manylatents.main --config-name=config experiment=clinvar/encode_rna data.genes=[BRCA1,BRCA2]
+#
+#   # Limit variants for testing
+#   python -m manylatents.main --config-name=config experiment=clinvar/encode_rna data.max_variants=100
+#
+#   # Cluster submission
+#   python -m manylatents.main --config-name=config experiment=clinvar/encode_rna cluster=mila_remote resources=gpu
+#
+#   # Config inspection (dry run)
+#   python -m manylatents.main --config-name=config --cfg job experiment=clinvar/encode_rna
+
+# Project settings
+name: clinvar_encode_rna
+project: merging-dogma
+
+# Runtime
+seed: 42
+debug: false
+eval_only: true
+
+# Data configuration (inlined to avoid cross-provider defaults resolution)
+data:
+  _target_: manylatents.dogma.data.ClinVarDataModule
+  data_dir: ${data_dir}/clinvar
+  genes: null
+  pathogenicity: all
+  max_variants: null
+  batch_size: 32
+
+# Algorithm configuration (inlined)
+# _recursive_: false prevents Hydra from pre-instantiating encoder configs
+algorithms:
+  latent:
+    _target_: manylatents.dogma.algorithms.BatchEncoder
+    _recursive_: false
+    modality: rna
+    batch_size: 16
+    normalize: false
+    n_components: 256
+    save_path: ${output_dir}/embeddings/clinvar/orthrus.pt
+    encoder_config:
+      _target_: manylatents.dogma.encoders.OrthrusEncoder
+      model_name: quietflamingo/orthrus-base-4-track
+      device: cuda

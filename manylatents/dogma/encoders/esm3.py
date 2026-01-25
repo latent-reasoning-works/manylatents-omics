@@ -56,16 +56,10 @@ class ESM3Encoder(FoundationEncoder):
             from esm.models.esm3 import ESM3
             import os
 
-            # Use local weights if path exists
-            if self.weights_path and os.path.exists(self.weights_path):
-                # Set HF cache to local weights directory for ESM3's data_root()
-                weights_root = os.path.dirname(os.path.dirname(os.path.dirname(self.weights_path)))
-                os.environ["HF_HOME"] = weights_root
-                os.environ["HF_HUB_OFFLINE"] = "1"
-                self._model = ESM3.from_pretrained("esm3_sm_open_v1")
-            else:
-                # Load from HuggingFace (requires login for gated model)
-                self._model = ESM3.from_pretrained("esm3_sm_open_v1")
+            # Always load from HuggingFace - the ESM library handles caching
+            # Local weights path is deprecated due to ESM's internal write requirements
+            # Users must have HuggingFace auth for gated model access
+            self._model = ESM3.from_pretrained("esm3_sm_open_v1")
 
             # Keep model in float32 to avoid dtype mismatch bug in ESM3 library
             self._model = self._model.to(self.device).float().eval()

@@ -1,0 +1,15 @@
+defaults:
+  - default
+
+# PBMC 68k (reduced): ~700 cells, subsampled from the original 68k dataset
+# This is a pre-processed reduced version from scanpy for quick testing/parsing.
+# For the full 68,000-cell dataset, see README.md for download instructions.
+_target_: manylatents.singlecell.data.anndata.AnnDataModule
+adata_path: ${data_dir}/single_cell/pbmc_68k.h5ad
+label_key: null  # Available: 'bulk_labels' (cell types), 'louvain' (clustering), or null for unsupervised
+layer: null
+use_raw: false
+mode: full
+batch_size: 64
+test_split: 0.2
+shuffle_traindata: false
