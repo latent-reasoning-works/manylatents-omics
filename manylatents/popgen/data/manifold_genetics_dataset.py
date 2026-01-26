@@ -246,15 +246,14 @@ class ManifoldGeneticsDataset(Dataset):
         self.sample_ids = self.data_df['sample_id'].values
 
         # --- Align admixture_ratios to master sample order ---
-        # Convert to numeric column indices (0=sample_id, 1,2,...=components) for metric compatibility
+        # Keep original column names (sample_id, component_1, component_2, etc.)
         for k in self.admixture_ratios:
             admix_df = self.admixture_ratios[k]
             admix_df = admix_df[admix_df['sample_id'].isin(master_sample_ids)]
             admix_df = admix_df.sort_values('sample_id').reset_index(drop=True)
-            # Rename columns to numeric indices: 0=sample_id, 1,2,...=components
-            admix_df.columns = list(range(len(admix_df.columns)))
             self.admixture_ratios[k] = admix_df
-            logger.info(f"Aligned admixture K={k}: {len(admix_df)} samples")
+            component_cols = [c for c in admix_df.columns if c != 'sample_id']
+            logger.info(f"Aligned admixture K={k}: {len(admix_df)} samples, {len(component_cols)} components")
 
         # --- Load colormap ---
         if self.colormap_path:

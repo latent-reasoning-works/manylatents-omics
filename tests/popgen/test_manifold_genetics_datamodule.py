@@ -99,12 +99,12 @@ def test_datamodule_init_split_mode(temp_manifold_split_data):
         batch_size=16,
         num_workers=0,
         mode='split',
-        fit_pca_path=temp_manifold_split_data['fit_pca_path'],
-        transform_pca_path=temp_manifold_split_data['transform_pca_path'],
+        train_pca_path=temp_manifold_split_data['fit_pca_path'],
+        test_pca_path=temp_manifold_split_data['transform_pca_path'],
         labels_path=temp_manifold_split_data['labels_path'],
         colormap_path=temp_manifold_split_data['colormap_path'],
     )
-    
+
     assert datamodule.mode == 'split'
     assert datamodule.batch_size == 16
 
@@ -115,24 +115,24 @@ def test_datamodule_setup_split_mode(temp_manifold_split_data):
         batch_size=16,
         num_workers=0,
         mode='split',
-        fit_pca_path=temp_manifold_split_data['fit_pca_path'],
-        transform_pca_path=temp_manifold_split_data['transform_pca_path'],
-        fit_admixture_paths={3: temp_manifold_split_data['fit_admix_path']},
-        transform_admixture_paths={3: temp_manifold_split_data['transform_admix_path']},
+        train_pca_path=temp_manifold_split_data['fit_pca_path'],
+        test_pca_path=temp_manifold_split_data['transform_pca_path'],
+        train_admixture_paths={3: temp_manifold_split_data['fit_admix_path']},
+        test_admixture_paths={3: temp_manifold_split_data['transform_admix_path']},
         labels_path=temp_manifold_split_data['labels_path'],
         colormap_path=temp_manifold_split_data['colormap_path'],
     )
-    
+
     datamodule.setup()
-    
+
     # Check train dataset
     assert datamodule.train_dataset is not None
-    assert len(datamodule.train_dataset) == 80  # fit samples
-    
+    assert len(datamodule.train_dataset) == 80  # train samples
+
     # Check test dataset
     assert datamodule.test_dataset is not None
-    assert len(datamodule.test_dataset) == 20  # transform samples
-    
+    assert len(datamodule.test_dataset) == 20  # test samples
+
     # Verify they're different datasets
     assert datamodule.train_dataset is not datamodule.test_dataset
 
@@ -143,18 +143,18 @@ def test_datamodule_setup_full_mode(temp_manifold_split_data):
         batch_size=16,
         num_workers=0,
         mode='full',
-        transform_pca_path=temp_manifold_split_data['transform_pca_path'],
+        train_pca_path=temp_manifold_split_data['fit_pca_path'],
         labels_path=temp_manifold_split_data['labels_path'],
     )
-    
+
     datamodule.setup()
-    
+
     assert datamodule.train_dataset is not None
     assert datamodule.test_dataset is not None
-    
+
     # In full mode, train and test should be the same object
     assert datamodule.train_dataset is datamodule.test_dataset
-    assert len(datamodule.train_dataset) == 20
+    assert len(datamodule.train_dataset) == 80  # Uses train data
 
 
 def test_datamodule_dataloaders(temp_manifold_split_data):
@@ -163,8 +163,8 @@ def test_datamodule_dataloaders(temp_manifold_split_data):
         batch_size=8,
         num_workers=0,
         mode='split',
-        fit_pca_path=temp_manifold_split_data['fit_pca_path'],
-        transform_pca_path=temp_manifold_split_data['transform_pca_path'],
+        train_pca_path=temp_manifold_split_data['fit_pca_path'],
+        test_pca_path=temp_manifold_split_data['transform_pca_path'],
         labels_path=temp_manifold_split_data['labels_path'],
     )
     
@@ -199,8 +199,8 @@ def test_datamodule_shuffle_train(temp_manifold_split_data):
         batch_size=8,
         num_workers=0,
         mode='split',
-        fit_pca_path=temp_manifold_split_data['fit_pca_path'],
-        transform_pca_path=temp_manifold_split_data['transform_pca_path'],
+        train_pca_path=temp_manifold_split_data['fit_pca_path'],
+        test_pca_path=temp_manifold_split_data['transform_pca_path'],
         labels_path=temp_manifold_split_data['labels_path'],
         shuffle_traindata=True,
     )
@@ -219,8 +219,8 @@ def test_datamodule_no_shuffle_train(temp_manifold_split_data):
         batch_size=8,
         num_workers=0,
         mode='split',
-        fit_pca_path=temp_manifold_split_data['fit_pca_path'],
-        transform_pca_path=temp_manifold_split_data['transform_pca_path'],
+        train_pca_path=temp_manifold_split_data['fit_pca_path'],
+        test_pca_path=temp_manifold_split_data['transform_pca_path'],
         labels_path=temp_manifold_split_data['labels_path'],
         shuffle_traindata=False,
     )
@@ -236,7 +236,7 @@ def test_datamodule_invalid_mode(temp_manifold_split_data):
         batch_size=8,
         num_workers=0,
         mode='invalid_mode',
-        fit_pca_path=temp_manifold_split_data['fit_pca_path'],
+        train_pca_path=temp_manifold_split_data['fit_pca_path'],
     )
     
     with pytest.raises(ValueError, match="Invalid mode"):
@@ -247,45 +247,50 @@ def test_datamodule_with_multiple_admixture_k(temp_manifold_split_data):
     """Test DataModule with multiple admixture K values."""
     # Create additional K=5 admixture files
     tmpdir = Path(temp_manifold_split_data['fit_pca_path']).parent
-    
-    fit_sample_ids = [f"train_{i:03d}" for i in range(80)]
-    fit_admix_k5_data = {
-        'sample_id': fit_sample_ids,
+
+    train_sample_ids = [f"train_{i:03d}" for i in range(80)]
+    train_admix_k5_data = {
+        'sample_id': train_sample_ids,
         **{f'component_{i}': np.random.dirichlet([1]*5, 80)[:, i-1] for i in range(1, 6)}
     }
-    fit_admix_k5_path = tmpdir / "fit.K5.csv"
-    pd.DataFrame(fit_admix_k5_data).to_csv(fit_admix_k5_path, index=False)
-    
-    transform_sample_ids = [f"test_{i:03d}" for i in range(20)]
-    transform_admix_k5_data = {
-        'sample_id': transform_sample_ids,
+    train_admix_k5_path = tmpdir / "train.K5.csv"
+    pd.DataFrame(train_admix_k5_data).to_csv(train_admix_k5_path, index=False)
+
+    test_sample_ids = [f"test_{i:03d}" for i in range(20)]
+    test_admix_k5_data = {
+        'sample_id': test_sample_ids,
         **{f'component_{i}': np.random.dirichlet([1]*5, 20)[:, i-1] for i in range(1, 6)}
     }
-    transform_admix_k5_path = tmpdir / "transform.K5.csv"
-    pd.DataFrame(transform_admix_k5_data).to_csv(transform_admix_k5_path, index=False)
-    
+    test_admix_k5_path = tmpdir / "test.K5.csv"
+    pd.DataFrame(test_admix_k5_data).to_csv(test_admix_k5_path, index=False)
+
     datamodule = ManifoldGeneticsDataModule(
         batch_size=8,
         num_workers=0,
         mode='split',
-        fit_pca_path=temp_manifold_split_data['fit_pca_path'],
-        transform_pca_path=temp_manifold_split_data['transform_pca_path'],
-        fit_admixture_paths={
+        train_pca_path=temp_manifold_split_data['fit_pca_path'],
+        test_pca_path=temp_manifold_split_data['transform_pca_path'],
+        train_admixture_paths={
             3: temp_manifold_split_data['fit_admix_path'],
-            5: str(fit_admix_k5_path),
+            5: str(train_admix_k5_path),
         },
-        transform_admixture_paths={
+        test_admixture_paths={
             3: temp_manifold_split_data['transform_admix_path'],
-            5: str(transform_admix_k5_path),
+            5: str(test_admix_k5_path),
         },
         labels_path=temp_manifold_split_data['labels_path'],
     )
-    
+
     datamodule.setup()
-    
-    # Train dataset should have 2 PCs + 3 ancestries (K3) + 5 ancestries (K5) = 10 features
+
+    # Data array contains ONLY PCA features (2 PCs)
+    # Admixture is stored separately for metrics
     batch = next(iter(datamodule.train_dataloader()))
-    assert batch['data'].shape[1] == 10
+    assert batch['data'].shape[1] == 2  # Only PCA dimensions
+
+    # Verify admixture stored separately
+    assert 3 in datamodule.train_dataset.admixture_ratios
+    assert 5 in datamodule.train_dataset.admixture_ratios
 
 
 def test_datamodule_collate_fn(temp_manifold_split_data):
@@ -294,8 +299,8 @@ def test_datamodule_collate_fn(temp_manifold_split_data):
         batch_size=4,
         num_workers=0,
         mode='split',
-        fit_pca_path=temp_manifold_split_data['fit_pca_path'],
-        transform_pca_path=temp_manifold_split_data['transform_pca_path'],
+        train_pca_path=temp_manifold_split_data['fit_pca_path'],
+        test_pca_path=temp_manifold_split_data['transform_pca_path'],
         labels_path=temp_manifold_split_data['labels_path'],
     )
     

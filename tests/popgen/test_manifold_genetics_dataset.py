@@ -122,10 +122,20 @@ def test_dataset_init_pca_and_admixture(temp_manifold_dir):
             5: temp_manifold_dir['admix_k5_path'],
         },
     )
-    
+
     assert len(dataset) == 100
-    # 3 PCs + 3 ancestries (K3) + 5 ancestries (K5) = 11 features
-    assert dataset.data_array.shape == (100, 11)
+    # Data array contains ONLY PCA features (input data)
+    # Admixture is stored separately for metrics, NOT part of input features
+    assert dataset.data_array.shape == (100, 3)  # 3 PCs only
+
+    # Verify admixture stored separately
+    assert 3 in dataset.admixture_ratios
+    assert 5 in dataset.admixture_ratios
+    assert len(dataset.admixture_ratios[3]) == 100
+    assert len(dataset.admixture_ratios[5]) == 100
+    # Verify named columns preserved
+    assert 'sample_id' in dataset.admixture_ratios[3].columns
+    assert 'component_1' in dataset.admixture_ratios[3].columns
 
 
 def test_dataset_init_with_labels(temp_manifold_dir):
@@ -135,14 +145,29 @@ def test_dataset_init_with_labels(temp_manifold_dir):
         labels_path=temp_manifold_dir['labels_path'],
         label_column='Population',
     )
-    
+
     assert len(dataset) == 100
-    
-    # Test get_labels
+
+    # Test get_labels returns integer-encoded labels (for torch.tensor compatibility)
     labels = dataset.get_labels()
     assert len(labels) == 100
-    assert all(label.startswith('Pop') for label in labels)
-    
+    assert labels.dtype == np.int64
+    assert set(labels) == {0, 1, 2, 3, 4}  # 5 unique populations (Pop0-Pop4)
+
+    # Test get_label_names returns original string labels
+    label_names = dataset.get_label_names()
+    assert len(label_names) == 100
+    assert all(label.startswith('Pop') for label in label_names)
+
+    # Test get_label_classes returns unique labels in sorted order
+    classes = dataset.get_label_classes()
+    assert list(classes) == ['Pop0', 'Pop1', 'Pop2', 'Pop3', 'Pop4']
+
+    # Verify encoding consistency: classes[i] corresponds to integer i
+    for i, cls in enumerate(classes):
+        mask = label_names == cls
+        assert all(labels[mask] == i)
+
     # Test metadata includes labels
     sample = dataset[0]
     assert 'Population' in sample['metadata']
@@ -223,20 +248,19 @@ def test_dataset_missing_sample_id_column(temp_manifold_dir):
 
 def test_dataset_no_data_sources_error():
     """Test error when no data sources are provided."""
-    with pytest.raises(ValueError, match="No data sources provided"):
+    with pytest.raises(ValueError, match="No input data provided"):
         ManifoldGeneticsDataset()
 
 
 def test_dataset_missing_label_column(temp_manifold_dir):
     """Test error when specified label column doesn't exist."""
-    dataset = ManifoldGeneticsDataset(
-        pca_path=temp_manifold_dir['pca_path'],
-        labels_path=temp_manifold_dir['labels_path'],
-        label_column='NonexistentColumn',
-    )
-    
+    # Error is raised during initialization when label_column is validated
     with pytest.raises(ValueError, match="Label column 'NonexistentColumn' not found"):
-        dataset.get_labels()
+        ManifoldGeneticsDataset(
+            pca_path=temp_manifold_dir['pca_path'],
+            labels_path=temp_manifold_dir['labels_path'],
+            label_column='NonexistentColumn',
+        )
 
 
 def test_dataset_partial_sample_overlap(temp_manifold_dir):
