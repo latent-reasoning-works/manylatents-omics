@@ -8,7 +8,6 @@ import pandas as pd
 
 import wandb
 from manylatents.callbacks.embedding.plot_embeddings import PlotEmbeddings
-from manylatents.popgen.data.plink_dataset import PlinkDataset
 from manylatents.popgen.data.manifold_genetics_dataset import ManifoldGeneticsDataset
 
 logger = logging.getLogger(__name__)
@@ -77,11 +76,10 @@ class PlotAdmixture(PlotEmbeddings):
 
     def _check_admixture_available(self, dataset: any) -> tuple:
         """Check if dataset has admixture data. Returns (bool, DataFrame or None)."""
-        # Support both legacy PlinkDataset and new ManifoldGeneticsDataset
-        if not isinstance(dataset, (PlinkDataset, ManifoldGeneticsDataset)):
+        if not isinstance(dataset, ManifoldGeneticsDataset):
             logger.warning(
                 f"PlotAdmixture skipped: dataset is {type(dataset).__name__}, "
-                "not PlinkDataset or ManifoldGeneticsDataset"
+                "not ManifoldGeneticsDataset"
             )
             return False, None
 
