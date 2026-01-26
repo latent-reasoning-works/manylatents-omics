@@ -75,3 +75,20 @@
 ## 8. Documentation
 
 - [x] 8.1 Update `CLAUDE.md` with ClinVar pipeline section
+
+## 9. Workshop Experiments (Supervised Analysis)
+
+**Depends on:** manylatents PR #194 (supervised LatentModule support)
+
+- [x] 9.1 Create `configs/experiment/clinvar/baselines.yaml` - single modality classifiers
+  - LogisticRegression via ClassifierModule
+  - AUC metric for pathogenicity prediction
+- [x] 9.2 Create `configs/experiment/clinvar/shared_subspace.yaml` - multi-modal fusion
+  - MergingModule with concat_pca strategy
+  - LoadingsAnalysisCallback for modality contributions
+- [x] 9.3 Create `configs/experiment/clinvar/deviation.yaml` - outlier analysis
+  - OutlierScore metric (LOF-based)
+  - Tests pathogenicity enrichment in outliers
+- [x] 9.4 Create `scripts/run_workshop_experiments.sh` - experiment runner
+  - Local and cluster (--cluster) execution modes
+  - Runs all baselines, shared subspace, and deviation analyses
