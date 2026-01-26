@@ -29,7 +29,6 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
-import torch
 from torch.utils.data import Dataset
 
 logger = logging.getLogger(__name__)
