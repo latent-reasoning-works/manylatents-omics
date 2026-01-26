@@ -1,0 +1,62 @@
+# @package _global_
+#
+# ClinVar Baseline Classifiers
+#
+# Trains logistic regression classifiers on single-modality embeddings
+# to establish baseline AUC for pathogenicity prediction.
+#
+# Prerequisites:
+#   Run encode_dna, encode_rna, and encode_protein experiments first.
+#
+# Usage:
+#   # Protein-only baseline
+#   python -m manylatents.omics.main --config-name=config experiment=clinvar/baselines \
+#     data.channels=[esm3]
+#
+#   # DNA-only baseline
+#   python -m manylatents.omics.main --config-name=config experiment=clinvar/baselines \
+#     data.channels=[evo2]
+#
+#   # RNA-only baseline
+#   python -m manylatents.omics.main --config-name=config experiment=clinvar/baselines \
+#     data.channels=[orthrus]
+#
+#   # All modalities concatenated (no fusion)
+#   python -m manylatents.omics.main --config-name=config experiment=clinvar/baselines \
+#     data.channels=[esm3,evo2,orthrus]
+
+# Project settings
+name: clinvar_baselines
+project: merging-dogma
+
+# Runtime
+seed: 42
+debug: false
+eval_only: false  # Need to train classifier
+
+# Data configuration - precomputed embeddings
+data:
+  _target_: manylatents.data.PrecomputedDataModule
+  path: ${paths.output_dir}/embeddings/clinvar
+  channels:
+    - esm3  # Override via CLI for single modality
+  labels_path: ${paths.output_dir}/embeddings/clinvar/labels.pt
+  batch_size: 128
+  num_workers: 0
+  mode: full
+
+# Algorithm configuration - supervised classifier
+algorithms:
+  latent:
+    _target_: manylatents.algorithms.latent.classifier.ClassifierModule
+    model: logistic
+    n_components: 1
+    max_iter: 1000
+    init_seed: ${seed}
+
+# Metrics - AUC for classification performance
+metrics:
+  embedding:
+    auc:
+      _target_: manylatents.metrics.auc.AUC
+      _partial_: true
