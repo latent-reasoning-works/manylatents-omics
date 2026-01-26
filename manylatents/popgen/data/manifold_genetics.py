@@ -10,7 +10,7 @@ with a single, dataset-agnostic implementation.
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional
 
 import torch
 from lightning import LightningDataModule
