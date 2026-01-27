@@ -26,9 +26,11 @@ class ESM3Encoder(FoundationEncoder):
     Args:
         weights_path: Path to local weights. If None, loads from HuggingFace.
         device: Device for inference ("cuda" or "cpu").
+        max_length: Maximum sequence length. Sequences longer than this will
+            be truncated. If None, no truncation is applied.
 
     Example:
-        >>> encoder = ESM3Encoder()
+        >>> encoder = ESM3Encoder(max_length=2000)
         >>> embedding = encoder.encode("MKFGVRA")
         >>> print(embedding.shape)  # torch.Size([1, 1536])
     """
@@ -40,10 +42,12 @@ class ESM3Encoder(FoundationEncoder):
         self,
         weights_path: Optional[str] = None,
         device: str = "cuda",
+        max_length: Optional[int] = None,
         **kwargs,
     ):
         super().__init__(device=device, **kwargs)
         self.weights_path = weights_path or self.DEFAULT_WEIGHTS
+        self.max_length = max_length
         self._model = None
         self._embedding_dim = 1536  # ESM3-small hidden dim
 
@@ -81,6 +85,10 @@ class ESM3Encoder(FoundationEncoder):
         self._ensure_loaded()
 
         from esm.sdk.api import ESMProtein
+
+        # Truncate long sequences to prevent OOM
+        if self.max_length is not None and len(sequence) > self.max_length:
+            sequence = sequence[:self.max_length]
 
         protein = ESMProtein(sequence=sequence)
 
