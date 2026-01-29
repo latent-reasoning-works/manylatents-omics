@@ -90,6 +90,9 @@ class AlphaGenomeEncoder(FoundationEncoder):
                 "Install with: uv sync --extra alphagenome"
             ) from e
 
+        # Patch for JAX < 0.5 compatibility (jax.memory.Space.Host not available)
+        self._patch_jax_memory_compat(dna_model)
+
         self._jax_to_torch = jax_to_torch
         self._torch_to_jax = torch_to_jax
         self._dna_model = dna_model
@@ -99,6 +102,36 @@ class AlphaGenomeEncoder(FoundationEncoder):
             self._model = dna_model.create_from_huggingface(self.weights_path)
         else:
             self._model = dna_model.create_from_huggingface("all_folds")
+
+    @staticmethod
+    def _patch_jax_memory_compat(dna_model_module) -> None:
+        """Patch alphagenome_research for JAX < 0.5 compatibility.
+
+        The alphagenome_research library uses jax.memory.Space.Host which was
+        added in newer JAX versions. This patches the module to use jax.device_get
+        instead, which provides equivalent functionality.
+        """
+        import functools
+        import jax
+
+        # Check if jax.memory exists
+        if hasattr(jax, "memory"):
+            return  # No patch needed
+
+        # Monkey-patch the _upcast_single_batch_predictions function
+        original_func = dna_model_module._upcast_single_batch_predictions
+
+        @functools.partial(jax.jit, static_argnames=["transfer_to_host"])
+        def patched_upcast_single_batch_predictions(x, *, transfer_to_host=True):
+            """Patched version that uses jax.device_get instead of jax.memory.Space."""
+            from alphagenome import tensor_utils
+
+            x = jax.tree.map(lambda arr: tensor_utils.upcast_floating(arr[0]), x)
+            return jax.device_get(x) if transfer_to_host else x
+
+        dna_model_module._upcast_single_batch_predictions = (
+            patched_upcast_single_batch_predictions
+        )
 
     def encode(
         self,
@@ -163,10 +196,10 @@ class AlphaGenomeEncoder(FoundationEncoder):
 
         # Short sequence - no chunking needed
         if not chunk_size or len(sequence) <= chunk_size:
-            jax_preds = self._forward_predict(sequence, output_types)
+            preds = self._forward_predict(sequence, output_types)
             return {
-                name: self._jax_to_torch(arr).to(self.device)
-                for name, arr in jax_preds.items()
+                name: self._to_torch(arr).to(self.device)
+                for name, arr in preds.items()
             }
 
         # Chunked prediction
@@ -186,28 +219,10 @@ class AlphaGenomeEncoder(FoundationEncoder):
         import jax.numpy as jnp
         import numpy as np
 
-        # Access the internal apply_fn to get raw predictions including embeddings
-        # The public API filters out embeddings, so we need to call apply_fn directly
-        apply_fn = self._model._predict.keywords.get("apply_fn")
-        if apply_fn is None:
-            raise RuntimeError(
-                "Could not access internal apply_fn. AlphaGenome API may have changed."
-            )
-
-        # Encode sequence to one-hot
-        one_hot = self._model._one_hot_encoder.encode(sequence)
-        one_hot = jnp.asarray(one_hot)[jnp.newaxis]  # Add batch dim: (1, S, 4)
-
-        # Create organism index (default to human = 0)
-        organism_index = jnp.array([0], dtype=jnp.int32)
-
-        # Call apply_fn to get raw predictions including embeddings_1bp
-        predictions = apply_fn(
-            self._model._params,
-            self._model._state,
-            one_hot,
-            organism_index,
-        )
+        # Get raw model output by calling internal apply_fn
+        # AlphaGenome's public API filters out embeddings, so we need to call
+        # the underlying Haiku model directly
+        predictions = self._get_raw_predictions(sequence)
 
         # Extract embeddings based on layer_name
         if self.layer_name == "embeddings_1bp":
@@ -233,6 +248,76 @@ class AlphaGenomeEncoder(FoundationEncoder):
                 f"Unknown layer_name: {self.layer_name}. "
                 f"Supported: 'embeddings_1bp', 'embeddings_128bp'"
             )
+
+    def _get_raw_predictions(self, sequence: str) -> Any:
+        """Get raw model predictions including embeddings.
+
+        The public AlphaGenome API filters out embeddings via extract_predictions().
+        This method creates a custom forward pass to access embeddings directly.
+
+        Args:
+            sequence: DNA sequence.
+
+        Returns:
+            Dict of raw predictions including embeddings_1bp.
+        """
+        import functools
+
+        import haiku as hk
+        import jax
+        import jax.numpy as jnp
+        import jmp
+        import numpy as np
+        from alphagenome_research.model import model as ag_model
+        from alphagenome_research.model.metadata import metadata as metadata_lib
+
+        # Lazy-create the raw prediction function
+        if not hasattr(self, "_raw_predict_fn"):
+            # Get metadata for BOTH organisms (model was trained with both)
+            from alphagenome.models import dna_model as dna_model_lib
+
+            metadata = {
+                dna_model_lib.Organism.HOMO_SAPIENS: metadata_lib.load(
+                    dna_model_lib.Organism.HOMO_SAPIENS
+                ),
+                dna_model_lib.Organism.MUS_MUSCULUS: metadata_lib.load(
+                    dna_model_lib.Organism.MUS_MUSCULUS
+                ),
+            }
+
+            jmp_policy = jmp.get_policy(
+                "params=float32,compute=bfloat16,output=bfloat16"
+            )
+
+            @hk.transform_with_state
+            def _forward(dna_sequence, organism_index):
+                with hk.mixed_precision.push_policy(ag_model.AlphaGenome, jmp_policy):
+                    return ag_model.AlphaGenome(metadata)(dna_sequence, organism_index)
+
+            def _apply_fn(params, state, dna_sequence, organism_index):
+                (predictions, _), _ = _forward.apply(
+                    params, state, None, dna_sequence, organism_index
+                )
+                return predictions
+
+            self._raw_predict_fn = jax.jit(_apply_fn)
+
+        # Encode sequence to one-hot
+        one_hot = self._model._one_hot_encoder.encode(sequence)
+        one_hot = jnp.asarray(one_hot)[jnp.newaxis]  # Add batch dim: (1, S, 4)
+
+        # Create organism index (default to human = 0)
+        organism_index = jnp.array([0], dtype=jnp.int32)
+
+        # Call raw predict function to get predictions including embeddings
+        predictions = self._raw_predict_fn(
+            self._model._params,
+            self._model._state,
+            one_hot,
+            organism_index,
+        )
+
+        return predictions
 
     def _forward_predict(
         self, sequence: str, output_types: Optional[List[str]] = None
@@ -270,8 +355,8 @@ class AlphaGenomeEncoder(FoundationEncoder):
         results = {}
         for ot in requested:
             track_data = output.get(ot)
-            if track_data is not None and track_data.data is not None:
-                results[ot.name.lower()] = track_data.data
+            if track_data is not None and track_data.values is not None:
+                results[ot.name.lower()] = track_data.values
 
         return results
 
@@ -336,6 +421,16 @@ class AlphaGenomeEncoder(FoundationEncoder):
             if len(chunk) > 0:
                 chunks.append(chunk)
         return chunks
+
+    def _to_torch(self, arr: Any) -> Tensor:
+        """Convert array (JAX or numpy) to PyTorch tensor."""
+        import numpy as np
+
+        if isinstance(arr, np.ndarray):
+            return torch.from_numpy(arr)
+        else:
+            # JAX array
+            return self._jax_to_torch(arr)
 
     @property
     def modality(self) -> str:
