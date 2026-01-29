@@ -180,33 +180,59 @@ class AlphaGenomeEncoder(FoundationEncoder):
 
         Returns:
             JAX array of embeddings, mean-pooled over sequence length.
+            Shape: (1, embedding_dim)
         """
+        import jax
         import jax.numpy as jnp
+        import numpy as np
 
-        # Get all output types to force full forward pass
-        all_outputs = [self._dna_model.OutputType.RNA_SEQ]
+        # Access the internal apply_fn to get raw predictions including embeddings
+        # The public API filters out embeddings, so we need to call apply_fn directly
+        apply_fn = self._model._predict.keywords.get("apply_fn")
+        if apply_fn is None:
+            raise RuntimeError(
+                "Could not access internal apply_fn. AlphaGenome API may have changed."
+            )
 
-        output = self._model.predict_sequence(
-            sequence,
-            requested_outputs=all_outputs,
-            ontology_terms=None,
+        # Encode sequence to one-hot
+        one_hot = self._model._one_hot_encoder.encode(sequence)
+        one_hot = jnp.asarray(one_hot)[jnp.newaxis]  # Add batch dim: (1, S, 4)
+
+        # Create organism index (default to human = 0)
+        organism_index = jnp.array([0], dtype=jnp.int32)
+
+        # Call apply_fn to get raw predictions including embeddings_1bp
+        predictions = apply_fn(
+            self._model._params,
+            self._model._state,
+            one_hot,
+            organism_index,
         )
 
-        # The public API doesn't expose embeddings directly.
-        # We need to access internal predictions.
-        # For now, use RNA_SEQ predictions as a proxy until we implement
-        # proper embedding extraction.
-        # TODO: Implement proper embedding extraction via internal _predict
-        rna_seq = output.rna_seq
-        if rna_seq is not None:
-            # Mean pool over tracks and positions
-            data = rna_seq.data  # TrackData object
-            return jnp.mean(data, axis=-1, keepdims=True)
+        # Extract embeddings based on layer_name
+        if self.layer_name == "embeddings_1bp":
+            embeddings = predictions.get("embeddings_1bp")
+            if embeddings is None:
+                raise KeyError(
+                    f"embeddings_1bp not found in predictions. "
+                    f"Available keys: {list(predictions.keys())}"
+                )
+            # Mean pool over sequence length: (1, S, 1536) -> (1, 1536)
+            return jnp.mean(embeddings, axis=1)
 
-        raise NotImplementedError(
-            "Embedding extraction requires access to internal model predictions. "
-            "This is a placeholder implementation."
-        )
+        elif self.layer_name == "embeddings_128bp":
+            # For 128bp resolution, we'd need to access trunk embeddings
+            # This requires different extraction logic
+            raise NotImplementedError(
+                "embeddings_128bp extraction not yet implemented. "
+                "Use layer_name='embeddings_1bp' for now."
+            )
+
+        else:
+            raise ValueError(
+                f"Unknown layer_name: {self.layer_name}. "
+                f"Supported: 'embeddings_1bp', 'embeddings_128bp'"
+            )
 
     def _forward_predict(
         self, sequence: str, output_types: Optional[List[str]] = None
@@ -216,13 +242,16 @@ class AlphaGenomeEncoder(FoundationEncoder):
         Args:
             sequence: DNA sequence.
             output_types: Optional list of output type names to request.
+                Options: "ATAC", "CAGE", "CHIP_HISTONE", "CHIP_TF",
+                         "DNASE", "RNA_SEQ", "SPLICE_SITES", etc.
 
         Returns:
-            Dict of track name to JAX array.
+            Dict of track name (lowercase) to JAX array.
         """
         OutputType = self._dna_model.OutputType
 
         if output_types is None:
+            # Default to commonly used output types
             requested = [
                 OutputType.ATAC,
                 OutputType.CAGE,
@@ -230,7 +259,7 @@ class AlphaGenomeEncoder(FoundationEncoder):
                 OutputType.RNA_SEQ,
             ]
         else:
-            requested = [OutputType[ot] for ot in output_types]
+            requested = [OutputType[ot.upper()] for ot in output_types]
 
         output = self._model.predict_sequence(
             sequence,
@@ -241,7 +270,7 @@ class AlphaGenomeEncoder(FoundationEncoder):
         results = {}
         for ot in requested:
             track_data = output.get(ot)
-            if track_data is not None:
+            if track_data is not None and track_data.data is not None:
                 results[ot.name.lower()] = track_data.data
 
         return results
