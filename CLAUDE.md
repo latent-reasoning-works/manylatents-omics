@@ -141,6 +141,7 @@ test_split: 0.2
 | **ESM3** | Protein | 1.4B params | 1536 | Protein structure/function |
 | **Evo2** | DNA | StripedHyena2 | 2048 | Long-range genomic context |
 | **Orthrus** | RNA | Mamba-based | 256/512 | RNA secondary structure |
+| **AlphaGenome** | DNA | JAX-based | 1536/3072 | Regulatory predictions + embeddings |
 
 **Key Components**:
 - Foundation model wrappers in `manylatents.dogma.encoders`
@@ -154,12 +155,34 @@ python -m manylatents.dogma.encode encoder=esm3 data=sequence_gfp
 
 # DNA sequences with Evo2
 python -m manylatents.dogma.encode encoder=evo2 data=sequence_synthetic
+
+# DNA embeddings + regulatory predictions with AlphaGenome
+python -m manylatents.dogma.encode encoder=alphagenome data=sequence_synthetic
+```
+
+**AlphaGenome Python API**:
+```python
+from manylatents.dogma.encoders import AlphaGenomeEncoder
+
+# Initialize encoder (downloads weights from HuggingFace on first use)
+encoder = AlphaGenomeEncoder(device="cuda")
+
+# Get embeddings (1536-dim for 1bp resolution)
+embedding = encoder.encode("ATGC" * 1000)  # (1, 1536)
+
+# Get regulatory track predictions
+predictions = encoder.predict("ATGC" * 1000)
+# predictions = {"atac": Tensor, "cage": Tensor, "dnase": Tensor, "rna_seq": Tensor}
+
+# Chunked processing for sequences > 1Mb
+long_embedding = encoder.encode(long_seq, chunk_size=500000, overlap=10000)
 ```
 
 **GPU Requirements**:
 - **ESM3**: 16GB+ VRAM (batch_size=8)
 - **Evo2**: 24GB+ VRAM (long sequences), Ampere+ GPU (A100/L40S/H100) for FP8
 - **Orthrus**: 8GB+ VRAM (efficient Mamba architecture)
+- **AlphaGenome**: 40GB+ VRAM (L40S/H100 recommended), JAX with CUDA 12
 
 **Installation** (requires wheelnext uv for prebuilt CUDA wheels):
 ```bash
@@ -173,6 +196,10 @@ uv sync --extra dogma --index-strategy unsafe-best-match
 # 3. Verify imports (requires CUDA module on login nodes)
 module load cuda/12.4.1
 uv run python -c "import evo2, orthrus, esm; print('All encoders OK')"
+
+# For AlphaGenome (JAX-based, separate from dogma):
+uv sync --extra alphagenome --index-strategy unsafe-best-match
+uv run python -c "from manylatents.dogma.encoders import AlphaGenomeEncoder; print('AlphaGenome OK')"
 ```
 
 **Why wheelnext?** Standard uv/pip can't find prebuilt wheels for transformer-engine-torch and mamba-ssm (they're on conda-forge, not PyPI). Wheelnext uv supports [wheel variants](https://astral.sh/blog/wheel-variants) which auto-detect GPU and select CUDA-compatible wheels.
