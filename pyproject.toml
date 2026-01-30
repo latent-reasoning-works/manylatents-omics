@@ -42,6 +42,7 @@ alphagenome = [
     "alphagenome-research",
     "torch-jax-interop>=0.0.7",
     "numpy>=2.0",  # Required by JAX 0.9+
+    "jax[cuda12]",  # GPU support for AlphaGenome
 ]
 dogma = [
     "torch>=2.7,<2.8",  # Pin for transformer-engine-torch ABI compatibility
