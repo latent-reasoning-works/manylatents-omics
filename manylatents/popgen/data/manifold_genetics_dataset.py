@@ -81,7 +81,7 @@ class ManifoldGeneticsDataset(Dataset):
             "Genetic_region": {"Africa": "#FF6B6B", "EastAsia": "#4ECDC4"}
           }
     """
-    
+
     def __init__(
         self,
         pca_path: Optional[str] = None,

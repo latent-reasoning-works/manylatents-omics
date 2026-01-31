@@ -86,7 +86,11 @@ class ManifoldGeneticsDataModule(LightningDataModule):
         train_admixture_paths: Optional[Dict[int, str]] = None,
         test_admixture_paths: Optional[Dict[int, str]] = None,
         labels_path: Optional[str] = None,
+        train_labels_path: Optional[str] = None,
+        test_labels_path: Optional[str] = None,
         colormap_path: Optional[str] = None,
+        train_colormap_path: Optional[str] = None,
+        test_colormap_path: Optional[str] = None,
         train_embedding_path: Optional[str] = None,
         test_embedding_path: Optional[str] = None,
         label_column: str = "Population",
@@ -103,7 +107,30 @@ class ManifoldGeneticsDataModule(LightningDataModule):
         self.train_admixture_paths = train_admixture_paths
         self.test_admixture_paths = test_admixture_paths
         self.labels_path = labels_path
+        self.train_labels_path = train_labels_path
+        self.test_labels_path = test_labels_path
         self.colormap_path = colormap_path
+        self.train_colormap_path = train_colormap_path
+        self.test_colormap_path = test_colormap_path
+
+        # Validate label paths
+        has_unified_labels = labels_path is not None
+        has_split_labels = train_labels_path is not None or test_labels_path is not None
+        if has_unified_labels and has_split_labels:
+            raise ValueError(
+                "Cannot specify both labels_path and train_labels_path/test_labels_path. "
+                "Use labels_path for 'full' mode or when train+test share labels, "
+                "or use train_labels_path/test_labels_path for 'split' mode with different datasets."
+            )
+
+        # Validate colormap paths
+        has_unified_colormap = colormap_path is not None
+        has_split_colormap = train_colormap_path is not None or test_colormap_path is not None
+        if has_unified_colormap and has_split_colormap:
+            raise ValueError(
+                "Cannot specify both colormap_path and train_colormap_path/test_colormap_path. "
+                "Use colormap_path for 'full' mode, or use train_colormap_path/test_colormap_path for 'split' mode."
+            )
         self.train_embedding_path = train_embedding_path
         self.test_embedding_path = test_embedding_path
         self.label_column = label_column
@@ -136,8 +163,8 @@ class ManifoldGeneticsDataModule(LightningDataModule):
             self.train_dataset = ManifoldGeneticsDataset(
                 pca_path=self.train_pca_path,
                 admixture_paths=self.train_admixture_paths,
-                labels_path=self.labels_path,
-                colormap_path=self.colormap_path,
+                labels_path=self.train_labels_path or self.labels_path,
+                colormap_path=self.train_colormap_path or self.colormap_path,
                 embedding_path=self.train_embedding_path,
                 label_column=self.label_column,
                 geographic_labels_path=self.geographic_labels_path,
@@ -148,8 +175,8 @@ class ManifoldGeneticsDataModule(LightningDataModule):
             self.test_dataset = ManifoldGeneticsDataset(
                 pca_path=self.test_pca_path,
                 admixture_paths=self.test_admixture_paths,
-                labels_path=self.labels_path,
-                colormap_path=self.colormap_path,
+                labels_path=self.test_labels_path or self.labels_path,
+                colormap_path=self.test_colormap_path or self.colormap_path,
                 embedding_path=self.test_embedding_path,
                 label_column=self.label_column,
                 geographic_labels_path=self.geographic_labels_path,
