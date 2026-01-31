@@ -304,6 +304,8 @@ def AdmixturePreservationK(embeddings: np.ndarray,
                            dataset,
                            module: Optional[LatentModule] = None,
                            scale_embeddings: bool = True,
+                           max_samples: Optional[int] = None,
+                           random_seed: int = 42,
                            **kwargs) -> np.ndarray:
     """
     A vector-value wrapper returning admixture preservation scores for all Ks.
@@ -313,19 +315,42 @@ def AdmixturePreservationK(embeddings: np.ndarray,
         dataset: Dataset with admixture_ratios attribute
         module: Optional LatentModule (unused)
         scale_embeddings: Whether to scale embedding dimensions
+        max_samples: If specified, randomly subsample to this many samples (for large datasets)
+        random_seed: Random seed for subsampling reproducibility
 
     Returns:
         Array of preservation scores, one per K value
     """
+    n_samples = embeddings.shape[0]
+
+    # Subsample if requested
+    if max_samples is not None and n_samples > max_samples:
+        rng = np.random.default_rng(random_seed)
+        subset_indices = np.sort(rng.choice(n_samples, size=max_samples, replace=False))
+        logger.info(f"Subsampling {max_samples} of {n_samples} samples for admixture preservation")
+    else:
+        subset_indices = None
+
+    if subset_indices is not None:
+        embeddings = embeddings[subset_indices]
+
     if scale_embeddings:
         embeddings = _scale_embedding_dimensions(embeddings)
 
     return_vector = np.zeros(len(dataset.admixture_ratios))
     for i, key in enumerate(dataset.admixture_ratios.keys()):
+        # Subsample admixture and labels if needed
+        if subset_indices is not None:
+            admixture_df = dataset.admixture_ratios[key].iloc[subset_indices].reset_index(drop=True)
+            population_label = dataset.population_label.iloc[subset_indices].reset_index(drop=True)
+        else:
+            admixture_df = dataset.admixture_ratios[key]
+            population_label = dataset.population_label
+
         result = compute_continental_admixture_metric_dists(
             ancestry_coords=embeddings,
-            admixture_ratios=dataset.admixture_ratios[key],
-            population_label=dataset.population_label,
+            admixture_ratios=admixture_df,
+            population_label=population_label,
             **kwargs
         )
         return_vector[i] = result if result is not None else np.nan
