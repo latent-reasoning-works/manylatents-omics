@@ -94,6 +94,8 @@ class ManifoldGeneticsDataModule(LightningDataModule):
         train_embedding_path: Optional[str] = None,
         test_embedding_path: Optional[str] = None,
         label_column: str = "Population",
+        train_label_column: Optional[str] = None,
+        test_label_column: Optional[str] = None,
         geographic_labels_path: Optional[str] = None,
         mode: str = "split",
         shuffle_traindata: bool = True,
@@ -134,6 +136,8 @@ class ManifoldGeneticsDataModule(LightningDataModule):
         self.train_embedding_path = train_embedding_path
         self.test_embedding_path = test_embedding_path
         self.label_column = label_column
+        self.train_label_column = train_label_column
+        self.test_label_column = test_label_column
         self.geographic_labels_path = geographic_labels_path
         self.mode = mode
         self.shuffle_traindata = shuffle_traindata
@@ -166,7 +170,7 @@ class ManifoldGeneticsDataModule(LightningDataModule):
                 labels_path=self.train_labels_path or self.labels_path,
                 colormap_path=self.train_colormap_path or self.colormap_path,
                 embedding_path=self.train_embedding_path,
-                label_column=self.label_column,
+                label_column=self.train_label_column or self.label_column,
                 geographic_labels_path=self.geographic_labels_path,
             )
 
@@ -178,7 +182,7 @@ class ManifoldGeneticsDataModule(LightningDataModule):
                 labels_path=self.test_labels_path or self.labels_path,
                 colormap_path=self.test_colormap_path or self.colormap_path,
                 embedding_path=self.test_embedding_path,
-                label_column=self.label_column,
+                label_column=self.test_label_column or self.label_column,
                 geographic_labels_path=self.geographic_labels_path,
             )
 
