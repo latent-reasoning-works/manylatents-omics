@@ -32,7 +32,6 @@ project: merging-dogma
 # Runtime
 seed: 42
 debug: false
-eval_only: false  # Need to train classifier
 
 # Data configuration - precomputed embeddings
 data:

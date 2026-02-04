@@ -31,7 +31,6 @@ project: merging-dogma
 # Runtime
 seed: 42
 debug: false
-eval_only: true
 
 # Data configuration (inlined to avoid cross-provider defaults resolution)
 # Loads precomputed embeddings from multiple channels

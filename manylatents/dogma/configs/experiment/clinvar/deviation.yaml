@@ -30,7 +30,6 @@ project: merging-dogma
 # Runtime
 seed: 42
 debug: false
-eval_only: true
 
 # Data configuration - precomputed embeddings
 data:

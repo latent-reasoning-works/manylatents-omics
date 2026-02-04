@@ -20,7 +20,6 @@ project: merging-dogma
 # Runtime
 seed: 42
 debug: false
-eval_only: true
 
 # Data: precomputed embeddings with labels
 data:
