@@ -1,3 +1,5 @@
 admixture_preservation:
-  _target_: manylatents.metrics.preservation.AdmixturePreservationK
+  _target_: manylatents.popgen.metrics.preservation.AdmixturePreservationK
   _partial_: True
+  use_medians: False
+  only_far: False

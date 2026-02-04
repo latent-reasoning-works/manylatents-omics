@@ -62,23 +62,27 @@ See `docs/README.md` for detailed installation and usage guide.
 
 ### `manylatents.popgen` - Population Genetics
 
-**Focus**: Human population genomics using genotype data from large biobanks.
+**Focus**: Human population genomics using precomputed outputs from manifold-genetics.
 
-**Data Format**: PLINK (.bed/.bim/.fam)
+**Data Format**: CSV files from manifold-genetics pipeline (PCA, admixture, labels)
 
-**Available Datasets**:
-- **HGDP** (Human Genome Diversity Project) - Global population structure
-- **AOU** (All of Us) - US diverse cohort
-- **UKBB** (UK Biobank) - Large-scale European cohort
-- **MHI** (Million Health Initiative) - Additional biobank data
+**New Interface (Recommended)**:
+- **ManifoldGeneticsDataset** - Dataset-agnostic loader for manifold-genetics outputs
+- **ManifoldGeneticsDataModule** - Lightning DataModule for manifold-genetics data
+- Works with any biobank: HGDP, AOU, UKBB, MHI, or custom cohorts
+- No preprocessing logic - all filtering done upstream by manifold-genetics
+
+**Legacy Interface (Deprecated)**:
+- **PlinkDataset** - Base class for raw PLINK data loading
+- Dataset-specific modules: `HGDPDataModule`, `AOUDataModule`, `UKBBDataModule`, `MHIDataModule`
+- Contains biobank-specific filtering and preprocessing logic
+- Will be removed in future version
 
 **Key Components**:
-- `PlinkDataset` - Core PLINK data loader
-- Dataset-specific modules: `HGDPDataModule`, `AOUDataModule`, `UKBBDataModule`, `MHIDataModule`
 - Population genetics metrics: `GeographicPreservation`, `AdmixturePreservation`
-- Callbacks: `PlotAdmixture` for visualization
+- Callbacks: `PlotAdmixture`, `PlotEmbeddings` for visualization
 
-**Example Usage**:
+**Example Usage (New Interface)**:
 ```bash
 # HGDP experiment
 python -m manylatents.omics.main --config-name=config experiment=single_algorithm data=hgdp algorithms/latent=umap
@@ -208,6 +212,126 @@ uv run python -c "from manylatents.dogma.encoders import AlphaGenomeEncoder; pri
 
 ---
 
+## Architectural Decision: Issue 13 Refactoring
+
+### Migrating from PLINK-based Datasets to manifold-genetics Interface
+
+**Problem**: The original dataset layer was tightly coupled to raw PLINK ingestion with dataset-specific preprocessing (UKBB, AoU, HGDP, MHI). This resulted in:
+- Significant code duplication across biobank-specific classes
+- Complex filtering logic (filter_qc, filter_related, remove_recent_migration, etc.)
+- Tight coupling between data loading and domain-specific ETL
+- Adding new cohorts required duplicating code
+
+**Solution**: Created `ManifoldGeneticsDataset` and `ManifoldGeneticsDataModule` that consume standardized outputs from the [manifold-genetics](https://github.com/MattScicluna/manifold_genetics) pipeline.
+
+### manifold-genetics Output Format
+
+Expected directory structure:
+```
+output_dir/
+├── pca/
+│   ├── fit_pca_50.csv       # PCA coordinates for training samples
+│   └── transform_pca_50.csv # PCA coordinates for test samples
+├── admixture/
+│   ├── fit.K5.csv           # Admixture proportions (K=5) for training
+│   ├── transform.K5.csv     # Admixture proportions (K=5) for test
+│   ├── fit.K7.csv           # Multiple K values supported
+│   └── transform.K7.csv
+├── embeddings/              # Optional custom embeddings
+│   ├── fit_embedding.csv
+│   └── transform_embedding.csv
+├── labels.csv               # Sample metadata with sample_id column
+└── colormap.json            # Label-to-color mapping for visualization
+```
+
+All CSVs must have a `sample_id` column for alignment.
+
+**CSV Format Requirements**:
+- **PCA CSV**: `sample_id, dim_1, dim_2, ..., dim_n`
+  - Example: `HG00096,0.07330787,0.212584,-0.01297431,...`
+- **Admixture CSV**: `sample_id, component_1, component_2, ..., component_K`
+  - Components sum to 1.0 per sample
+  - Example: `HGDP00001,0.9996,0.0004`
+- **Labels CSV**: `sample_id, <label_column>, [other label columns], [latitude, longitude]`
+  - Example:
+    ```
+    sample_id,Population,Genetic_region,latitude,longitude
+    HGDP00001,Yoruba,Africa,6.5244,3.3792
+    HGDP00002,Yoruba,Africa,6.5244,3.3792
+    HGDP00003,Han,EastAsia,39.9042,116.4074
+    ```
+- **Embeddings CSV**: `sample_id, dim_1, dim_2, ..., dim_n` (or custom column names)
+- **Colormap JSON**: Nested dict by label type:
+  ```json
+  {
+    "Population": {
+      "Yoruba": "#FF0000",
+      "Han": "#00FF00"
+    },
+    "Genetic_region": {
+      "Africa": "#FF6B6B",
+      "EastAsia": "#4ECDC4"
+    }
+  }
+  ```
+  Each label type (Population, Genetic_region) maps to a dict of label values to hex colors.
+
+### Migration Example
+
+**Before (Legacy PLINK-based)**:
+```yaml
+# configs/data/hgdp_old.yaml
+_target_: manylatents.popgen.data.HGDPDataModule
+files:
+  plink: ./data/HGDP/genotypes/...
+  metadata: ./data/HGDP/metadata.csv
+  admixture: ./data/HGDP/admixture/global.{K}_metadata.tsv
+  admixture_K: 2,3,4,5
+filter_qc: True
+filter_related: False
+test_all: True
+remove_recent_migration: False
+```
+
+**After (manifold-genetics based)**:
+```yaml
+# configs/data/hgdp_new.yaml
+_target_: manylatents.popgen.data.ManifoldGeneticsDataModule
+fit_pca_path: ./data/HGDP/manifold_genetics/pca/fit_pca_50.csv
+transform_pca_path: ./data/HGDP/manifold_genetics/pca/transform_pca_50.csv
+fit_admixture_paths:
+  5: ./data/HGDP/manifold_genetics/admixture/fit.K5.csv
+transform_admixture_paths:
+  5: ./data/HGDP/manifold_genetics/admixture/transform.K5.csv
+labels_path: ./data/HGDP/manifold_genetics/labels.csv
+colormap_path: ./data/HGDP/manifold_genetics/colormap.json
+label_column: Population
+```
+
+**Key Changes**:
+- ✅ Removed: `filter_qc`, `filter_related`, `remove_recent_migration` - handled upstream
+- ✅ Removed: Dataset-specific class inheritance (HGDPDataModule → ManifoldGeneticsDataModule)
+- ✅ Added: Explicit paths to fit/transform CSVs
+- ✅ Added: `colormap.json` for consistent visualization
+- ✅ Simplified: All filtering done once by manifold-genetics, not repeated in manylatents
+
+### Benefits
+
+- **Separation of concerns**: manifold-genetics handles ETL/genomics, manylatents handles representation learning
+- **No code duplication**: Single dataset class works for all biobanks
+- **Easy to add new cohorts**: Just run manifold-genetics pipeline and update config paths
+- **Inspectable data**: CSV format is human-readable and easy to debug
+- **Consistent visualization**: colormap.json ensures consistent colors across experiments
+- **Faster development**: Adding HGDP, AOU, UKBB, or custom cohort is now a config problem, not a code problem
+
+### Deprecation Timeline
+
+- **Current**: Both legacy (PLINK-based) and new (manifold-genetics) interfaces available
+- **Next Release**: Add deprecation warnings to legacy classes
+- **Future**: Remove legacy PlinkDataset, HGDPDataset, AOUDataset, UKBBDataset, MHIDataset, precomputed_mixin.py
+
+---
+
 ## Architectural Decision: Issue 12 Refactoring
 
 ### Why Separate `popgen` and `singlecell`?
@@ -238,7 +362,30 @@ uv run python -c "from manylatents.dogma.encoders import AlphaGenomeEncoder; pri
 
 ### Adding New Datasets
 
-**For Population Genetics (PLINK data)**:
+**For Population Genetics (Recommended - manifold-genetics)**:
+1. Run the manifold-genetics pipeline on your cohort to generate outputs:
+   - PCA coordinates (fit and transform CSVs)
+   - Admixture proportions (fit and transform CSVs for each K)
+   - labels.csv with sample metadata
+   - colormap.json for visualization
+2. Create config in `configs/data/your_cohort.yaml`:
+   ```yaml
+   _target_: manylatents.popgen.data.ManifoldGeneticsDataModule
+   fit_pca_path: ${paths.data_dir}/your_cohort/pca/fit_pca_50.csv
+   transform_pca_path: ${paths.data_dir}/your_cohort/pca/transform_pca_50.csv
+   fit_admixture_paths:
+     5: ${paths.data_dir}/your_cohort/admixture/fit.K5.csv
+   transform_admixture_paths:
+     5: ${paths.data_dir}/your_cohort/admixture/transform.K5.csv
+   labels_path: ${paths.data_dir}/your_cohort/labels.csv
+   colormap_path: ${paths.data_dir}/your_cohort/colormap.json
+   label_column: Population
+   batch_size: 128
+   num_workers: 4
+   ```
+3. No Python code needed - config changes only!
+
+**For Population Genetics (Legacy - PLINK data, deprecated)**:
 1. Create dataset class inheriting from `PlinkDataset`
 2. Create Lightning DataModule in `manylatents/popgen/data/`
 3. Add config to `configs/data/your_dataset.yaml`
@@ -556,7 +703,13 @@ See [PR #193](https://github.com/latent-reasoning-works/manylatents/pull/193) fo
 ## Issue Tracking
 
 - **Issue 12** ✅ RESOLVED: Refactored anndata out of popgen into new singlecell module
-- **Issue 13** 🔄 OPEN: Refactor popgen datasets to consume manifold-genetics outputs (out of scope - external codebase)
+- **Issue 13** ✅ IN PROGRESS: Refactor popgen datasets to consume manifold-genetics outputs
+  - ✅ Created ManifoldGeneticsDataset and ManifoldGeneticsDataModule
+  - ✅ Updated PlotEmbeddings callback to support colormap.json
+  - ✅ Added comprehensive tests and example config
+  - ✅ Updated documentation with migration guide
+  - ⏳ Legacy classes still available for backward compatibility
+  - 🔜 Future: Add deprecation warnings and remove legacy classes
 
 ---
 

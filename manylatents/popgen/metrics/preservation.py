@@ -85,24 +85,32 @@ def compute_continental_admixture_metric_dists(
     """
     Build geodesic distance graph for admixture_ratios, compare vs. ancestry_coords distances.
     If disconnected at k=5, increase k in steps of 5 up to 100. Return Spearman correlation.
+
+    Args:
+        ancestry_coords: numpy array of embedding coordinates
+        admixture_ratios: DataFrame with sample_id + component columns (e.g., component_1, component_2)
+        population_label: Series with population labels
+        use_medians: If True, aggregate by population median
+        only_far: If True, only consider distant pairs
+        subset_to_test_on: Boolean array for subsetting
     """
     if subset_to_test_on is not None:
         ancestry_coords = ancestry_coords[subset_to_test_on]
-        admixture_ratios = admixture_ratios[subset_to_test_on]
-        population_label = population_label[subset_to_test_on]
+        admixture_ratios = admixture_ratios.iloc[subset_to_test_on].reset_index(drop=True)
+        population_label = population_label.iloc[subset_to_test_on]
 
-    df1 = pd.DataFrame(ancestry_coords, 
+    df1 = pd.DataFrame(ancestry_coords,
                        index=population_label.index)
     df1 = df1.rename(columns={i: f'emb{i}' for i in range(ancestry_coords.shape[1])})
 
-    df2 = admixture_ratios.set_index(0).dropna()
-    df2 = df2.rename(columns={i: f'ar{i}' for i in range(admixture_ratios.shape[1])}) # drop NA rows
+    # Get component columns (exclude sample_id)
+    component_cols = [c for c in admixture_ratios.columns if c != 'sample_id']
+    admixture_values = admixture_ratios[component_cols].dropna()
+    # Rename to ar0, ar1, etc. for consistent column matching later
+    admixture_values.columns = [f'ar{i}' for i in range(len(component_cols))]
 
-    #df = pd.merge(df1, df2, left_index=True, right_index=True, how='inner')
-    #df = pd.merge(df, population_label, left_index=True, right_index=True, how='inner')
-    
-    df = pd.concat([df1, df2.reset_index()], axis=1).drop(columns=0)
-    df = pd.concat([df, population_label], axis=1)
+    df = pd.concat([df1.reset_index(drop=True), admixture_values.reset_index(drop=True)], axis=1)
+    df = pd.concat([df, population_label.reset_index(drop=True)], axis=1)
 
     if use_medians:
         df = df.groupby(population_label.name).median().reset_index()
@@ -129,15 +137,30 @@ def compute_continental_admixture_metric_laplacian(
     subset_to_test_on=None
 ):
     """
-    Evaluate smoothness x^T L x over adjacency built from ancestry_coords. 
+    Evaluate smoothness x^T L x over adjacency built from ancestry_coords.
     Return average across admixture components.
+
+    Args:
+        ancestry_coords: numpy array of embedding coordinates
+        admixture_ratios: DataFrame with sample_id + component columns, or numpy array
+        subset_to_test_on: Boolean array for subsetting
     """
     if subset_to_test_on is not None:
         ancestry_coords = ancestry_coords[subset_to_test_on]
-        admixture_ratios = admixture_ratios[subset_to_test_on]
+        if isinstance(admixture_ratios, pd.DataFrame):
+            admixture_ratios = admixture_ratios.iloc[subset_to_test_on]
+        else:
+            admixture_ratios = admixture_ratios[subset_to_test_on]
+
+    # Convert DataFrame to numpy array, excluding sample_id column
+    if isinstance(admixture_ratios, pd.DataFrame):
+        component_cols = [c for c in admixture_ratios.columns if c != 'sample_id']
+        admixture_values = admixture_ratios[component_cols].values
+    else:
+        admixture_values = admixture_ratios
 
     laplacian = compute_knn_laplacian(ancestry_coords, k=5, normalized=True)
-    return compute_average_smoothness(laplacian, admixture_ratios)
+    return compute_average_smoothness(laplacian, admixture_values)
 
 ##############################################################################
 # 4) Ground Truth based metrics (moved to core manylatents)
@@ -247,16 +270,32 @@ def AdmixturePreservation(embeddings: np.ndarray,
                           dataset,
                           module: Optional[LatentModule] = None,
                           scale_embeddings: bool = True,
+                          admixture_k: int = 5,
                           **kwargs) -> float:
     """
-    Another single-value wrapper returning Spearman correlation.
+    Single-value wrapper returning Spearman correlation for admixture preservation.
+
+    Args:
+        embeddings: Embedding coordinates
+        dataset: Dataset with admixture_ratios attribute
+        module: Optional LatentModule (unused)
+        scale_embeddings: Whether to scale embedding dimensions
+        admixture_k: K value for admixture proportions (default: 5)
     """
     if scale_embeddings:
         embeddings = _scale_embedding_dimensions(embeddings)
 
+    # Handle both int and string keys for backward compatibility
+    k_key = admixture_k
+    if k_key not in dataset.admixture_ratios:
+        k_key = str(admixture_k)
+    if k_key not in dataset.admixture_ratios:
+        available = list(dataset.admixture_ratios.keys())
+        raise ValueError(f"Admixture K={admixture_k} not found. Available: {available}")
+
     return compute_continental_admixture_metric_dists(
         ancestry_coords=embeddings,
-        admixture_ratios=dataset.admixture_ratios['5'], # fixed at 5
+        admixture_ratios=dataset.admixture_ratios[k_key],
         population_label=dataset.population_label,
         **kwargs
     )
@@ -265,36 +304,87 @@ def AdmixturePreservationK(embeddings: np.ndarray,
                            dataset,
                            module: Optional[LatentModule] = None,
                            scale_embeddings: bool = True,
-                           **kwargs) -> np.array:
+                           max_samples: Optional[int] = None,
+                           random_seed: int = 42,
+                           **kwargs) -> np.ndarray:
     """
     A vector-value wrapper returning admixture preservation scores for all Ks.
+
+    Args:
+        embeddings: Embedding coordinates
+        dataset: Dataset with admixture_ratios attribute
+        module: Optional LatentModule (unused)
+        scale_embeddings: Whether to scale embedding dimensions
+        max_samples: If specified, randomly subsample to this many samples (for large datasets)
+        random_seed: Random seed for subsampling reproducibility
+
+    Returns:
+        Array of preservation scores, one per K value
     """
+    n_samples = embeddings.shape[0]
+
+    # Subsample if requested
+    if max_samples is not None and n_samples > max_samples:
+        rng = np.random.default_rng(random_seed)
+        subset_indices = np.sort(rng.choice(n_samples, size=max_samples, replace=False))
+        logger.info(f"Subsampling {max_samples} of {n_samples} samples for admixture preservation")
+    else:
+        subset_indices = None
+
+    if subset_indices is not None:
+        embeddings = embeddings[subset_indices]
+
     if scale_embeddings:
         embeddings = _scale_embedding_dimensions(embeddings)
 
     return_vector = np.zeros(len(dataset.admixture_ratios))
     for i, key in enumerate(dataset.admixture_ratios.keys()):
-        return_vector[i] = compute_continental_admixture_metric_dists(
+        # Subsample admixture and labels if needed
+        if subset_indices is not None:
+            admixture_df = dataset.admixture_ratios[key].iloc[subset_indices].reset_index(drop=True)
+            population_label = dataset.population_label.iloc[subset_indices].reset_index(drop=True)
+        else:
+            admixture_df = dataset.admixture_ratios[key]
+            population_label = dataset.population_label
+
+        result = compute_continental_admixture_metric_dists(
             ancestry_coords=embeddings,
-            admixture_ratios=dataset.admixture_ratios[key],
-            population_label=dataset.population_label,
+            admixture_ratios=admixture_df,
+            population_label=population_label,
             **kwargs
         )
+        return_vector[i] = result if result is not None else np.nan
     return return_vector
 
 def AdmixtureLaplacian(embeddings: np.ndarray,
                        dataset,
                        module: Optional[LatentModule] = None,
-                       scale_embeddings: bool = True) -> float:
+                       scale_embeddings: bool = True,
+                       admixture_k: int = 5) -> float:
     """
     Laplacian-based metric -> single float for callback usage.
+
+    Args:
+        embeddings: Embedding coordinates
+        dataset: Dataset with admixture_ratios attribute
+        module: Optional LatentModule (unused)
+        scale_embeddings: Whether to scale embedding dimensions
+        admixture_k: K value for admixture proportions (default: 5)
     """
     if scale_embeddings:
         embeddings = _scale_embedding_dimensions(embeddings)
 
+    # Handle both int and string keys for backward compatibility
+    k_key = admixture_k
+    if k_key not in dataset.admixture_ratios:
+        k_key = str(admixture_k)
+    if k_key not in dataset.admixture_ratios:
+        available = list(dataset.admixture_ratios.keys())
+        raise ValueError(f"Admixture K={admixture_k} not found. Available: {available}")
+
     return compute_continental_admixture_metric_laplacian(
         ancestry_coords=embeddings,
-        admixture_ratios=dataset.admixture_ratios
+        admixture_ratios=dataset.admixture_ratios[k_key]
     )
 
 # GroundTruthPreservation() has been moved to manylatents.metrics.preservation

@@ -8,7 +8,7 @@ import pandas as pd
 
 import wandb
 from manylatents.callbacks.embedding.plot_embeddings import PlotEmbeddings
-from manylatents.popgen.data.plink_dataset import PlinkDataset
+from manylatents.popgen.data.manifold_genetics_dataset import ManifoldGeneticsDataset
 
 logger = logging.getLogger(__name__)
 
@@ -76,9 +76,10 @@ class PlotAdmixture(PlotEmbeddings):
 
     def _check_admixture_available(self, dataset: any) -> tuple:
         """Check if dataset has admixture data. Returns (bool, DataFrame or None)."""
-        if not isinstance(dataset, PlinkDataset):
+        if not isinstance(dataset, ManifoldGeneticsDataset):
             logger.warning(
-                f"PlotAdmixture skipped: dataset is {type(dataset).__name__}, not PlinkDataset"
+                f"PlotAdmixture skipped: dataset is {type(dataset).__name__}, "
+                "not ManifoldGeneticsDataset"
             )
             return False, None
 
@@ -86,15 +87,18 @@ class PlotAdmixture(PlotEmbeddings):
             logger.warning("PlotAdmixture skipped: dataset.admixture_ratios is None")
             return False, None
 
-        K_str = str(self.admixture_K)
-        if K_str not in dataset.admixture_ratios:
+        # Handle both int and string keys
+        K_key = self.admixture_K
+        if K_key not in dataset.admixture_ratios:
+            K_key = str(self.admixture_K)
+        if K_key not in dataset.admixture_ratios:
             logger.warning(
                 f"PlotAdmixture skipped: K={self.admixture_K} not found. "
                 f"Available: {list(dataset.admixture_ratios.keys())}"
             )
             return False, None
 
-        return True, dataset.admixture_ratios[K_str]
+        return True, dataset.admixture_ratios[K_key]
 
     def _plot_embeddings(self, dataset: any, embeddings_to_plot: np.ndarray, color_array: np.ndarray) -> str:
         """Override parent to create admixture subplot grid."""
