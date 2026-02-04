@@ -8,12 +8,11 @@ import pandas as pd
 from manylatents.utils.data import load_metadata
 
 from .plink_dataset import PlinkDataset
-from .precomputed_mixin import PrecomputedMixin
 
 logger = logging.getLogger(__name__)
 
 
-class MHIDataset(PlinkDataset, PrecomputedMixin):
+class MHIDataset(PlinkDataset):
     """
     PyTorch Dataset for MHI data.
     Returns both raw data and (optionally) precomputed embeddings.

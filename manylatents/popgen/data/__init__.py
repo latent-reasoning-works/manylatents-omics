@@ -1,7 +1,6 @@
 """Population genetics datasets."""
 
 from .plink_dataset import PlinkDataset
-from .precomputed_mixin import PrecomputedMixin
 from .hgdp_dataset import HGDPDataset
 from .hgdp import HGDPDataModule
 from .aou_dataset import AOUDataset
@@ -14,7 +13,6 @@ from .mhi import MHIDataModule
 __all__ = [
     # Core
     "PlinkDataset",
-    "PrecomputedMixin",
     # Genomics (PLINK-based)
     "HGDPDataset",
     "HGDPDataModule",
