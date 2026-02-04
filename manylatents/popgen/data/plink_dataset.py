@@ -419,3 +419,40 @@ class PlinkDataset(Dataset):
     @property
     def nan_filter_indices(self) -> np.array:
         return self._nan_filter_indices
+
+    def load_precomputed(self, precomputed_path: str, mmap_mode: str = None) -> Optional[np.ndarray]:
+        """
+        Load precomputed embeddings from file.
+
+        Args:
+            precomputed_path: Path to precomputed embeddings (.npy or .csv)
+            mmap_mode: Memory-mapping mode for large datasets
+
+        Returns:
+            Loaded embeddings as numpy array, or None if path doesn't exist
+        """
+        if precomputed_path:
+            abs_path = os.path.abspath(precomputed_path)
+            logger.info(f"Resolved precomputed path: {abs_path}")
+            if os.path.exists(abs_path):
+                logger.info(f"Loading precomputed embeddings from {abs_path}")
+                data = None
+                if abs_path.endswith(".npy"):
+                    data = np.load(abs_path, mmap_mode=mmap_mode)
+                elif abs_path.endswith(".csv"):
+                    data = np.genfromtxt(abs_path, delimiter=",", skip_header=1)
+                else:
+                    raise ValueError(f"Unsupported file format: {abs_path}")
+
+                if data is not None:
+                    nan_mask = np.any(np.isnan(data), axis=1)
+                    nan_count = nan_mask.sum()
+                    if nan_count > 0:
+                        logger.warning(
+                            f"Precomputed data contains {nan_count} samples with NaN values "
+                            f"(out of {data.shape[0]} total samples). "
+                            "These may cause errors during training if not filtered out via metadata filters."
+                        )
+                return data
+        logger.info("No precomputed embeddings found or path does not exist.")
+        return None

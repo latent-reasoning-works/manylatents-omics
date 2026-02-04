@@ -8,12 +8,11 @@ import pandas as pd
 from manylatents.utils.data import load_metadata
 
 from .plink_dataset import PlinkDataset
-from .precomputed_mixin import PrecomputedMixin
 
 logger = logging.getLogger(__name__)
 
 
-class AOUDataset(PlinkDataset, PrecomputedMixin):
+class AOUDataset(PlinkDataset):
     """
     PyTorch Dataset for AoU data.
     Returns both raw data and (optionally) precomputed embeddings.
