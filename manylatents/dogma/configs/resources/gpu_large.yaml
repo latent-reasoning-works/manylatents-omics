@@ -6,6 +6,10 @@ hydra:
   launcher:
     cpus_per_task: 8
     gpus_per_task: 1
-    mem: "64G"
-    time_limit: "04:00:00"
+    mem_gb: 64
+    timeout_min: 240  # 4 hours
     array_parallelism: 8
+
+    # Setup commands run before job starts
+    setup:
+      - "module load cuda/12.1.1"

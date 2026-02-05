@@ -1,0 +1,14 @@
+# @package _global_
+
+# GPU resources for RNA encoders (Orthrus + ESM3)
+# Uses .venv with torch 2.5.1 + mamba-ssm prebuilt wheels
+
+hydra:
+  launcher:
+    cpus_per_task: 4
+    gpus_per_task: 1
+    mem_gb: 32
+    timeout_min: 120
+
+    setup:
+      - "source ${hydra:runtime.cwd}/../tools/manylatents-omics/scripts/setup-rna-venv.sh"

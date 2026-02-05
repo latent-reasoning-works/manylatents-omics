@@ -1,11 +1,16 @@
 # @package _global_
 
 # GPU resources for foundation model inference
+# Includes CUDA module setup for mamba-ssm/transformer-engine
 
 hydra:
   launcher:
     cpus_per_task: 4
     gpus_per_task: 1
-    mem: "32G"
-    time_limit: "02:00:00"
+    mem_gb: 32
+    timeout_min: 120  # 2 hours
     array_parallelism: 16
+
+    # Setup commands run before job starts
+    setup:
+      - "module load cuda/12.1.1"

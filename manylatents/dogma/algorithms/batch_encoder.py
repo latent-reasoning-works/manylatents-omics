@@ -74,6 +74,7 @@ class BatchEncoder(LatentModule):
         normalize: bool = False,
         save_path: Optional[Union[str, Path]] = None,
         n_components: Optional[int] = None,
+        channel: Optional[str] = None,
         **kwargs,
     ):
         if modality not in ("dna", "rna", "protein"):
@@ -87,6 +88,7 @@ class BatchEncoder(LatentModule):
 
         self._encoder_config = encoder_config
         self._modality = modality
+        self._channel = channel  # 'wt' or 'mut' for VariantDataModule
         self._batch_size = batch_size
         self._normalize = normalize
         self._save_path = Path(save_path) if save_path else None
@@ -101,11 +103,12 @@ class BatchEncoder(LatentModule):
             self._encoder = hydra.utils.instantiate(self._encoder_config)
             logger.info(f"Encoder loaded: {type(self._encoder).__name__}")
 
-    def fit(self, x: Tensor) -> None:
+    def fit(self, x: Tensor, y: Tensor = None) -> None:
         """No-op fit - encoder is pretrained.
 
         Args:
             x: Input tensor (ignored - sequences come from datamodule).
+            y: Labels (ignored - pretrained encoder).
         """
         self._is_fitted = True
 
@@ -139,12 +142,23 @@ class BatchEncoder(LatentModule):
                 "Use ClinVarDataModule or CentralDogmaDataModule."
             )
 
-        # Get sequences for this modality
+        # Get sequences - try channel first (VariantDataModule), then modality (ClinVarDataModule)
         all_sequences = self.datamodule.get_sequences()
-        sequences = all_sequences.get(self._modality, [])
+
+        # VariantDataModule returns {"wt": [...], "mut": [...]}
+        # ClinVarDataModule returns {"dna": [...], "rna": [...], "protein": [...]}
+        if self._channel and self._channel in all_sequences:
+            sequences = all_sequences.get(self._channel, [])
+            key_used = self._channel
+        else:
+            sequences = all_sequences.get(self._modality, [])
+            key_used = self._modality
 
         if not sequences:
-            raise ValueError(f"No sequences found for modality '{self._modality}'")
+            raise ValueError(
+                f"No sequences found for key '{key_used}'. "
+                f"Available keys: {list(all_sequences.keys())}"
+            )
 
         # Handle both single sequence (CentralDogma) and list (ClinVar)
         if isinstance(sequences, str):
