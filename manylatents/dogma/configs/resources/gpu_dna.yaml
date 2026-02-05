@@ -12,7 +12,7 @@ hydra:
     gres: "gpu:a100:1"  # Evo2 requires Ampere+ for BF16
 
     setup:
-      - "module load cuda/12.4.1"
-      - "module load cuda/12.4.1/cudnn/9.3"
+      - "module load cuda/12.6"
+      - "module load cuda/12.6/cudnn/9.3"
       - "source scripts/setup-dna-venv.sh"
       - "export VIRTUAL_ENV=.venv-dna && export PATH=$VIRTUAL_ENV/bin:$PATH"

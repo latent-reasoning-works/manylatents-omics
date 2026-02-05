@@ -12,8 +12,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
-module load cuda/12.4.1 2>/dev/null || true
-module load cuda/12.4.1/cudnn/9.3 2>/dev/null || true
+module load cuda/12.6 2>/dev/null || true
+module load cuda/12.6/cudnn/9.3 2>/dev/null || true
 
 # Create venv if needed
 if [ ! -d .venv-dna ]; then
@@ -24,7 +24,7 @@ fi
 # Install core packages
 echo "Installing evo2, esm, torch..."
 VIRTUAL_ENV="$PROJECT_DIR/.venv-dna" uv pip install \
-    "esm>=3.0" "evo2" "torch>=2.8" \
+    "esm>=3.0" "evo2" "torch==2.8.0" \
     --index-url https://download.pytorch.org/whl/cu126 \
     --extra-index-url https://pypi.org/simple
 
