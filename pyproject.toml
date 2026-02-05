@@ -21,19 +21,20 @@ dependencies = [
     "manylatents",
     "ninja>=1.13.0",
     "pandas-plink>=2.2.9",
-    "torch==2.5.1",  # Pin for dogma-rna (mamba-ssm prebuilt wheels)
+    # torch in extras - RNA and DNA need different versions
 ]
 
 [project.optional-dependencies]
 singlecell = ["anndata>=0.11.3", "python-igraph>=1.0.0", "scanpy>=1.11.5"]
 esm = ["esm>=3.0"]
-
-# RNA: torch 2.5.1 + mamba-ssm prebuilt (this venv)
 orthrus = ["orthrus", "mamba-ssm==2.2.6.post3"]
-dogma-rna = ["esm>=3.0", "orthrus", "mamba-ssm==2.2.6.post3"]
-
-# DNA: needs separate venv with torch 2.8+ (see pyproject-dna.toml)
 evo2 = ["evo2"]
+
+# RNA (default locked venv): uv sync --extra dogma
+dogma = ["torch==2.5.1", "esm>=3.0", "orthrus", "mamba-ssm==2.2.6.post3"]
+
+# DNA (unlocked venv via uv pip): installs torch>=2.8 + evo2
+# See scripts/setup-dna-venv.sh
 
 [build-system]
 requires = ["hatchling"]
@@ -51,11 +52,16 @@ managed = true
 # and downloads prebuilt wheel from GitHub instead of compiling
 no-build-isolation-package = ["mamba-ssm"]
 
-# PyTorch CUDA 12.1 index for torch 2.5.x (mamba-ssm prebuilt wheels)
+# PyTorch CUDA 12.1 index for locked venv (torch 2.5.1 + mamba-ssm)
 [[tool.uv.index]]
 name = "pytorch-cu121"
 url = "https://download.pytorch.org/whl/cu121"
 explicit = true
+
+# PyTorch CUDA 12.6 index for DNA venv (torch 2.8+ via uv pip)
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
 
 [tool.uv.sources]
 manylatents = { git = "https://github.com/latent-reasoning-works/manylatents.git", branch = "main" }

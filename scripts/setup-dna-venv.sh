@@ -1,8 +1,10 @@
 #!/bin/bash
-# Setup DNA encoder venv (Evo2 + ESM3) with torch 2.8+
-# Creates .venv-dna directory with transformer-engine prebuilt wheels
+# Setup DNA encoder venv (Evo2 + ESM3) - UNLOCKED
+# torch 2.8+cu126 via uv pip (bypasses lock file conflict)
 #
-# Usage: source scripts/setup-dna-venv.sh
+# MUST RUN ON GPU NODE with cudnn (for transformer-engine build)
+# Usage: sbatch -p gpu --gres=gpu:1 --wrap="source scripts/setup-dna-venv.sh"
+#    or: salloc -p gpu --gres=gpu:1 then source scripts/setup-dna-venv.sh
 
 set -e
 
@@ -10,28 +12,29 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
-# Load CUDA for transformer-engine
 module load cuda/12.4.1 2>/dev/null || true
+module load cuda/12.4.1/cudnn/9.3 2>/dev/null || true
 
-# Create DNA venv if needed
+# Create venv if needed
 if [ ! -d .venv-dna ]; then
-    echo "Creating DNA venv with torch 2.8+..."
-
-    # Temporarily swap pyproject.toml
-    cp pyproject.toml pyproject-rna.toml.bak
-    cp pyproject-dna.toml pyproject.toml
-
-    # Sync DNA venv
-    UV_PROJECT_ENVIRONMENT=.venv-dna uv lock --index-strategy unsafe-best-match
-    UV_PROJECT_ENVIRONMENT=.venv-dna uv sync --extra dogma-dna --index-strategy unsafe-best-match
-
-    # Restore RNA pyproject.toml
-    mv pyproject-rna.toml.bak pyproject.toml
-
-    echo "DNA venv created at .venv-dna"
+    echo "Creating DNA venv..."
+    uv venv .venv-dna --python 3.12
 fi
 
-# Activate DNA venv
+# Install core packages
+echo "Installing evo2, esm, torch..."
+VIRTUAL_ENV="$PROJECT_DIR/.venv-dna" uv pip install \
+    "esm>=3.0" "evo2" "torch>=2.8" \
+    --index-url https://download.pytorch.org/whl/cu126 \
+    --extra-index-url https://pypi.org/simple
+
+# Install transformer-engine with pytorch bindings (needs cudnn)
+echo "Installing transformer-engine[pytorch]..."
+VIRTUAL_ENV="$PROJECT_DIR/.venv-dna" uv pip install \
+    "transformer-engine[pytorch]" \
+    --index-url https://download.pytorch.org/whl/cu126 \
+    --extra-index-url https://pypi.org/simple
+
 export VIRTUAL_ENV="$PROJECT_DIR/.venv-dna"
 export PATH="$VIRTUAL_ENV/bin:$PATH"
-echo "Activated DNA venv: $VIRTUAL_ENV"
+echo "DNA venv ready: $(python -c 'import torch; print(f\"torch {torch.__version__}\")')"

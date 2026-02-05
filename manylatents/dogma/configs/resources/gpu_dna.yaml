@@ -1,15 +1,18 @@
 # @package _global_
 
 # GPU resources for DNA encoders (Evo2 + ESM3)
-# Uses separate .venv-dna with torch 2.8+ for transformer-engine
+# Uses .venv-dna with torch 2.8+cu126 (unlocked, builds on first use)
 
 hydra:
   launcher:
     cpus_per_task: 4
     gpus_per_task: 1
     mem_gb: 32
-    timeout_min: 120
+    timeout_min: 240  # Extra time for first-time build
     gres: "gpu:a100:1"  # Evo2 requires Ampere+ for BF16
 
     setup:
-      - "source ${hydra:runtime.cwd}/../tools/manylatents-omics/scripts/setup-dna-venv.sh"
+      - "module load cuda/12.4.1"
+      - "module load cuda/12.4.1/cudnn/9.3"
+      - "source scripts/setup-dna-venv.sh"
+      - "export VIRTUAL_ENV=.venv-dna && export PATH=$VIRTUAL_ENV/bin:$PATH"
