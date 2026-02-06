@@ -26,7 +26,6 @@ from typing import Dict, List, Optional, Union
 import hydra
 import torch
 from torch import Tensor
-from tqdm import tqdm
 
 from manylatents.algorithms.latent.latent_module_base import LatentModule
 
@@ -166,28 +165,31 @@ class BatchEncoder(LatentModule):
 
         logger.info(f"Encoding {len(sequences)} {self._modality} sequences...")
 
-        # Encode in batches for memory efficiency
-        all_embeddings = []
-        for i in tqdm(range(0, len(sequences), self._batch_size), desc=f"Encoding {self._modality}"):
-            batch = sequences[i : i + self._batch_size]
+        # Filter empty sequences, track their indices for zero-fill
+        valid_indices = []
+        valid_sequences = []
+        for i, seq in enumerate(sequences):
+            if seq:
+                valid_indices.append(i)
+                valid_sequences.append(seq)
 
-            # Encode batch (single sequence at a time for most encoders)
-            batch_embeddings = []
-            for seq in batch:
-                if not seq:  # Skip empty sequences
-                    # Return zeros for missing sequences
-                    batch_embeddings.append(torch.zeros(self.n_components))
-                    continue
+        # Encode via the encoder's batched path (true GPU batching if supported)
+        if valid_sequences:
+            valid_embeddings = self._encoder.encode_batch(
+                valid_sequences,
+                batch_size=self._batch_size,
+                show_progress=True,
+            )
+        else:
+            valid_embeddings = torch.zeros(0, self.n_components)
 
-                emb = self._encoder.encode(seq)
-                if emb.dim() == 1:
-                    emb = emb.squeeze()  # Remove extra dims
-                batch_embeddings.append(emb.cpu())
-
-            all_embeddings.extend(batch_embeddings)
-
-        # Stack into tensor
-        embeddings = torch.stack(all_embeddings, dim=0)
+        # Reconstruct full tensor with zeros for empty sequences
+        if len(valid_indices) == len(sequences):
+            embeddings = valid_embeddings
+        else:
+            embeddings = torch.zeros(len(sequences), self.n_components)
+            for j, idx in enumerate(valid_indices):
+                embeddings[idx] = valid_embeddings[j]
 
         # Normalize if requested
         if self._normalize:

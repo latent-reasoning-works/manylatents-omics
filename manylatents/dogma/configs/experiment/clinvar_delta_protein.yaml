@@ -1,0 +1,47 @@
+# @package _global_
+#
+# ClinVar Paired Protein Encoding Experiment
+#
+# Encodes WT or MUT protein sequences using ESM3 for delta embedding computation.
+# Run twice with channel=wt and channel=mut, then compute delta in analysis.
+#
+# Note: For synonymous variants, WT and MUT protein sequences are identical,
+# so delta will be zero. This serves as a control condition.
+#
+# Usage:
+#   python -m manylatents.omics.main -m experiment=clinvar_delta_protein algorithms.latent.channel=wt,mut
+
+# Project settings
+name: clinvar_delta_protein
+project: cross-dogma
+
+# Runtime
+seed: 42
+debug: false
+eval_only: false
+
+# Data configuration
+data:
+  _target_: manylatents.dogma.data.variant_datamodule.VariantDataModule
+  variants_dir: ${data_dir}/clinvar/variants
+  sequences_dir: ${data_dir}/clinvar/sequences
+  variant_type: synonymous
+  modality: protein
+  batch_size: 32
+  max_variants: null
+  valid_variants_file: ${data_dir}/clinvar/variants/${data.variant_type}_valid_esm3.txt
+
+# Algorithm configuration
+algorithms:
+  latent:
+    _target_: manylatents.dogma.algorithms.BatchEncoder
+    _recursive_: false
+    modality: protein
+    channel: wt
+    batch_size: 8
+    normalize: false
+    n_components: 1536
+    save_path: ${output_dir}/embeddings/${data.variant_type}/${algorithms.latent.channel}_protein.pt
+    encoder_config:
+      _target_: manylatents.dogma.encoders.ESM3Encoder
+      device: cuda

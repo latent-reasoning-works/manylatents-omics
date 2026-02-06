@@ -15,18 +15,14 @@ hydra:
     subdir: ${hydra.job.num}
 
   launcher:
-    # SLURM parameters
-    cpus_per_task: 4
-    gpus_per_task: 1
-    mem_gb: 32
+    # Resource parameters (override with resources config group)
     timeout_min: 240
-    partition: main
+    cpus_per_task: 4
+    gpus_per_task: 0  # Default 0, resource configs override to 1
     tasks_per_node: 1
+    mem_gb: 16
     nodes: 1
-
-    # GPU report after job
-    additional_parameters:
-      epilog: nvidia-smi --query-accounted-apps=gpu_utilization,mem_utilization,max_memory_usage,time --format=csv | head -10
+    partition: main
 
     # Setup commands
     setup:

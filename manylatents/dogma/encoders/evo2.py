@@ -125,7 +125,42 @@ class Evo2Encoder(FoundationEncoder):
 
         return embedding
 
-    # encode_batch() uses base class default (loops over encode())
+    # --- Batched inference ---
+
+    def _supports_batched_forward(self) -> bool:
+        return True
+
+    def _tokenize_batch(self, sequences: List[str]) -> dict:
+        """Tokenize, pad, and stack sequences for batched forward pass."""
+        self._ensure_loaded()
+
+        encoded = [self._model.tokenizer.tokenize(seq) for seq in sequences]
+        max_len = max(len(e) for e in encoded)
+
+        input_ids = torch.zeros(len(encoded), max_len, dtype=torch.int,
+                                device=self.device)
+        attention_mask = torch.zeros(len(encoded), max_len, dtype=torch.bool,
+                                     device=self.device)
+
+        for i, enc in enumerate(encoded):
+            length = len(enc)
+            input_ids[i, :length] = torch.tensor(enc, dtype=torch.int)
+            attention_mask[i, :length] = True
+
+        return {"input_ids": input_ids, "attention_mask": attention_mask}
+
+    def _extract_embeddings(self, batch: dict) -> Tensor:
+        """Single forward pass with masked mean pooling."""
+        _, embeddings = self._model(
+            batch["input_ids"],
+            return_embeddings=True,
+            layer_names=[self.layer_name],
+        )
+        hidden = embeddings[self.layer_name]  # (B, L, D)
+
+        mask = batch["attention_mask"].unsqueeze(-1).float()  # (B, L, 1)
+        pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1)
+        return pooled  # (B, D)
 
     @property
     def modality(self) -> str:

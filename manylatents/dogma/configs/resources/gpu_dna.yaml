@@ -1,18 +1,31 @@
 # @package _global_
 
 # GPU resources for DNA encoders (Evo2 + ESM3)
-# Uses .venv-dna with torch 2.8+cu126 (unlocked, builds on first use)
+# Uses .venv-dna with torch 2.8+cu126 (separate venv for transformer-engine)
+#
+# NOTE: Evo2 requires Ampere+ GPU (A100/L40S/H100) for BF16.
+# Adjust CUDA module and gres for your cluster.
 
 hydra:
+  mode: MULTIRUN
   launcher:
+    # GPU resources — gpus_per_task=0 to avoid Mila srun GRES conflict
     cpus_per_task: 4
-    gpus_per_task: 1
-    mem_gb: 32
-    timeout_min: 240  # Extra time for first-time build
-    gres: "gpu:a100:1"  # Evo2 requires Ampere+ for BF16
+    gpus_per_task: 0
+    array_parallelism: 4
+
+    # Additional SLURM parameters (gres goes here to avoid srun conflict)
+    additional_parameters:
+      time: "24:00:00"
+      nodes: 1
+      mem: 32G
+      ntasks_per_node: 1
+      gres: "gpu:a100:1"
 
     setup:
-      - "module load cuda/12.6"
-      - "module load cuda/12.6/cudnn/9.3"
-      - "source scripts/setup-dna-venv.sh"
-      - "export VIRTUAL_ENV=.venv-dna && export PATH=$VIRTUAL_ENV/bin:$PATH"
+      - "module load cuda/12.5.0"
+      - "export LIBRARY_PATH=$CUDA_PATH/lib/stubs:$LIBRARY_PATH"
+      - "export LD_LIBRARY_PATH=$CUDA_PATH/lib64:$LD_LIBRARY_PATH"
+      - "cd $SLURM_SUBMIT_DIR"
+      - "export VIRTUAL_ENV=$SLURM_SUBMIT_DIR/.venv-dna"
+      - "export PATH=$VIRTUAL_ENV/bin:$PATH"

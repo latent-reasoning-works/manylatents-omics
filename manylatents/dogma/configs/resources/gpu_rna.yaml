@@ -1,15 +1,29 @@
 # @package _global_
 
-# GPU resources for RNA encoders (Orthrus + ESM3)
+# GPU resources for RNA/Protein encoders (Orthrus + ESM3)
 # Uses .venv with torch 2.5.1+cu121 + mamba-ssm (locked)
+#
+# NOTE: Orthrus and ESM3 work on any modern GPU (V100+).
+# Adjust CUDA module and gres for your cluster.
 
 hydra:
+  mode: MULTIRUN
   launcher:
-    cpus_per_task: 4
-    gpus_per_task: 1
-    mem_gb: 32
-    timeout_min: 120
+    # GPU resources — gpus_per_task=0 to avoid Mila srun GRES conflict
+    cpus_per_task: 8
+    gpus_per_task: 0
+    array_parallelism: 3
+
+    # Additional SLURM parameters (gres goes here to avoid srun conflict)
+    additional_parameters:
+      time: "12:00:00"
+      nodes: 1
+      mem: 48G
+      ntasks_per_node: 1
+      gres: "gpu:1"
 
     setup:
-      - "module load cuda/12.1.1"
-      - "uv sync --extra dogma --index-strategy unsafe-best-match"
+      - "module load cuda/12.1.1 2>/dev/null || true"
+      - "cd $SLURM_SUBMIT_DIR"
+      - "export VIRTUAL_ENV=$SLURM_SUBMIT_DIR/.venv"
+      - "export PATH=$VIRTUAL_ENV/bin:$PATH"
