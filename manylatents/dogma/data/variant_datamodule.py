@@ -137,6 +137,8 @@ class VariantPairDataset(Dataset):
         self.wt_seqs = wt_seqs
         self.mut_seqs = mut_seqs
         self.labels = labels
+        # Required by experiment.py evaluate(): ds.data.shape
+        self.data = torch.tensor(labels, dtype=torch.int64)
 
     def __len__(self):
         return len(self.wt_seqs)
@@ -203,6 +205,10 @@ class VariantDataModule(LightningDataModule):
         self._labels: List[int] = []
         self._variant_ids: List[str] = []
         self._metadata: Dict[str, List] = {}
+
+        # Required by manylatents experiment.py (line 215)
+        self.train_dataset = None
+        self.test_dataset = None
 
     def setup(self, stage: Optional[str] = None):
         """Load variant metadata and sequences."""
@@ -320,6 +326,11 @@ class VariantDataModule(LightningDataModule):
               f"{n_diff}/{len(self._wt_seqs)} ({100*n_diff/len(self._wt_seqs):.1f}%)"
               if self._wt_seqs else "")
 
+        # Required by experiment.py: datamodule.train_dataset.data.shape
+        dataset = VariantPairDataset(self._wt_seqs, self._mut_seqs, self._labels)
+        self.train_dataset = dataset
+        self.test_dataset = dataset
+
     def get_sequence_pairs(self) -> Dict[str, List[str]]:
         """Return paired WT/MUT sequences for encoding.
 
@@ -329,12 +340,8 @@ class VariantDataModule(LightningDataModule):
         return {"wt": self._wt_seqs, "mut": self._mut_seqs}
 
     def get_sequences(self) -> Dict[str, List[str]]:
-        """Return sequences as channels for BatchEncoder compatibility.
-
-        Returns:
-            Dict with 'wt' and 'mut' keys (used as channels by BatchEncoder).
-        """
-        return {"wt": self._wt_seqs, "mut": self._mut_seqs}
+        """Return sequences as channels for BatchEncoder compatibility."""
+        return self.get_sequence_pairs()
 
     def get_labels(self) -> np.ndarray:
         """Return pathogenicity labels (0=benign, 1=pathogenic)."""
@@ -349,8 +356,7 @@ class VariantDataModule(LightningDataModule):
         return self._metadata
 
     def train_dataloader(self) -> DataLoader:
-        dataset = VariantPairDataset(self._wt_seqs, self._mut_seqs, self._labels)
-        return DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=False)
 
     def val_dataloader(self) -> DataLoader:
         return self.train_dataloader()

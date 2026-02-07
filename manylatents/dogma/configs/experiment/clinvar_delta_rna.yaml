@@ -10,6 +10,7 @@
 
 # Project settings
 name: clinvar_delta_rna
+metrics: null
 
 # Data configuration
 data:

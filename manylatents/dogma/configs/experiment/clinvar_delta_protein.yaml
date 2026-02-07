@@ -19,6 +19,7 @@ project: cross-dogma
 seed: 42
 debug: false
 eval_only: false
+metrics: null
 
 # Data configuration
 data:
