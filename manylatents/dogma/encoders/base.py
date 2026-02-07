@@ -64,7 +64,7 @@ class _EmbeddingAccumulator:
 
     def result(self) -> Union[Tensor, Dict[str, Tensor]]:
         if self._is_dict:
-            return {k: torch.stack(v) for k, v in self._store.items()}
+            return {k: torch.cat(v, dim=0) for k, v in self._store.items()}
         # append() adds batched tensors (2D), append_single() adds 1D vectors
         if self._store and self._store[0].dim() == 0:
             return torch.stack(self._store)
