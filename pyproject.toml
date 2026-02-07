@@ -17,6 +17,7 @@ keywords = [
 ]
 
 dependencies = [
+    "faiss-gpu-cu12",
     "httpx>=0.28.1",
     "manylatents",
     "ninja>=1.13.0",
