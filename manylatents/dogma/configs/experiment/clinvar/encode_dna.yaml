@@ -47,7 +47,7 @@ algorithms:
     modality: dna
     batch_size: 32
     normalize: false
-    n_components: 2048
+    n_components: 1920
     save_path: ${output_dir}/embeddings/clinvar/evo2.pt
     encoder_config:
       _target_: manylatents.dogma.encoders.Evo2Encoder
