@@ -11,9 +11,10 @@ in their _load_model() methods, so importing the class is lightweight - only
 the actual model weights are loaded when encode() is first called.
 """
 
+from .base import FoundationEncoder
 from .evo2 import Evo2Encoder
 from .orthrus_native import OrthrusNativeEncoder as OrthrusEncoder
 from .esm3 import ESM3Encoder
 from .alphagenome import AlphaGenomeEncoder
 
-__all__ = ["Evo2Encoder", "OrthrusEncoder", "ESM3Encoder", "AlphaGenomeEncoder"]
+__all__ = ["FoundationEncoder", "Evo2Encoder", "OrthrusEncoder", "ESM3Encoder", "AlphaGenomeEncoder"]

@@ -52,8 +52,8 @@ def test_encoder_modalities():
 
 
 def test_foundation_encoder_base_accessible():
-    """Test that FoundationEncoder base class can be imported."""
-    from manylatents.algorithms.encoder import FoundationEncoder
+    """Test that FoundationEncoder base class can be imported from dogma."""
+    from manylatents.dogma.encoders.base import FoundationEncoder
 
     assert FoundationEncoder is not None
 

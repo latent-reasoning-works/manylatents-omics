@@ -14,7 +14,7 @@ from typing import Any, List, Optional
 import torch
 from torch import Tensor
 
-from manylatents.algorithms.encoder import FoundationEncoder
+from manylatents.dogma.encoders.base import FoundationEncoder
 
 
 class ESM3Encoder(FoundationEncoder):
