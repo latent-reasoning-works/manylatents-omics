@@ -1,0 +1,30 @@
+# ClinVar Variant Paired Sequences DataModule
+#
+# Loads paired WT/MUT sequences for specific variant types (synonymous, splice, UTR).
+# Used with DeltaEncoder to compute delta embeddings.
+#
+# Usage:
+#   python -m manylatents.omics.main data=clinvar_variants data.variant_type=synonymous
+#   python -m manylatents.omics.main data=clinvar_variants data.modality=rna
+#   python -m manylatents.omics.main -m data=clinvar_variants data.variant_type=splice_extended,utr_combined,synonymous
+#
+# Variant types available:
+#   - synonymous: Silent mutations (same protein, different codon)
+#   - splice_extended: Variants near splice sites (extended region)
+#   - splice_canonical: Canonical splice site variants
+#   - utr_combined: 5' and 3' UTR variants combined
+#   - utr_5prime, utr_3prime: UTR variants by region
+#
+# Modalities:
+#   - dna: DNA sequences (for Evo2)
+#   - rna: RNA sequences (for Orthrus)
+#   - protein: Protein sequences (for ESM3, only for synonymous)
+
+_target_: manylatents.dogma.data.variant_datamodule.VariantDataModule
+
+variants_dir: ${data_dir}/clinvar/variants
+sequences_dir: ${data_dir}/clinvar/sequences
+variant_type: synonymous
+modality: dna
+batch_size: 32
+max_variants: null

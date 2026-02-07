@@ -16,13 +16,13 @@ from __future__ import annotations
 
 import math
 from functools import partial
-from typing import Optional
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import torch
 import torch.nn as nn
 from torch import Tensor
 
-from manylatents.algorithms.encoder import FoundationEncoder
+from manylatents.dogma.encoders.base import FoundationEncoder
 
 
 # Nucleotide vocabulary for one-hot encoding
@@ -134,42 +134,64 @@ class MixerModel(nn.Module):
             if module.bias is not None:
                 nn.init.zeros_(module.bias)
 
-    def forward(self, x: Tensor, channel_last: bool = False) -> Tensor:
-        """Forward pass.
+    def forward(
+        self, x: Tensor, channel_last: bool = False,
+        capture_layers: Optional[Set[int]] = None,
+    ) -> Tuple[Tensor, Dict[int, Tensor]]:
+        """Forward pass with optional intermediate capture.
 
         Args:
             x: Input tensor of shape (B, C, L) or (B, L, C) if channel_last
             channel_last: If True, input is (B, L, C)
+            capture_layers: Set of layer indices to capture intermediates from.
 
         Returns:
-            Hidden states of shape (B, L, H)
+            Tuple of (final hidden states, dict of captured intermediates).
+            Intermediates dict is empty if capture_layers is None.
         """
         if not channel_last:
             x = x.transpose(1, 2)
 
         hidden_states = self.embedding(x)
         residual = None
+        intermediates: Dict[int, Tensor] = {}
 
-        for layer in self.layers:
+        for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(hidden_states, residual)
+            if capture_layers and i in capture_layers:
+                combined = (hidden_states + residual) if residual is not None else hidden_states
+                intermediates[i] = self.norm_f(combined.to(dtype=self.norm_f.weight.dtype))
 
         residual = (hidden_states + residual) if residual is not None else hidden_states
         hidden_states = self.norm_f(residual.to(dtype=self.norm_f.weight.dtype))
 
-        return hidden_states
+        return hidden_states, intermediates
 
-    def representation(self, x: Tensor, lengths: Tensor, channel_last: bool = False) -> Tensor:
+    def representation(
+        self, x: Tensor, lengths: Tensor, channel_last: bool = False,
+        capture_layers: Optional[Set[int]] = None,
+    ) -> Union[Tensor, Dict[str, Tensor]]:
         """Get mean-pooled representation.
 
         Args:
             x: Input tensor
             lengths: Sequence lengths for masking padding
             channel_last: If True, input is (B, L, C)
+            capture_layers: Set of layer indices to capture.
 
         Returns:
-            Representation of shape (B, H)
+            If capture_layers: dict mapping "layer_{i}" to (B, H) tensors.
+            Otherwise: (B, H) tensor from final layer.
         """
-        out = self.forward(x, channel_last=channel_last)
+        out, intermediates = self.forward(
+            x, channel_last=channel_last, capture_layers=capture_layers,
+        )
+
+        if capture_layers:
+            return {
+                f"layer_{i}": _mean_unpadded(intermediates[i], lengths)
+                for i in sorted(intermediates)
+            }
         return _mean_unpadded(out, lengths)
 
 
@@ -208,6 +230,7 @@ class OrthrusNativeEncoder(FoundationEncoder):
         self,
         model_name: str = "quietflamingo/orthrus-base-4-track",
         device: str = "cuda",
+        layer_indices: Optional[List[int]] = None,
         **kwargs,
     ):
         super().__init__(device=device, **kwargs)
@@ -222,11 +245,12 @@ class OrthrusNativeEncoder(FoundationEncoder):
 
         self._embedding_dim = config["d_model"]
         self._config = config
+        self._layer_indices = layer_indices
+        self._multi_layer = layer_indices is not None and len(layer_indices) > 0
 
     def _load_model(self) -> None:
         """Load Orthrus model from HuggingFace."""
         from huggingface_hub import hf_hub_download
-        import json
 
         print(f"Loading Orthrus model: {self.model_name}")
 
@@ -260,25 +284,37 @@ class OrthrusNativeEncoder(FoundationEncoder):
 
         self._model = self._model.to(self.device).eval()
 
-    def encode(self, sequence: str) -> Tensor:
+    @property
+    def multi_layer(self) -> bool:
+        return self._multi_layer
+
+    @property
+    def layer_indices(self) -> Optional[List[int]]:
+        return self._layer_indices
+
+    def encode(self, sequence: str) -> Union[Tensor, Dict[str, Tensor]]:
         """Encode an RNA sequence.
 
         Args:
             sequence: RNA sequence (A, C, G, U). T will be converted to U.
 
         Returns:
-            Embedding tensor of shape (1, embedding_dim).
+            If multi_layer: dict mapping "layer_{i}" to (1, embedding_dim) tensors.
+            Otherwise: (1, embedding_dim) tensor.
         """
         self._ensure_loaded()
 
-        # One-hot encode
         x = _one_hot_encode(sequence, device=self.device)
         lengths = torch.tensor([len(sequence)], device=self.device)
 
         with torch.no_grad():
-            embedding = self._model.representation(x, lengths)
-
-        return embedding
+            if self._multi_layer:
+                return self._model.representation(
+                    x, lengths,
+                    capture_layers=set(self._layer_indices),
+                )
+            else:
+                return self._model.representation(x, lengths)
 
     @property
     def modality(self) -> str:

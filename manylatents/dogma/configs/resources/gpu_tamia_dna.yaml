@@ -1,31 +1,32 @@
 # @package _global_
 
-# GPU resources for DNA encoders (Evo2 + ESM3)
-# Uses .venv-dna with torch 2.8+cu126 (separate venv for transformer-engine)
+# Tamia GPU resources for DNA encoders (Evo2 + ESM3)
+# Uses .venv-dna with torch 2.8+cu126
 #
-# NOTE: Evo2 requires Ampere+ GPU (A100/L40S/H100) for BF16.
-# Adjust CUDA module and gres for your cluster.
+# Tamia has H200 (8×141GB) — ideal for Evo2 with large context.
+# H100 (4×80GB) also works. Request h100 as default for availability.
 
 hydra:
   mode: MULTIRUN
   launcher:
-    # GPU resources — gpus_per_task=0 to avoid Mila srun GRES conflict
     cpus_per_task: 4
     gpus_per_task: 0
     array_parallelism: 4
 
-    # Additional SLURM parameters (gres goes here to avoid srun conflict)
     additional_parameters:
-      time: "24:00:00"
+      time: "12:00:00"
       nodes: 1
       mem: 32G
       ntasks_per_node: 1
-      gres: "gpu:a100:1"
+      gpus_per_node: "h100:4"
+      account: aip-wolfg
 
     setup:
-      - "module load cuda/12.5.0"
+      - "module load cuda/12.6 python/3.12"
       - "export LIBRARY_PATH=$CUDA_PATH/lib/stubs:$LIBRARY_PATH"
       - "export LD_LIBRARY_PATH=$CUDA_PATH/lib64:$LD_LIBRARY_PATH"
       - "cd $SLURM_SUBMIT_DIR"
       - "export VIRTUAL_ENV=$SLURM_SUBMIT_DIR/.venv-dna"
       - "export PATH=$VIRTUAL_ENV/bin:$PATH"
+      - "export HF_HOME=/scratch/c/cesarmvc/merging-dogma/models/huggingface"
+      - "export HF_HUB_OFFLINE=1"

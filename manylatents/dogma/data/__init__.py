@@ -25,6 +25,7 @@ from .clinvar_dataset import (
     ClinVarDataModule,
     ClinVarDataset,
 )
+from .variant_datamodule import VariantDataModule
 
 __all__ = [
     "SequenceDataset",
@@ -33,5 +34,6 @@ __all__ = [
     "CentralDogmaDataset",
     "ClinVarDataModule",
     "ClinVarDataset",
+    "VariantDataModule",
     "TEST_SEQUENCES",
 ]

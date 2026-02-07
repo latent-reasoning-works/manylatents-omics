@@ -1,7 +1,8 @@
 # @package _global_
 
-# Mila cluster configuration using submitit_slurm launcher
-# Use this when running from a Mila login node
+# Tamia (Alliance Canada) cluster configuration using submitit_slurm launcher
+# H200 (8×141GB) and H100 (4×80GB) GPU nodes
+# No internet access — all data/weights must be pre-transferred
 
 defaults:
   - override /hydra/launcher: submitit_slurm
@@ -18,11 +19,15 @@ hydra:
     # Resource parameters (override with resources config group)
     timeout_min: 240
     cpus_per_task: 4
-    gpus_per_task: 0  # Default 0, resource configs override to 1
+    gpus_per_task: 0
     tasks_per_node: 1
     mem_gb: 16
     nodes: 1
-    partition: main
+    partition: gpubase_bynode_b2
+
+    # Tamia requires --account
+    additional_parameters:
+      account: aip-wolfg
 
     # Setup commands
     setup:

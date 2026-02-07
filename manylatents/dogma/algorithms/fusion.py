@@ -2,15 +2,15 @@
 
 Fusion algorithm that concatenates embeddings from central dogma foundation
 models. Supports flexible modality selection:
-    - DNA: Evo2 (2048-dim)
+    - DNA: Evo2 (1920-dim)
     - RNA: Orthrus (256-dim) - currently blocked on mamba-ssm version conflict
     - Protein: ESM3 (1536-dim)
 
 Each encoder config is optional. Omit a config (set to None) to skip that modality.
 Embeddings are concatenated in central dogma order: DNA -> RNA -> Protein.
 
-Default output dimension (all 3): 2048 + 256 + 1536 = 3840
-DNA + Protein only: 2048 + 1536 = 3584
+Default output dimension (all 3): 1920 + 256 + 1536 = 3712
+DNA + Protein only: 1920 + 1536 = 3456
 
 Example:
     >>> # Full fusion (requires mamba-ssm compatibility)
@@ -26,7 +26,7 @@ Example:
     ...     evo2_config={'_target_': 'manylatents.dogma.encoders.Evo2Encoder'},
     ...     orthrus_config=None,  # Skip RNA
     ...     esm3_config={'_target_': 'manylatents.dogma.encoders.ESM3Encoder'},
-    ...     n_components=3584,  # 2048 + 1536
+    ...     n_components=3456,  # 1920 + 1536
     ...     datamodule=datamodule,
     ... )
 """
@@ -46,12 +46,12 @@ class CentralDogmaEmbeddings:
     """Container for embeddings from all three central dogma modalities.
 
     Attributes:
-        dna: Evo2 embeddings, shape (batch, 2048)
+        dna: Evo2 embeddings, shape (batch, 1920)
         rna: Orthrus embeddings, shape (batch, 256)
         protein: ESM3 embeddings, shape (batch, 1536)
     """
 
-    dna: Tensor  # (batch, 2048)
+    dna: Tensor  # (batch, 1920)
     rna: Tensor  # (batch, 256)
     protein: Tensor  # (batch, 1536)
 
@@ -70,7 +70,7 @@ class CentralDogmaFusion(LatentModule):
 
     This fusion algorithm encodes sequences using central dogma foundation
     models and concatenates the resulting embeddings. Each encoder is optional:
-        - DNA: Evo2 (2048-dim)
+        - DNA: Evo2 (1920-dim)
         - RNA: Orthrus (256-dim for 4-track, 512-dim for 6-track)
         - Protein: ESM3 (1536-dim)
 
@@ -99,7 +99,7 @@ class CentralDogmaFusion(LatentModule):
 
     # Default embedding dimensions for each encoder
     DEFAULT_DIMS = {
-        "evo2": 2048,  # evo2_1b_base
+        "evo2": 1920,  # evo2_1b_base
         "orthrus": 256,  # 4-track base model
         "esm3": 1536,  # esm3-sm-open
     }

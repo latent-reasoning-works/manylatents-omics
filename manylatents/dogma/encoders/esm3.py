@@ -14,7 +14,7 @@ from typing import Any, List, Optional
 import torch
 from torch import Tensor
 
-from manylatents.algorithms.encoder import FoundationEncoder
+from manylatents.dogma.encoders.base import FoundationEncoder
 
 
 class ESM3Encoder(FoundationEncoder):
@@ -58,11 +58,8 @@ class ESM3Encoder(FoundationEncoder):
 
         try:
             from esm.models.esm3 import ESM3
-            import os
 
             # Always load from HuggingFace - the ESM library handles caching
-            # Local weights path is deprecated due to ESM's internal write requirements
-            # Users must have HuggingFace auth for gated model access
             self._model = ESM3.from_pretrained("esm3_sm_open_v1")
 
             # Keep model in float32 to avoid dtype mismatch bug in ESM3 library
@@ -86,24 +83,52 @@ class ESM3Encoder(FoundationEncoder):
 
         from esm.sdk.api import ESMProtein
 
-        # Truncate long sequences to prevent OOM
         if self.max_length is not None and len(sequence) > self.max_length:
             sequence = sequence[:self.max_length]
 
         protein = ESMProtein(sequence=sequence)
 
         with torch.no_grad():
-            # Tokenize and run forward pass for embeddings
             protein_tensor = self._model.encode(protein)
-            # Add batch dimension for forward pass
             seq_tokens = protein_tensor.sequence.unsqueeze(0).to(self._model.device)
             output = self._model.forward(sequence_tokens=seq_tokens)
-            # output.embeddings shape: (1, seq_len, hidden_dim)
             embedding = output.embeddings.mean(dim=1).float()
 
         return embedding
 
-    # encode_batch() uses base class default (loops over encode())
+    # --- Batched inference ---
+
+    def _supports_batched_forward(self) -> bool:
+        return True
+
+    def _tokenize_batch(self, sequences: List[str]) -> dict:
+        """Tokenize, pad, and stack protein sequences for batched forward pass."""
+        self._ensure_loaded()
+
+        if self.max_length is not None:
+            sequences = [seq[:self.max_length] for seq in sequences]
+
+        tokenizer = self._model.tokenizers.sequence
+        encoded = tokenizer(
+            sequences,
+            padding=True,
+            add_special_tokens=True,
+            return_tensors="pt",
+        )
+
+        return {
+            "input_ids": encoded.input_ids.to(self.device),
+            "attention_mask": encoded.attention_mask.to(self.device),
+        }
+
+    def _extract_embeddings(self, batch: dict) -> Tensor:
+        """Single forward pass with masked mean pooling."""
+        output = self._model.forward(sequence_tokens=batch["input_ids"])
+        hidden = output.embeddings  # (B, L, 1536)
+
+        mask = batch["attention_mask"].unsqueeze(-1).float()  # (B, L, 1)
+        pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1)
+        return pooled  # (B, 1536)
 
     @property
     def modality(self) -> str:

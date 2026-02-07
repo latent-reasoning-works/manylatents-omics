@@ -1,0 +1,30 @@
+# @package _global_
+
+# Tamia GPU resources for RNA/Protein encoders (Orthrus + ESM3)
+# Uses .venv with torch 2.5.1+cu121
+#
+# Tamia has H100 (4×80GB) and H200 (8×141GB) nodes.
+# Orthrus/ESM3 work on either — request H100 to leave H200s for Evo2.
+
+hydra:
+  mode: MULTIRUN
+  launcher:
+    cpus_per_task: 8
+    gpus_per_task: 0
+    array_parallelism: 3
+
+    additional_parameters:
+      time: "12:00:00"
+      nodes: 1
+      mem: 48G
+      ntasks_per_node: 1
+      gpus_per_node: "h100:4"
+      account: aip-wolfg
+
+    setup:
+      - "module load cuda/12.6 python/3.12"
+      - "cd $SLURM_SUBMIT_DIR"
+      - "export VIRTUAL_ENV=$SLURM_SUBMIT_DIR/.venv"
+      - "export PATH=$VIRTUAL_ENV/bin:$PATH"
+      - "export HF_HOME=/scratch/c/cesarmvc/merging-dogma/models/huggingface"
+      - "export HF_HUB_OFFLINE=1"

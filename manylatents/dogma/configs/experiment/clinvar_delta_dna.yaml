@@ -1,0 +1,57 @@
+# @package _global_
+#
+# ClinVar Paired DNA Encoding Experiment
+#
+# Encodes WT or MUT DNA sequences using Evo2 for delta embedding computation.
+# Run twice with channel=wt and channel=mut, then compute delta in analysis.
+#
+# Usage:
+#   # Encode WT sequences
+#   python -m manylatents.omics.main experiment=clinvar_delta_dna algorithms.latent.channel=wt
+#
+#   # Encode MUT sequences
+#   python -m manylatents.omics.main experiment=clinvar_delta_dna algorithms.latent.channel=mut
+#
+#   # Sweep both channels
+#   python -m manylatents.omics.main -m experiment=clinvar_delta_dna algorithms.latent.channel=wt,mut
+#
+#   # Different variant types
+#   python -m manylatents.omics.main -m experiment=clinvar_delta_dna \
+#       data.variant_type=splice_extended,utr_combined,synonymous \
+#       algorithms.latent.channel=wt,mut
+
+# Project settings
+name: clinvar_delta_dna
+metrics: null
+
+# Data configuration
+data:
+  _target_: manylatents.dogma.data.variant_datamodule.VariantDataModule
+  variants_dir: ${data_dir}/clinvar/variants
+  sequences_dir: ${data_dir}/clinvar/sequences
+  variant_type: synonymous
+  modality: dna
+  batch_size: 32
+  max_variants: null
+  valid_variants_file: ${data_dir}/clinvar/variants/${data.variant_type}_valid_evo2.txt
+
+# Algorithm configuration
+algorithms:
+  latent:
+    _target_: manylatents.dogma.algorithms.BatchEncoder
+    _recursive_: false
+    modality: dna
+    channel: wt  # Override with 'mut' for mutant sequences
+    batch_size: 16
+    normalize: false
+    n_components: 1920
+    save_path: ${output_dir}/embeddings/${data.variant_type}/${algorithms.latent.channel}_dna.pt
+    encoder_config:
+      _target_: manylatents.dogma.encoders.Evo2Encoder
+      model_name: evo2_1b_base
+      device: cuda
+      # Multi-layer extraction: middle, ~75% depth, near-final
+      layer_names:
+        - blocks.14.mlp.l3
+        - blocks.19.mlp.l3
+        - blocks.23.mlp.l3
