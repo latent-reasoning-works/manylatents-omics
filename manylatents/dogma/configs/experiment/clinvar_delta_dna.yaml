@@ -22,6 +22,7 @@
 
 # Project settings
 name: clinvar_delta_dna
+metrics: null
 
 # Data configuration
 data:
@@ -43,10 +44,14 @@ algorithms:
     channel: wt  # Override with 'mut' for mutant sequences
     batch_size: 16
     normalize: false
-    n_components: 2048
+    n_components: 1920
     save_path: ${output_dir}/embeddings/${data.variant_type}/${algorithms.latent.channel}_dna.pt
     encoder_config:
       _target_: manylatents.dogma.encoders.Evo2Encoder
       model_name: evo2_1b_base
-      layer_name: blocks.14.mlp.l3
       device: cuda
+      # Multi-layer extraction: middle, ~75% depth, near-final
+      layer_names:
+        - blocks.14.mlp.l3
+        - blocks.19.mlp.l3
+        - blocks.23.mlp.l3

@@ -10,37 +10,46 @@ References:
     - PyPI: https://pypi.org/project/evo2/
 """
 
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 from torch import Tensor
 
-from manylatents.algorithms.encoder import FoundationEncoder
+from manylatents.dogma.encoders.base import FoundationEncoder
 
 
 class Evo2Encoder(FoundationEncoder):
     """Evo2 encoder for DNA sequences.
 
     Encodes DNA sequences into dense embeddings using the pretrained Evo2
-    model. Extracts embeddings from an intermediate layer (recommended over
-    final layer for downstream tasks).
+    model. Supports extracting from single or multiple layers simultaneously.
+
+    When multiple layers are requested (multi_layer=True), encode() returns
+    a dict mapping layer names to tensors. When a single layer is used
+    (backward compat), encode() returns a flat tensor.
 
     Args:
         model_name: Model variant. One of "evo2_1b_base", "evo2_7b", "evo2_40b".
-        layer_name: Layer to extract embeddings from. If None, uses middle layer.
+        layer_name: Single layer to extract from (backward compat). Overridden by layer_names.
+        layer_names: List of layers to extract from. Returns dict output.
         device: Device for inference ("cuda" or "cpu").
 
     Example:
         >>> encoder = Evo2Encoder(model_name="evo2_1b_base")
-        >>> embedding = encoder.encode("ATGAAGTTTGGCGTCCGTGCCTGA")
-        >>> print(embedding.shape)  # torch.Size([1, 2048])
+        >>> result = encoder.encode("ATGAAGTTTGGCGTCCGTGCCTGA")
+        >>> # Multi-layer default: result is dict with 3 layer keys
     """
 
     # Model configurations
     MODELS = {
         "evo2_1b_base": {
-            "default_layer": "blocks.14.mlp.l3",  # Middle layer of 28
-            "embedding_dim": 2048,
+            "default_layer": "blocks.14.mlp.l3",  # Middle layer of 25
+            "default_layers": [
+                "blocks.14.mlp.l3",   # Middle (56%) — local features
+                "blocks.19.mlp.l3",   # Late (76%) — functional features (Goodfire ~75%)
+                "blocks.23.mlp.l3",   # Near-final (92%) — abstract representations
+            ],
+            "embedding_dim": 1920,  # hidden_size from model config
         },
         "evo2_7b": {
             "default_layer": "blocks.16.mlp.l3",  # Middle layer
@@ -67,6 +76,7 @@ class Evo2Encoder(FoundationEncoder):
         self,
         model_name: str = "evo2_1b_base",
         layer_name: Optional[str] = None,
+        layer_names: Optional[List[str]] = None,
         device: str = "cuda",
         **kwargs,
     ):
@@ -78,10 +88,30 @@ class Evo2Encoder(FoundationEncoder):
             )
 
         self.model_name = model_name
-        self.layer_name = layer_name or self.MODELS[model_name]["default_layer"]
         self._embedding_dim = self.MODELS[model_name]["embedding_dim"]
-
         self._model = None
+
+        # Layer selection: layer_names (list) > layer_name (str) > default
+        if layer_names:
+            self._layer_names = layer_names
+            self._multi_layer = True
+        elif layer_name:
+            self._layer_names = [layer_name]
+            self._multi_layer = False
+        elif "default_layers" in self.MODELS[model_name]:
+            self._layer_names = self.MODELS[model_name]["default_layers"]
+            self._multi_layer = True
+        else:
+            self._layer_names = [self.MODELS[model_name]["default_layer"]]
+            self._multi_layer = False
+
+    @property
+    def layer_names(self) -> List[str]:
+        return self._layer_names
+
+    @property
+    def multi_layer(self) -> bool:
+        return self._multi_layer
 
     def _load_model(self):
         """Lazy load the Evo2 model."""
@@ -98,15 +128,39 @@ class Evo2Encoder(FoundationEncoder):
                 "Evo2 requires the 'evo2' package. Install with: pip install evo2"
             ) from e
 
-    def encode(self, sequence: str) -> Tensor:
+    def _pool_embeddings(
+        self,
+        embeddings: Dict[str, Tensor],
+        mask: Optional[Tensor] = None,
+    ) -> Union[Tensor, Dict[str, Tensor]]:
+        """Mean-pool layer embeddings, optionally with attention mask.
+
+        Args:
+            embeddings: Raw hidden states keyed by layer name.
+            mask: Optional (B, L) attention mask for padded sequences.
+
+        Returns:
+            Dict of pooled tensors if multi_layer, else single pooled tensor.
+        """
+        def _pool_one(hidden: Tensor) -> Tensor:
+            if mask is not None:
+                m = mask.unsqueeze(-1).float().to(hidden.device)
+                return (hidden * m).sum(dim=1) / m.sum(dim=1).clamp(min=1)
+            return hidden.mean(dim=1)
+
+        if self._multi_layer:
+            return {name: _pool_one(embeddings[name]) for name in self._layer_names}
+        return _pool_one(embeddings[self._layer_names[0]])
+
+    def encode(self, sequence: str) -> Union[Tensor, Dict[str, Tensor]]:
         """Encode a DNA sequence into embedding space.
 
         Args:
             sequence: DNA nucleotide sequence (e.g., "ATGAAGTTTGGCGTCCGTGCCTGA").
-                      Should use ACGT alphabet.
 
         Returns:
-            Embedding tensor of shape (1, embedding_dim).
+            If multi_layer: dict mapping layer names to (1, embedding_dim) tensors.
+            If single layer: (1, embedding_dim) tensor.
         """
         self._ensure_loaded()
 
@@ -119,11 +173,9 @@ class Evo2Encoder(FoundationEncoder):
             _, embeddings = self._model(
                 input_ids,
                 return_embeddings=True,
-                layer_names=[self.layer_name],
+                layer_names=self._layer_names,
             )
-            embedding = embeddings[self.layer_name].mean(dim=1)
-
-        return embedding
+            return self._pool_embeddings(embeddings)
 
     # --- Batched inference ---
 
@@ -149,18 +201,14 @@ class Evo2Encoder(FoundationEncoder):
 
         return {"input_ids": input_ids, "attention_mask": attention_mask}
 
-    def _extract_embeddings(self, batch: dict) -> Tensor:
+    def _extract_embeddings(self, batch: dict) -> Union[Tensor, Dict[str, Tensor]]:
         """Single forward pass with masked mean pooling."""
         _, embeddings = self._model(
             batch["input_ids"],
             return_embeddings=True,
-            layer_names=[self.layer_name],
+            layer_names=self._layer_names,
         )
-        hidden = embeddings[self.layer_name]  # (B, L, D)
-
-        mask = batch["attention_mask"].unsqueeze(-1).float()  # (B, L, 1)
-        pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1)
-        return pooled  # (B, D)
+        return self._pool_embeddings(embeddings, mask=batch["attention_mask"])
 
     @property
     def modality(self) -> str:
