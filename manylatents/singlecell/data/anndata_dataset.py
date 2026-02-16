@@ -73,11 +73,15 @@ class AnnDataset(Dataset):
         # Store obs for metadata access
         self._obs = adata.obs.copy()
 
-        # Extract labels
+        # Extract labels — encode as integers for PyTorch collation,
+        # keep string names for get_labels() (used by plot/metric callbacks).
         if label_key is not None and label_key in adata.obs:
-            self.metadata = adata.obs[label_key].astype(str).values
+            cats = adata.obs[label_key].astype("category")
+            self.label_names = cats.cat.categories.tolist()
+            self.metadata = cats.cat.codes.values.astype(np.int64).copy()
         else:
-            self.metadata = np.zeros(self.n_samples, dtype=int)
+            self.label_names = None
+            self.metadata = np.zeros(self.n_samples, dtype=np.int64)
 
         # Store var names for reference
         self.feature_names = adata.var_names.tolist() if hasattr(adata, "var_names") else None
@@ -90,11 +94,13 @@ class AnnDataset(Dataset):
     def __getitem__(self, idx: int) -> dict:
         return {
             "data": self.data[idx],
-            "metadata": self.metadata[idx] if self.metadata is not None else -1,
+            "metadata": torch.tensor(self.metadata[idx], dtype=torch.long),
         }
 
     def get_labels(self) -> np.ndarray:
-        """Return cell/sample labels."""
+        """Return cell/sample labels as string names (for plotting/metrics)."""
+        if self.label_names is not None:
+            return np.array(self.label_names)[self.metadata]
         return self.metadata
 
     def get_data(self) -> torch.Tensor:
