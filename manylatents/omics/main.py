@@ -1,28 +1,15 @@
 """Entry point for manylatents with omics configs.
 
-This module registers the OmicsSearchPathPlugin BEFORE Hydra initializes,
-ensuring omics configs (dogma, popgen, singlecell) are available.
+Importing omics_plugin registers the OmicsSearchPathPlugin and the
+omics_data resolver before Hydra initializes.
 
 Usage:
     python -m manylatents.omics.main experiment=central_dogma_fusion
-    python -m manylatents.omics.main data=hgdp algorithm=pca
-
-This is equivalent to running `python -m manylatents.main` but with omics
-configs automatically on the Hydra search path.
+    python -m manylatents.omics.main data=embryoid_body algorithm=pca
 """
 
-# Register omics SearchPathPlugin BEFORE importing manylatents.main
-# This ensures configs are available when @hydra.main() initializes
-from hydra.core.plugins import Plugins
-from hydra.plugins.search_path_plugin import SearchPathPlugin
-from manylatents.omics_plugin import OmicsSearchPathPlugin
+import manylatents.omics_plugin  # noqa: F401 — registers plugin + resolver on import
 
-plugins = Plugins.instance()
-existing = list(plugins.discover(SearchPathPlugin))
-if OmicsSearchPathPlugin not in existing:
-    plugins.register(OmicsSearchPathPlugin)
-
-# Now import and run the main function
 from manylatents.main import main
 
 if __name__ == "__main__":

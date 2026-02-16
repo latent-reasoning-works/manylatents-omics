@@ -2,7 +2,7 @@ defaults:
   - default
 
 _target_: manylatents.singlecell.data.anndata.AnnDataModule
-adata_path: ${data_dir}/single_cell/EBT_counts.h5ad
+adata_path: ${omics_data:}/single_cell/EBT_2k_hvg.h5ad
 label_key: sample_labels
 layer: null
 use_raw: false
