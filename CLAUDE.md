@@ -7,13 +7,11 @@ Extension of manylatents for biological data. Adds popgen, single-cell, and foun
 
 ## Entry point
 
-Always use the omics entry point — it registers omics configs on the Hydra search path:
+Omics configs are auto-discovered when the package is installed:
 
 ```bash
-python -m manylatents.omics.main --config-name=config experiment=single_algorithm
+python -m manylatents.main experiment=single_algorithm data=pbmc_3k
 ```
-
-Never use `manylatents.main` for omics data — it won't find omics configs.
 
 ## Three modules
 
@@ -51,15 +49,15 @@ module load cuda/12.4.1
 
 ```bash
 # Local test
-python -m manylatents.omics.main data=pbmc_3k algorithms/latent=umap
+python -m manylatents.main data=pbmc_3k algorithms/latent=umap
 
 # Cluster submission (via shop configs)
-python -m manylatents.omics.main -m \
+python -m manylatents.main -m \
   cluster=tamia resources=gpu \
   experiment=clinvar/encode_dna
 
 # Sweep
-python -m manylatents.omics.main -m \
+python -m manylatents.main -m \
   cluster=mila resources=gpu \
   data=hgdp,pbmc_10k \
   algorithms/latent=umap,phate
@@ -69,7 +67,6 @@ python -m manylatents.omics.main -m \
 
 | What | Where |
 |------|-------|
-| Omics entry point | `manylatents/omics/main.py` |
 | SearchPath plugin | `manylatents/omics_plugin.py` |
 | Encoders | `manylatents/dogma/encoders/` |
 | ClinVar data | `manylatents/dogma/data/` |
@@ -81,13 +78,13 @@ python -m manylatents.omics.main -m \
 
 ```bash
 # Step 1: Encode DNA
-python -m manylatents.omics.main experiment=clinvar/encode_dna
+python -m manylatents.main experiment=clinvar/encode_dna
 
 # Step 2: Encode protein
-python -m manylatents.omics.main experiment=clinvar/encode_protein
+python -m manylatents.main experiment=clinvar/encode_protein
 
 # Step 3: Fuse + geometric analysis
-python -m manylatents.omics.main experiment=clinvar/geometric_analysis
+python -m manylatents.main experiment=clinvar/geometric_analysis
 ```
 
 ## Offline clusters (Tamia, Narval)

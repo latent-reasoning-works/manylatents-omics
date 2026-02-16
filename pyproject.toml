@@ -44,6 +44,9 @@ build-backend = "hatchling.build"
 [tool.hatch.metadata]
 allow-direct-references = true
 
+[project.entry-points."manylatents.extensions"]
+omics = "manylatents.omics_plugin:OmicsSearchPathPlugin"
+
 [tool.hatch.build.targets.wheel]
 packages = ["manylatents"]
 
@@ -65,7 +68,7 @@ name = "pytorch-cu126"
 url = "https://download.pytorch.org/whl/cu126"
 
 [tool.uv.sources]
-manylatents = { git = "https://github.com/latent-reasoning-works/manylatents.git", branch = "main" }
+manylatents = { path = "../manylatents", editable = true }
 torch = { index = "pytorch-cu121" }
 torchvision = { index = "pytorch-cu121" }
 
