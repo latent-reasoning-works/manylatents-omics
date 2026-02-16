@@ -1,218 +1,139 @@
-# manylatents-omics Installation & Usage Guide
+# manylatents-omics docs
 
-This guide covers installing and using manylatents-omics, the biological extensions package for manylatents.
+## Two environments
 
-## Quick Start
+RNA/Protein and DNA encoders need different torch versions. Two separate venvs solve this.
 
-```bash
-# Clone the repository
-git clone https://github.com/latent-reasoning-works/manylatents-omics.git
-cd manylatents-omics
-
-# Install dependencies (pulls manylatents from git automatically)
-uv sync
-
-# Run an experiment
-uv run python -m manylatents.omics.main --config-name=config experiment=single_algorithm
+```
+.venv/        ← RNA + Protein (torch 2.5.1 + cu121)
+.venv-dna/    ← DNA           (torch 2.8.0 + cu126)
 ```
 
-## Prerequisites
+### Why two envs?
 
-### 1. UV Package Manager
+- **Orthrus** (RNA) depends on `mamba-ssm`, which pins `torch==2.5.1`
+- **Evo2** (DNA) depends on `transformer-engine`, which requires `torch>=2.8`
+- These two torch versions are mutually exclusive in a single venv
 
-Install [uv](https://docs.astral.sh/uv/):
+### RNA + Protein env (`.venv`)
 
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-### 2. CUDA Environment (for GPU features)
-
-On Mila cluster, load CUDA modules before running:
+This is the default env managed by `uv sync`:
 
 ```bash
-module load anaconda/3 cuda/12.4.1
-```
-
-On other systems, ensure CUDA 12.x is installed and `libcufile.so` is available.
-
-## Installation Options
-
-### Option A: Development Install (Recommended)
-
-Best for contributing to manylatents-omics:
-
-```bash
-git clone https://github.com/latent-reasoning-works/manylatents-omics.git
-cd manylatents-omics
-uv sync
-```
-
-### Option B: Install as Dependency
-
-From another project that needs omics features:
-
-```bash
-# From your project directory
-uv add git+https://github.com/latent-reasoning-works/manylatents-omics.git
-```
-
-**Note**: Editable installs (`uv add -e`) from another project may have Hydra plugin discovery issues. Use the git URL install instead.
-
-### Option C: With Foundation Model Encoders (dogma)
-
-For DNA/RNA/Protein encoding with Evo2, ESM3, Orthrus:
-
-```bash
-# Install wheelnext uv for CUDA wheel support
-curl -LsSf https://astral.sh/uv/install.sh | INSTALLER_DOWNLOAD_URL=https://wheelnext.astral.sh sh
-
-# Sync with dogma extras
 uv sync --extra dogma
 ```
 
-## Running Experiments
+This installs torch 2.5.1 + mamba-ssm 2.2.6.post3 + ESM3 + Orthrus. The lockfile pins everything via the `pytorch-cu121` index.
 
-### Entry Point
+**What runs here**: ESM3 (protein encoding), Orthrus (RNA encoding), all popgen/singlecell workloads.
 
-Always use the omics-specific entry point to ensure configs are discovered:
+**GPU requirement**: Any modern GPU (V100+). No Ampere restriction.
+
+**SLURM resource config**: `resources=gpu_rna`
+- Activates `.venv`, loads `cuda/12.1.1`
+- Works on Mila (any GPU), Narval (A100), Cedar/Beluga (V100)
+
+### DNA env (`.venv-dna`)
+
+Built manually via the setup script:
+
+```bash
+source scripts/setup-dna-venv.sh
+```
+
+This creates `.venv-dna/` with torch 2.8.0+cu126, transformer-engine 2.11 (from NVIDIA GitHub release wheel), flash-attn (built from source), and evo2.
+
+**What it does step by step**:
+1. Creates `.venv-dna` with Python 3.12
+2. Installs `torch==2.8.0` from `pytorch-cu126` index
+3. Downloads transformer-engine wheel from NVIDIA GitHub, renames for uv compatibility
+4. Installs `flash-attn` with `--no-build-isolation` (builds from source, needs CUDA)
+5. Installs `evo2` and `esm>=3.0`
+6. Installs manylatents + manylatents-omics
+
+**What runs here**: Evo2 (DNA encoding), ESM3 (also works here), AlphaGenome.
+
+**GPU requirement**: Ampere+ (A100, L40S, H100, H200). BF16 required.
+
+**SLURM resource configs**:
+- `resources=gpu_dna` — Mila, activates `.venv-dna`, loads `cuda/12.5.0`, requests A100
+- `resources=gpu_tamia_dna` — Tamia, activates `.venv-dna`, loads `cuda/12.6`, requests H100x4
+
+### Which env for which encoder?
+
+| Encoder | Env | Torch | Resource config |
+|---------|-----|-------|-----------------|
+| ESM3 (protein) | `.venv` | 2.5.1 | `gpu_rna` |
+| Orthrus (RNA) | `.venv` | 2.5.1 | `gpu_rna` |
+| Evo2 (DNA) | `.venv-dna` | 2.8.0 | `gpu_dna` / `gpu_tamia_dna` |
+| AlphaGenome (DNA) | `.venv-dna` | 2.8.0 | `gpu_dna` |
+
+### Submitting jobs with the right env
+
+The resource configs handle venv activation automatically. Just match the resource to the encoder:
+
+```bash
+# RNA/Protein — uses .venv
+python -m manylatents.omics.main -m \
+  experiment=clinvar/encode_protein \
+  cluster=mila resources=gpu_rna
+
+# DNA — uses .venv-dna
+python -m manylatents.omics.main -m \
+  experiment=clinvar/encode_dna \
+  cluster=mila resources=gpu_dna
+
+# DNA on Tamia — uses .venv-dna with H100
+python -m manylatents.omics.main -m \
+  experiment=clinvar/encode_dna \
+  cluster=tamia_submitit resources=gpu_tamia_dna
+```
+
+### Offline clusters (Tamia, Narval)
+
+Both venvs must be built on Mila (internet access), then transferred:
+
+```bash
+# On Mila: build both envs
+uv sync --extra dogma                  # .venv
+source scripts/setup-dna-venv.sh       # .venv-dna
+
+# Transfer to Tamia
+rsync -avz --exclude __pycache__ \
+  .venv .venv-dna manylatents/ scripts/ pyproject.toml \
+  tamia:/scratch/c/user/project/
+
+# On Tamia: fix Python paths
+bash scripts/setup-tamia.sh
+```
+
+The Tamia setup script patches `pyvenv.cfg` to point at Tamia's Python and reinstalls manylatents + omics in editable mode (no network needed).
+
+## CUDA modules
+
+| Cluster | RNA/Protein env | DNA env |
+|---------|----------------|---------|
+| Mila | `cuda/12.1.1` | `cuda/12.5.0` |
+| Tamia | `cuda/12.6` | `cuda/12.6` |
+
+## Entry point
+
+Always use the omics entry point:
 
 ```bash
 python -m manylatents.omics.main --config-name=config <overrides>
 ```
 
-**Why not `python -m manylatents.main`?**
-
-The omics entry point registers the Hydra SearchPathPlugin before initialization, making dogma/popgen/singlecell configs available. The standard manylatents entry point doesn't know about omics configs.
-
-### Example Commands
-
-```bash
-# Core experiment with omics data
-python -m manylatents.omics.main --config-name=config experiment=single_algorithm
-
-# Dogma fusion experiment (requires GPU + dogma extras)
-python -m manylatents.omics.main --config-name=config experiment=central_dogma_fusion
-
-# ClinVar encoding (requires GPU)
-python -m manylatents.omics.main --config-name=config experiment=clinvar/encode_dna
-
-# View available configs
-python -m manylatents.omics.main --help
-```
-
-### Config Groups
-
-After installation, these config groups become available:
-
-| Group | Description |
-|-------|-------------|
-| `dogma/configs/data/*` | Sequence datasets (ClinVar, DNA/RNA/Protein) |
-| `dogma/configs/algorithms/latent/*` | Foundation model encoders (Evo2, ESM3, Orthrus) |
-| `dogma/configs/experiment/*` | Pre-configured experiments |
-| `dogma/configs/encoders/*` | Encoder configurations |
-
-## Development Workflows
-
-### Working on manylatents-omics
-
-```bash
-cd manylatents-omics
-uv sync
-uv run pytest  # Run tests
-uv run python -m manylatents.omics.main --config-name=config experiment=single_algorithm
-```
-
-### Working on manylatents core with omics testing
-
-```bash
-cd manylatents
-uv sync
-# Install omics from git (NOT editable)
-uv add git+https://github.com/latent-reasoning-works/manylatents-omics.git
-```
+This registers the Hydra SearchPathPlugin that makes dogma/popgen/singlecell configs discoverable. The standard `manylatents.main` won't find omics configs.
 
 ## Troubleshooting
 
-### ImportError: libcufile.so.0
+**`ImportError: libcufile.so.0`** — Load CUDA module: `module load cuda/12.1.1`
 
-**Problem**: CUDA libraries not found.
+**`ConfigAttributeError: Key 'experiment' is not in struct`** — Use `python -m manylatents.omics.main`, not `manylatents.main`
 
-**Solution**: Load CUDA modules:
-```bash
-module load anaconda/3 cuda/12.4.1
-```
+**`Could not override 'experiment'`** — Add `--config-name=config`
 
-### ConfigAttributeError: Key 'experiment' is not in struct
+**mamba-ssm build fails** — The lockfile uses `no-build-isolation-package` so mamba-ssm sees the venv's torch 2.5.1 and downloads a prebuilt wheel. If this fails, ensure `uv sync` (not `uv pip install`) is used for the RNA env.
 
-**Problem**: Hydra SearchPathPlugin not registered.
-
-**Solution**: Use the omics entry point:
-```bash
-# Wrong
-python -m manylatents.main experiment=central_dogma_fusion
-
-# Correct
-python -m manylatents.omics.main --config-name=config experiment=central_dogma_fusion
-```
-
-### Could not override 'experiment'. No match in the defaults list
-
-**Problem**: Missing `--config-name=config`.
-
-**Solution**: Always specify the config name:
-```bash
-python -m manylatents.omics.main --config-name=config experiment=single_algorithm
-```
-
-### Verify Plugin Registration
-
-Check that the omics plugin is registered:
-
-```python
-from hydra.core.plugins import Plugins
-from hydra.plugins.search_path_plugin import SearchPathPlugin
-
-plugins = list(Plugins.instance().discover(SearchPathPlugin))
-print([p.__name__ for p in plugins])
-# Should include: OmicsSearchPathPlugin
-```
-
-## Architecture
-
-### Hydra Config Discovery
-
-manylatents-omics uses a custom entry point (`manylatents.omics.main`) that:
-
-1. Registers `OmicsSearchPathPlugin` with Hydra
-2. Adds `pkg://manylatents.dogma.configs` to the search path
-3. Adds `pkg://manylatents.configs` (core) to the search path
-4. Calls the standard `manylatents.main` function
-
-This ensures omics configs are available regardless of installation method.
-
-### Package Structure
-
-```
-manylatents-omics/
-├── manylatents/
-│   ├── omics/
-│   │   ├── __init__.py
-│   │   └── main.py          # Omics entry point
-│   ├── omics_plugin.py      # Hydra SearchPathPlugin
-│   ├── dogma/               # Foundation model encoders
-│   │   ├── configs/         # Hydra configs
-│   │   ├── encoders/        # Evo2, ESM3, Orthrus
-│   │   ├── data/            # Sequence datasets
-│   │   └── algorithms/      # Fusion algorithms
-│   ├── popgen/              # Population genetics
-│   └── singlecell/          # Single-cell omics
-└── docs/
-    └── README.md            # This file
-```
-
-## See Also
-
-- [manylatents documentation](https://github.com/latent-reasoning-works/manylatents)
-- [Hydra documentation](https://hydra.cc/)
-- [Central Dogma Fusion](../CLAUDE.md#central-dogma-fusion-dna--rna--protein)
+**transformer-engine won't install** — Use the DNA setup script, not `uv sync`. The wheel comes from NVIDIA GitHub with a non-standard version string that uv can't resolve from PyPI.
