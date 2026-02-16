@@ -5,10 +5,9 @@
    T . A G C . A T       .  . .
      A T G . C A
 
+     m a n y l a t e n t s - o m i c s
 
-  m a n y l a t e n t s - o m i c s
-
-       from sequence to manifold
+          from sequence to manifold
 </pre>
 
 [![license](https://img.shields.io/badge/license-MIT-FDA4AF.svg)](LICENSE)
@@ -21,33 +20,23 @@
 
 Population genetics, single-cell, and foundation model encoders for [manylatents](https://github.com/latent-reasoning-works/manylatents). Extends the core DR framework with biological data types and domain-specific metrics.
 
-## Modules
-
-| Module | Domain | Data | Config example |
-|--------|--------|------|----------------|
-| `manylatents.popgen` | Population genetics | PLINK binary (.bed/.bim/.fam) | `data=hgdp` |
-| `manylatents.singlecell` | Single-cell omics | AnnData (.h5ad) | `data=pbmc_3k` |
-| `manylatents.dogma` | DNA / RNA / Protein | FASTA, sequences | `encoder=esm3` |
-
 ## Install
 
 ```bash
-# Base (popgen + singlecell)
 git clone https://github.com/latent-reasoning-works/manylatents-omics.git
 cd manylatents-omics
-uv sync
 
-# Foundation model encoders (requires wheelnext uv + Ampere+ GPU)
-curl -LsSf https://astral.sh/uv/install.sh | INSTALLER_DOWNLOAD_URL=https://wheelnext.astral.sh sh
-uv sync --extra dogma
+uv sync                   # base (popgen + singlecell)
+uv sync --extra dogma     # + foundation encoders (Ampere+ GPU required)
 ```
+
+See [docs/README.md](docs/README.md) for detailed install, two-env DNA setup, and CUDA configuration.
 
 ## Quick start
 
 Always use the omics entry point — it registers omics configs on the Hydra search path:
 
 ```bash
-# Single algorithm run
 python -m manylatents.omics.main --config-name=config \
   experiment=single_algorithm data=pbmc_3k
 
@@ -59,41 +48,45 @@ python -m manylatents.omics.main -m \
 
 Never use `manylatents.main` for omics data — it won't find omics configs.
 
-## Foundation model encoders
+## Modules
 
-| Encoder | Domain | VRAM | Embedding dim |
-|---------|--------|------|---------------|
-| ESM3 | Protein | 16 GB+ | 1536 |
-| Evo2 | DNA | 24 GB+ (Ampere+) | 2048 |
-| Orthrus | RNA | 8 GB+ | 256 / 512 |
-| AlphaGenome | DNA | 40 GB+ (JAX) | 1536 / 3072 |
+**[popgen](manylatents/popgen/)** — Population genetics via manifold-genetics CSV pipeline. HGDP+1KGP, UK Biobank, All of Us. Admixture proportions, geographic metadata, QC/relatedness filtering. Configs: [`popgen/configs/`](manylatents/popgen/configs/)
 
-Ampere+ GPUs required: A100, L40S, H100, H200. Older GPUs (RTX 8000, V100) will fail.
+**[singlecell](manylatents/singlecell/)** — AnnData `.h5ad` loader for scRNA-seq, scATAC-seq, CITE-seq. Ships with PBMC 3k/10k/68k and Embryoid Body. Any `.h5ad` works via `AnnDataset`. Configs: [`singlecell/configs/`](manylatents/singlecell/configs/)
 
-## Datasets
+**[dogma](manylatents/dogma/)** — Foundation model encoders for DNA, RNA, and protein sequences. Supports single-modality encoding, multi-layer extraction, and cross-modal fusion. Configs: [`dogma/configs/`](manylatents/dogma/configs/)
 
-**Population genetics** — HGDP+1KGP, UK Biobank, All of Us. Supports QC filtering, relatedness filtering, admixture proportions, geographic metadata.
+## Encoders
 
-**Single-cell** — AnnData format. Ships with PBMC 3k/10k/68k and Embryoid Body configs. Any `.h5ad` works via `AnnDataModule`.
+All encoders inherit from [`FoundationEncoder`](manylatents/dogma/encoders/base.py) — lazy model loading, batched encoding with OOM retry, standard `fit()`/`transform()` interface.
 
-**ClinVar** — DNA/protein variant encoding pipeline:
-
-```bash
-python -m manylatents.omics.main experiment=clinvar/encode_dna
-python -m manylatents.omics.main experiment=clinvar/encode_protein
-python -m manylatents.omics.main experiment=clinvar/geometric_analysis
-```
+- **[ESM3](manylatents/dogma/encoders/esm3.py)** — Protein, 1536-dim, masked mean-pool, true batched forward
+- **[Evo2](manylatents/dogma/encoders/evo2.py)** — DNA, 1920/4096/8192-dim (1B/7B/40B), multi-layer extraction, 1M bp context
+- **[Orthrus](manylatents/dogma/encoders/orthrus_native.py)** — RNA, 256/512-dim (4-track/6-track), Mamba SSM re-implementation for mamba-ssm 2.x
+- **[AlphaGenome](manylatents/dogma/encoders/alphagenome.py)** — DNA, 1536/3072-dim (1bp/128bp), JAX-based, regulatory track predictions, chunked encoding
 
 ## Metrics
 
-- **GeographicPreservation** — embedding vs. geographic distance correlation
-- **AdmixturePreservation** — ancestry proportion fidelity in latent space
-- K-curve analysis across neighborhood sizes
+- **[GeographicPreservation](manylatents/popgen/metrics/preservation.py)** — Spearman correlation between haversine and embedding distances
+- **[AdmixturePreservation](manylatents/popgen/metrics/preservation.py)** — Geodesic distance fidelity in admixture simplex vs. latent space
+- **[AdmixtureLaplacian](manylatents/popgen/metrics/preservation.py)** — Graph Laplacian smoothness of admixture components over embedding KNN
+
+## ClinVar pipeline
+
+Three-stage variant encoding and geometric analysis. See [docs/clinvar_pipeline.md](docs/clinvar_pipeline.md) for full details.
+
+```bash
+python -m manylatents.omics.main experiment=clinvar/encode_dna      # Evo2 → (N, 1920)
+python -m manylatents.omics.main experiment=clinvar/encode_protein   # ESM3 → (N, 1536)
+python -m manylatents.omics.main experiment=clinvar/geometric_analysis
+```
+
+Fusion strategies: concat, concat_pca, modality_proj, SVD, autoencoder, frobenius_ae. Configs: [`dogma/configs/fusion/`](manylatents/dogma/configs/experiment/fusion/)
 
 ## Development
 
 ```bash
-uv sync --extra dev
+uv sync
 pytest tests/ -v
 ```
 
