@@ -10,9 +10,9 @@
        from sequence to manifold
 </pre>
 
-[![license](https://img.shields.io/badge/license-MIT-2DD4BF.svg)](LICENSE)
-[![python](https://img.shields.io/badge/python-3.11+-2DD4BF.svg)](https://www.python.org)
-[![uv](https://img.shields.io/badge/pkg-uv-2DD4BF.svg)](https://docs.astral.sh/uv/)
+[![license](https://img.shields.io/badge/license-MIT-FDA4AF.svg)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.11+-FDA4AF.svg)](https://www.python.org)
+[![uv](https://img.shields.io/badge/pkg-uv-FDA4AF.svg)](https://docs.astral.sh/uv/)
 
 </div>
 
