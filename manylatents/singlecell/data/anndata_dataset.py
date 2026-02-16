@@ -98,10 +98,12 @@ class AnnDataset(Dataset):
         }
 
     def get_labels(self) -> np.ndarray:
-        """Return cell/sample labels as string names (for plotting/metrics)."""
-        if self.label_names is not None:
-            return np.array(self.label_names)[self.metadata]
+        """Return integer label codes (compatible with torch.tensor / metrics)."""
         return self.metadata
+
+    def get_label_names(self):
+        """Return string↔code mapping, or None if no named labels."""
+        return self.label_names
 
     def get_data(self) -> torch.Tensor:
         """Return the full data matrix."""
