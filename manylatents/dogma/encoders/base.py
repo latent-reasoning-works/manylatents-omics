@@ -64,13 +64,17 @@ class _EmbeddingAccumulator:
 
     def result(self) -> Union[Tensor, Dict[str, Tensor]]:
         if self._is_dict:
-            return {k: torch.cat(v, dim=0) for k, v in self._store.items()}
-        # append() adds batched tensors (2D), append_single() adds 1D vectors
-        if self._store and self._store[0].dim() == 0:
-            return torch.stack(self._store)
-        if self._store and self._store[0].dim() == 1:
-            return torch.stack(self._store)
-        return torch.cat(self._store, dim=0)
+            return {k: self._combine(v) for k, v in self._store.items()}
+        return self._combine(self._store)
+
+    @staticmethod
+    def _combine(tensors: list) -> Tensor:
+        """Stack 0D/1D tensors, cat 2D+ tensors."""
+        if not tensors:
+            return torch.tensor([])
+        if tensors[0].dim() <= 1:
+            return torch.stack(tensors)
+        return torch.cat(tensors, dim=0)
 
 
 class FoundationEncoder(LatentModule):

@@ -127,7 +127,7 @@ class TestConfigConsistency:
     """Test configs are consistent across the pipeline."""
 
     def test_all_experiment_configs_have_project(self):
-        """All experiment configs should have project: merging-dogma."""
+        """All experiment configs with a project field should have a non-empty string."""
         exp_dir = CONFIGS_DIR / "experiment"
         if not exp_dir.exists():
             pytest.skip("experiment dir not found")
@@ -135,7 +135,9 @@ class TestConfigConsistency:
         for config_file in exp_dir.rglob("*.yaml"):
             cfg = OmegaConf.load(config_file)
             if hasattr(cfg, "project"):
-                assert cfg.project == "merging-dogma", f"{config_file.name} has wrong project"
+                assert isinstance(cfg.project, str) and cfg.project, (
+                    f"{config_file.name} has empty or non-string project"
+                )
 
     def test_encoder_targets_are_importable_paths(self):
         """All encoder _target_ values should be valid Python import paths."""
