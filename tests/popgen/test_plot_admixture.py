@@ -1,5 +1,7 @@
 """Tests for PlotAdmixture callback."""
 import pytest
+
+wandb = pytest.importorskip("wandb")
 from manylatents.popgen.callbacks import PlotAdmixture
 
 
