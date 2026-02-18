@@ -1,0 +1,23 @@
+site_name: manylatents-omics
+site_url: https://latent-reasoning-works.github.io/manylatents-omics/
+
+theme:
+  name: material
+
+exclude_docs: |
+  plans/
+
+markdown_extensions:
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - tables
+  - admonition
+
+nav:
+  - Home: index.md
+  - Encoders: encoders.md
+  - ClinVar Pipeline: clinvar_pipeline.md
+  - PopGen: popgen.md
+  - Single-Cell: singlecell.md
