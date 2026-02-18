@@ -15,18 +15,22 @@ keywords = [
     "foundation-models",
     "central-dogma",
 ]
+license = "MIT"
+
+[project.urls]
+Homepage = "https://github.com/latent-reasoning-works/manylatents-omics"
+Documentation = "https://latent-reasoning-works.github.io/manylatents-omics/"
+Repository = "https://github.com/latent-reasoning-works/manylatents-omics"
 
 dependencies = [
-    "faiss-gpu-cu12",
-    "httpx>=0.28.1",
     "manylatents",
-    "ninja>=1.13.0",
-    "pandas-plink>=2.2.9",
-    # torch in extras - RNA and DNA need different versions
 ]
 
 [project.optional-dependencies]
 singlecell = ["anndata>=0.11.3", "python-igraph>=1.0.0", "scanpy>=1.11.5"]
+popgen = ["pandas-plink>=2.2.9"]
+gpu = ["faiss-gpu-cu12"]
+docs = ["mkdocs>=1.6", "mkdocs-material>=9.6"]
 esm = ["esm>=3.0"]
 orthrus = ["orthrus", "mamba-ssm==2.2.6.post3"]
 evo2 = ["evo2"]
@@ -68,7 +72,6 @@ name = "pytorch-cu126"
 url = "https://download.pytorch.org/whl/cu126"
 
 [tool.uv.sources]
-manylatents = { path = "../manylatents", editable = true }
 torch = { index = "pytorch-cu121" }
 torchvision = { index = "pytorch-cu121" }
 
