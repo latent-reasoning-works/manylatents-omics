@@ -1,93 +1,112 @@
-name: CI - Integration with manylatents
+name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
-  workflow_dispatch:
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
-  test-integration:
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
-    
+        python-version: ['3.11', '3.12']
+
     steps:
-    - name: Checkout manylatents-omics
-      uses: actions/checkout@v4
-      with:
-        path: manylatents-omics
-    
-    - name: Checkout manylatents (main)
-      uses: actions/checkout@v4
-      with:
-        repository: latent-reasoning-works/manylatents
-        ref: main
-        path: manylatents
-        token: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Install uv
-      uses: astral-sh/setup-uv@v5
-      with:
-        enable-cache: true
-    
-    - name: Install manylatents (core)
-      working-directory: manylatents
-      run: |
-        uv sync
-    
-    - name: Install manylatents-omics
-      working-directory: manylatents-omics
-      run: |
-        # Install with local manylatents instead of pulling from git
-        uv venv
-        uv pip install -e ../manylatents
-        uv pip install -e .
-    
-    - name: Run omics package tests
-      working-directory: manylatents-omics
-      run: |
-        uv run pytest tests/ -v
-    
-    - name: Test namespace package imports
-      working-directory: manylatents-omics
-      run: |
-        uv run python -c "
-        print('Testing manylatents-omics namespace package integration...')
-        print()
-        
-        # Test omics imports
-        from manylatents.omics.data import PlinkDataset, HGDPDataset, HGDPDataModule
-        print('✅ Imported PlinkDataset, HGDPDataset, HGDPDataModule')
-        
-        from manylatents.omics.metrics import GeographicPreservation, AdmixturePreservation
-        print('✅ Imported GeographicPreservation, AdmixturePreservation')
-        
-        # Test that we can import core manylatents too
-        from manylatents.data.synthetic_dataset import SwissRoll
-        print('✅ Can also import core manylatents (SwissRoll)')
-        
-        # Verify namespace package structure
-        import manylatents.omics
-        assert hasattr(manylatents.omics, 'data')
-        assert hasattr(manylatents.omics, 'metrics')
-        print('✅ Namespace package structure verified')
-        
-        print()
-        print('='*60)
-        print('✅✅✅ All integration tests passed!')
-        print('='*60)
-        "
-    
-    - name: Run manylatents core tests (smoke test)
-      working-directory: manylatents
-      run: |
-        uv run pytest manylatents/data/test_data.py -v
-        echo "✅ Core manylatents tests still work with omics installed"
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: 'latest'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: |
+          uv venv
+          uv pip install ".[popgen,singlecell]" pytest
+
+      - name: Run tests
+        run: |
+          source .venv/bin/activate
+          pytest tests/ -v -k "not gpu"
+
+      - name: Smoke test — namespace packages
+        run: |
+          source .venv/bin/activate
+          python -c "
+          from manylatents.popgen.data import ManifoldGeneticsDataset, ManifoldGeneticsDataModule
+          from manylatents.popgen.metrics import GeographicPreservation, AdmixturePreservation
+          from manylatents.dogma.encoders.base import FoundationEncoder
+          from manylatents.data.synthetic_dataset import SwissRoll
+          import manylatents.popgen
+          import manylatents.dogma
+          print('namespace packages OK')
+          "
+
+  docs:
+    name: Docs Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: 'latest'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: |
+          uv venv
+          uv pip install ".[docs]"
+
+      - name: Build docs (strict)
+        run: |
+          source .venv/bin/activate
+          mkdocs build --strict
+
+  docs-deploy:
+    name: Deploy Docs
+    needs: [test, docs]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: 'latest'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: |
+          uv venv
+          uv pip install ".[docs]"
+
+      - name: Deploy to GitHub Pages
+        run: |
+          source .venv/bin/activate
+          mkdocs gh-deploy --force
