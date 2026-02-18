@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "manyLatents-Omics: Biological Extensions for Unified Dimensionality Reduction"
+type: software
+version: 0.2.0
+date-released: 2026-02-18
+license: MIT
+url: "https://github.com/latent-reasoning-works/manylatents-omics"
+repository-code: "https://github.com/latent-reasoning-works/manylatents-omics"
+authors:
+  - family-names: Scicluna
+    given-names: Matthew
+    email: matthew.scicluna@mila.quebec
+    affiliation: Mila - Quebec AI Institute
+  - family-names: Valdez Córdova
+    given-names: César Miguel
+    email: cesar.valdez@mila.quebec
+    affiliation: Mila - Quebec AI Institute
+keywords:
+  - population-genetics
+  - single-cell
+  - foundation-models
+  - central-dogma
+  - dimensionality-reduction
