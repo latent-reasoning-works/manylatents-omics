@@ -13,6 +13,8 @@
 [![license](https://img.shields.io/badge/license-MIT-FDA4AF.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.11+-FDA4AF.svg)](https://www.python.org)
 [![uv](https://img.shields.io/badge/pkg-uv-FDA4AF.svg)](https://docs.astral.sh/uv/)
+[![PyPI](https://img.shields.io/badge/PyPI-manylatents--omics-FDA4AF.svg)](https://pypi.org/project/manylatents-omics/)
+[![docs](https://img.shields.io/badge/docs-GitHub%20Pages-FDA4AF.svg)](https://latent-reasoning-works.github.io/manylatents-omics/)
 
 </div>
 
@@ -23,30 +25,40 @@ Population genetics, single-cell, and foundation model encoders for [manylatents
 ## Install
 
 ```bash
-git clone https://github.com/latent-reasoning-works/manylatents-omics.git
-cd manylatents-omics
-
-uv sync                   # base (popgen + singlecell)
-uv sync --extra dogma     # + foundation encoders (Ampere+ GPU required)
+uv add manylatents-omics
 ```
 
-See [docs/README.md](docs/README.md) for detailed install, two-env DNA setup, and CUDA configuration.
+Optional extras:
+
+```bash
+uv add "manylatents-omics[popgen]"      # population genetics
+uv add "manylatents-omics[singlecell]"  # single-cell (scanpy, anndata)
+uv add "manylatents-omics[dogma]"       # foundation encoders (GPU required)
+```
+
+<details>
+<summary>development install</summary>
+
+```bash
+git clone https://github.com/latent-reasoning-works/manylatents-omics.git
+cd manylatents-omics && uv sync
+```
+
+</details>
 
 ## Quick start
 
-Always use the omics entry point — it registers omics configs on the Hydra search path:
+Omics configs are auto-discovered when the package is installed:
 
 ```bash
-python -m manylatents.omics.main --config-name=config \
+python -m manylatents.main --config-name=config \
   experiment=single_algorithm data=pbmc_3k
 
 # Sweep on cluster
-python -m manylatents.omics.main -m \
+python -m manylatents.main -m \
   cluster=tamia resources=gpu \
   data=hgdp,pbmc_10k algorithms/latent=umap,phate
 ```
-
-Never use `manylatents.main` for omics data — it won't find omics configs.
 
 ## Modules
 
@@ -76,9 +88,9 @@ All encoders inherit from [`FoundationEncoder`](manylatents/dogma/encoders/base.
 Three-stage variant encoding and geometric analysis. See [docs/clinvar_pipeline.md](docs/clinvar_pipeline.md) for full details.
 
 ```bash
-python -m manylatents.omics.main experiment=clinvar/encode_dna      # Evo2 → (N, 1920)
-python -m manylatents.omics.main experiment=clinvar/encode_protein   # ESM3 → (N, 1536)
-python -m manylatents.omics.main experiment=clinvar/geometric_analysis
+python -m manylatents.main experiment=clinvar/encode_dna      # Evo2 → (N, 1920)
+python -m manylatents.main experiment=clinvar/encode_protein   # ESM3 → (N, 1536)
+python -m manylatents.main experiment=clinvar/geometric_analysis
 ```
 
 Fusion strategies: concat, concat_pca, modality_proj, SVD, autoencoder, frobenius_ae. Configs: [`dogma/configs/fusion/`](manylatents/dogma/configs/experiment/fusion/)
