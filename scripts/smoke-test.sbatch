@@ -64,7 +64,7 @@ print('  Plugin chain OK')
 
 # 3. Run PCA on swissroll with embedding plot
 echo "[3/4] Running PCA on swissroll..."
-python -m manylatents.omics.main \
+python -m manylatents.main \
     --config-name=config \
     experiment=single_algorithm \
     data=swissroll \

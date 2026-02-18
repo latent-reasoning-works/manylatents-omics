@@ -47,12 +47,12 @@ print('   OK: Config search paths added correctly')
 
 # 4. Check Hydra config resolution
 echo "4. Testing Hydra config resolution..."
-uv run python -m manylatents.omics.main --help 2>&1 | grep -q "dogma/configs" && echo "   OK: dogma configs visible in Hydra"
+uv run python -m manylatents.main --help 2>&1 | grep -q "dogma/configs" && echo "   OK: dogma configs visible in Hydra"
 
 # 5. Run a minimal experiment (if torch available)
 echo "5. Testing minimal experiment..."
 if uv run python -c "import torch" 2>/dev/null; then
-    uv run python -m manylatents.omics.main --config-name=config experiment=single_algorithm logger=none 2>&1 | tail -5
+    uv run python -m manylatents.main --config-name=config experiment=single_algorithm logger=none 2>&1 | tail -5
     echo "   OK: Experiment completed"
 else
     echo "   SKIP: torch not available (CUDA not loaded?)"

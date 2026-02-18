@@ -6,10 +6,10 @@
 # Captures non-linear relationships between modalities.
 #
 # Usage:
-#   python -m manylatents.omics.main --config-name=config experiment=fusion/autoencoder
+#   python -m manylatents.main --config-name=config experiment=fusion/autoencoder
 #
 #   # Custom architecture
-#   python -m manylatents.omics.main --config-name=config experiment=fusion/autoencoder \
+#   python -m manylatents.main --config-name=config experiment=fusion/autoencoder \
 #     algorithms.latent.hidden_dims=[512,256] \
 #     algorithms.latent.epochs=100
 

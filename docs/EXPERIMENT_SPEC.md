@@ -70,7 +70,7 @@ salloc --gpus=l40s:1 --time=2:00:00
 module load cuda/12.4.1
 
 # Run encoding
-python -m manylatents.omics.main --config-name=config experiment=clinvar/encode_dna
+python -m manylatents.main --config-name=config experiment=clinvar/encode_dna
 ```
 
 **Output**:
@@ -88,7 +88,7 @@ outputs/embeddings/clinvar/
 
 **Command**:
 ```bash
-python -m manylatents.omics.main --config-name=config experiment=clinvar/encode_protein
+python -m manylatents.main --config-name=config experiment=clinvar/encode_protein
 ```
 
 **Output**:
@@ -137,20 +137,20 @@ print('All shapes match!')
 ### Single Strategy Run
 
 ```bash
-python -m manylatents.omics.main --config-name=config experiment=fusion/concat_pca
+python -m manylatents.main --config-name=config experiment=fusion/concat_pca
 ```
 
 ### Full Sweep (All Linear Strategies)
 
 ```bash
-python -m manylatents.omics.main -m --config-name=config \
+python -m manylatents.main -m --config-name=config \
   experiment=fusion/concat,fusion/concat_pca,fusion/modality_proj,fusion/svd
 ```
 
 ### Full Sweep (Including Learned)
 
 ```bash
-python -m manylatents.omics.main -m --config-name=config \
+python -m manylatents.main -m --config-name=config \
   experiment=fusion/concat,fusion/concat_pca,fusion/modality_proj,fusion/svd,fusion/autoencoder,fusion/frobenius_ae
 ```
 
@@ -190,14 +190,14 @@ mlp_accuracy, mlp_auroc, mlp_auprc
 module load cuda/12.4.1
 
 # Run sweep
-python -m manylatents.omics.main -m --config-name=config \
+python -m manylatents.main -m --config-name=config \
   experiment=fusion/concat,fusion/concat_pca,fusion/modality_proj,fusion/svd
 ```
 
 ### Via Hydra Launcher (if configured)
 
 ```bash
-python -m manylatents.omics.main -m --config-name=config \
+python -m manylatents.main -m --config-name=config \
   cluster=mila_remote \
   resources=gpu \
   experiment=fusion/concat,fusion/concat_pca,fusion/modality_proj,fusion/svd
@@ -236,7 +236,7 @@ module load cuda/12.4.1
 ### OOM on Evo2
 ```bash
 # Reduce batch size
-python -m manylatents.omics.main --config-name=config experiment=clinvar/encode_dna \
+python -m manylatents.main --config-name=config experiment=clinvar/encode_dna \
   data.batch_size=4
 ```
 

@@ -9,7 +9,7 @@
 # so delta will be zero. This serves as a control condition.
 #
 # Usage:
-#   python -m manylatents.omics.main -m experiment=clinvar_delta_protein algorithms.latent.channel=wt,mut
+#   python -m manylatents.main -m experiment=clinvar_delta_protein algorithms.latent.channel=wt,mut
 
 # Project settings
 name: clinvar_delta_protein

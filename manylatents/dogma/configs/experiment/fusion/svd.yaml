@@ -6,7 +6,7 @@
 # Similar to concat_pca but doesn't center data (useful for sparse embeddings).
 #
 # Usage:
-#   python -m manylatents.omics.main --config-name=config experiment=fusion/svd
+#   python -m manylatents.main --config-name=config experiment=fusion/svd
 
 defaults:
   - base

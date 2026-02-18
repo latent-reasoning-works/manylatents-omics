@@ -13,14 +13,14 @@
 #
 # Usage:
 #   # Default: DNA + Protein fusion
-#   python -m manylatents.omics.main --config-name=config experiment=clinvar/deviation
+#   python -m manylatents.main --config-name=config experiment=clinvar/deviation
 #
 #   # All three modalities
-#   python -m manylatents.omics.main --config-name=config experiment=clinvar/deviation \
+#   python -m manylatents.main --config-name=config experiment=clinvar/deviation \
 #     data.channels=[esm3,evo2,orthrus]
 #
 #   # Different k for LOF
-#   python -m manylatents.omics.main --config-name=config experiment=clinvar/deviation \
+#   python -m manylatents.main --config-name=config experiment=clinvar/deviation \
 #     metrics.embedding.outlier_score.k=50
 
 # Project settings

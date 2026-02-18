@@ -8,10 +8,10 @@
 # This preserves modality-specific structure while normalizing dimensions.
 #
 # Usage:
-#   python -m manylatents.omics.main --config-name=config experiment=fusion/modality_proj
+#   python -m manylatents.main --config-name=config experiment=fusion/modality_proj
 #
 #   # Use mean instead of concat
-#   python -m manylatents.omics.main --config-name=config experiment=fusion/modality_proj \
+#   python -m manylatents.main --config-name=config experiment=fusion/modality_proj \
 #     algorithms.latent.proj_aggregation=mean
 
 defaults:

@@ -11,7 +11,7 @@
 #   - experiment=clinvar/encode_protein
 #
 # Usage (not directly - use derived configs):
-#   python -m manylatents.omics.main --config-name=config experiment=fusion/concat_pca
+#   python -m manylatents.main --config-name=config experiment=fusion/concat_pca
 
 # Project settings
 name: fusion_comparison

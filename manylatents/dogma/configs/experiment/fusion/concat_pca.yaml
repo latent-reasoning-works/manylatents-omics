@@ -6,10 +6,10 @@
 # Provides interpretable loadings showing per-channel contribution.
 #
 # Usage:
-#   python -m manylatents.omics.main --config-name=config experiment=fusion/concat_pca
+#   python -m manylatents.main --config-name=config experiment=fusion/concat_pca
 #
 #   # Different target dimensions
-#   python -m manylatents.omics.main --config-name=config experiment=fusion/concat_pca \
+#   python -m manylatents.main --config-name=config experiment=fusion/concat_pca \
 #     algorithms.latent.target_dim=128
 
 defaults:

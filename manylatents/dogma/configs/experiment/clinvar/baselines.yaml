@@ -10,19 +10,19 @@
 #
 # Usage:
 #   # Protein-only baseline
-#   python -m manylatents.omics.main --config-name=config experiment=clinvar/baselines \
+#   python -m manylatents.main --config-name=config experiment=clinvar/baselines \
 #     data.channels=[esm3]
 #
 #   # DNA-only baseline
-#   python -m manylatents.omics.main --config-name=config experiment=clinvar/baselines \
+#   python -m manylatents.main --config-name=config experiment=clinvar/baselines \
 #     data.channels=[evo2]
 #
 #   # RNA-only baseline
-#   python -m manylatents.omics.main --config-name=config experiment=clinvar/baselines \
+#   python -m manylatents.main --config-name=config experiment=clinvar/baselines \
 #     data.channels=[orthrus]
 #
 #   # All modalities concatenated (no fusion)
-#   python -m manylatents.omics.main --config-name=config experiment=clinvar/baselines \
+#   python -m manylatents.main --config-name=config experiment=clinvar/baselines \
 #     data.channels=[esm3,evo2,orthrus]
 
 # Project settings

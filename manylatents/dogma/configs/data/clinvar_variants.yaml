@@ -4,9 +4,9 @@
 # Used with DeltaEncoder to compute delta embeddings.
 #
 # Usage:
-#   python -m manylatents.omics.main data=clinvar_variants data.variant_type=synonymous
-#   python -m manylatents.omics.main data=clinvar_variants data.modality=rna
-#   python -m manylatents.omics.main -m data=clinvar_variants data.variant_type=splice_extended,utr_combined,synonymous
+#   python -m manylatents.main data=clinvar_variants data.variant_type=synonymous
+#   python -m manylatents.main data=clinvar_variants data.modality=rna
+#   python -m manylatents.main -m data=clinvar_variants data.variant_type=splice_extended,utr_combined,synonymous
 #
 # Variant types available:
 #   - synonymous: Silent mutations (same protein, different codon)

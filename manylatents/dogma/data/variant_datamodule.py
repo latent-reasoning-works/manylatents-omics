@@ -20,7 +20,7 @@ Usage:
     >>> print(len(pairs["wt"]), len(pairs["mut"]))
 
 Hydra config:
-    python -m manylatents.omics.main data=clinvar_variants \\
+    python -m manylatents.main data=clinvar_variants \\
         data.variant_type=synonymous data.modality=dna
 """
 from __future__ import annotations

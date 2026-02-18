@@ -6,7 +6,7 @@
 # Output dimension = sum of channel dimensions.
 #
 # Usage:
-#   python -m manylatents.omics.main --config-name=config experiment=fusion/concat
+#   python -m manylatents.main --config-name=config experiment=fusion/concat
 
 defaults:
   - base

@@ -6,7 +6,7 @@
 # Run twice with channel=wt and channel=mut, then compute delta in analysis.
 #
 # Usage:
-#   python -m manylatents.omics.main -m experiment=clinvar_delta_rna algorithms.latent.channel=wt,mut
+#   python -m manylatents.main -m experiment=clinvar_delta_rna algorithms.latent.channel=wt,mut
 
 # Project settings
 name: clinvar_delta_rna

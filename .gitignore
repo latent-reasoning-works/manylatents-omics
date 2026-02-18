@@ -8,6 +8,7 @@ venv/
 *.egg-info/
 dist/
 build/
+site/
 .pytest_cache/
 .coverage
 htmlcov/

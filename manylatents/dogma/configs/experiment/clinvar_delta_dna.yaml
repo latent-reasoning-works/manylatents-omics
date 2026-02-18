@@ -7,16 +7,16 @@
 #
 # Usage:
 #   # Encode WT sequences
-#   python -m manylatents.omics.main experiment=clinvar_delta_dna algorithms.latent.channel=wt
+#   python -m manylatents.main experiment=clinvar_delta_dna algorithms.latent.channel=wt
 #
 #   # Encode MUT sequences
-#   python -m manylatents.omics.main experiment=clinvar_delta_dna algorithms.latent.channel=mut
+#   python -m manylatents.main experiment=clinvar_delta_dna algorithms.latent.channel=mut
 #
 #   # Sweep both channels
-#   python -m manylatents.omics.main -m experiment=clinvar_delta_dna algorithms.latent.channel=wt,mut
+#   python -m manylatents.main -m experiment=clinvar_delta_dna algorithms.latent.channel=wt,mut
 #
 #   # Different variant types
-#   python -m manylatents.omics.main -m experiment=clinvar_delta_dna \
+#   python -m manylatents.main -m experiment=clinvar_delta_dna \
 #       data.variant_type=splice_extended,utr_combined,synonymous \
 #       algorithms.latent.channel=wt,mut
 

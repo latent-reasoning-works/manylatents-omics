@@ -13,22 +13,22 @@
 #
 # Usage:
 #   # Single job (local, requires A100)
-#   python -m manylatents.omics.main experiment=clinvar/alphagenome \
+#   python -m manylatents.main experiment=clinvar/alphagenome \
 #       data.variant_type=synonymous \
 #       algorithms.latent.cell_type=K562
 #
 #   # Test with limited variants
-#   python -m manylatents.omics.main experiment=clinvar/alphagenome \
+#   python -m manylatents.main experiment=clinvar/alphagenome \
 #       data.variant_type=synonymous data.max_variants=10
 #
 #   # Multirun: 4 variant types × 3 cell types = 12 jobs
-#   python -m manylatents.omics.main -m experiment=clinvar/alphagenome \
+#   python -m manylatents.main -m experiment=clinvar/alphagenome \
 #       cluster=mila_submitit resources=gpu_a100 \
 #       'data.variant_type=splice_extended,utr_combined,synonymous,missense' \
 #       'algorithms.latent.cell_type=K562,HepG2,GM12878'
 #
 #   # Config inspection (dry run)
-#   python -m manylatents.omics.main --cfg job experiment=clinvar/alphagenome
+#   python -m manylatents.main --cfg job experiment=clinvar/alphagenome
 #
 # GPU Requirements:
 #   Requires Ampere+ GPU (A100, L40S, H100) for BF16 support.

@@ -9,10 +9,10 @@
 # the learned representation to preserve local geometry.
 #
 # Usage:
-#   python -m manylatents.omics.main --config-name=config experiment=fusion/frobenius_ae
+#   python -m manylatents.main --config-name=config experiment=fusion/frobenius_ae
 #
 #   # Adjust regularization strength
-#   python -m manylatents.omics.main --config-name=config experiment=fusion/frobenius_ae \
+#   python -m manylatents.main --config-name=config experiment=fusion/frobenius_ae \
 #     algorithms.latent.frobenius_weight=0.1
 
 defaults:

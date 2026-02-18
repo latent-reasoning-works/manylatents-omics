@@ -74,17 +74,17 @@ The resource configs handle venv activation automatically. Just match the resour
 
 ```bash
 # RNA/Protein — uses .venv
-python -m manylatents.omics.main -m \
+python -m manylatents.main -m \
   experiment=clinvar/encode_protein \
   cluster=mila resources=gpu_rna
 
 # DNA — uses .venv-dna
-python -m manylatents.omics.main -m \
+python -m manylatents.main -m \
   experiment=clinvar/encode_dna \
   cluster=mila resources=gpu_dna
 
 # DNA on Tamia — uses .venv-dna with H100
-python -m manylatents.omics.main -m \
+python -m manylatents.main -m \
   experiment=clinvar/encode_dna \
   cluster=tamia_submitit resources=gpu_tamia_dna
 ```
@@ -121,7 +121,7 @@ The Tamia setup script patches `pyvenv.cfg` to point at Tamia's Python and reins
 Always use the omics entry point:
 
 ```bash
-python -m manylatents.omics.main --config-name=config <overrides>
+python -m manylatents.main --config-name=config <overrides>
 ```
 
 This registers the Hydra SearchPathPlugin that makes dogma/popgen/singlecell configs discoverable. The standard `manylatents.main` won't find omics configs.
@@ -130,7 +130,7 @@ This registers the Hydra SearchPathPlugin that makes dogma/popgen/singlecell con
 
 **`ImportError: libcufile.so.0`** — Load CUDA module: `module load cuda/12.1.1`
 
-**`ConfigAttributeError: Key 'experiment' is not in struct`** — Use `python -m manylatents.omics.main`, not `manylatents.main`
+**`ConfigAttributeError: Key 'experiment' is not in struct`** — Use `python -m manylatents.main`, not `manylatents.main`
 
 **`Could not override 'experiment'`** — Add `--config-name=config`
 

@@ -10,16 +10,16 @@
 #
 # Usage:
 #   # Default: DNA + Protein with concat_pca fusion
-#   python -m manylatents.omics.main --config-name=config experiment=clinvar/shared_subspace
+#   python -m manylatents.main --config-name=config experiment=clinvar/shared_subspace
 #
 #   # All three modalities
-#   python -m manylatents.omics.main --config-name=config experiment=clinvar/shared_subspace \
+#   python -m manylatents.main --config-name=config experiment=clinvar/shared_subspace \
 #     data.channels=[esm3,evo2,orthrus] \
 #     'callbacks.embedding.loadings_analysis.modality_dims=[1536,1920,256]' \
 #     'callbacks.embedding.loadings_analysis.modality_names=[protein,dna,rna]'
 #
 #   # With classifier for AUC
-#   python -m manylatents.omics.main --config-name=config experiment=clinvar/shared_subspace \
+#   python -m manylatents.main --config-name=config experiment=clinvar/shared_subspace \
 #     algorithms.latent._target_=manylatents.algorithms.latent.classifier.ClassifierModule
 
 # Project settings

@@ -48,14 +48,14 @@ echo ""
 echo "=== 1. Baseline Classifiers ==="
 
 echo "1a. Protein-only baseline (ESM3)..."
-python -m manylatents.omics.main --config-name=config \
+python -m manylatents.main --config-name=config \
     experiment=clinvar/baselines \
     data.channels=[esm3] \
     name=clinvar_baseline_protein \
     ${CLUSTER}
 
 echo "1b. DNA-only baseline (Evo2)..."
-python -m manylatents.omics.main --config-name=config \
+python -m manylatents.main --config-name=config \
     experiment=clinvar/baselines \
     data.channels=[evo2] \
     name=clinvar_baseline_dna \
@@ -64,7 +64,7 @@ python -m manylatents.omics.main --config-name=config \
 # Optional: RNA baseline (if orthrus.pt exists)
 if [[ -f "${OUTPUT_DIR}/embeddings/clinvar/orthrus.pt" ]]; then
     echo "1c. RNA-only baseline (Orthrus)..."
-    python -m manylatents.omics.main --config-name=config \
+    python -m manylatents.main --config-name=config \
         experiment=clinvar/baselines \
         data.channels=[orthrus] \
         name=clinvar_baseline_rna \
@@ -72,7 +72,7 @@ if [[ -f "${OUTPUT_DIR}/embeddings/clinvar/orthrus.pt" ]]; then
 fi
 
 echo "1d. Multi-modal baseline (concatenated)..."
-python -m manylatents.omics.main --config-name=config \
+python -m manylatents.main --config-name=config \
     experiment=clinvar/baselines \
     data.channels=[esm3,evo2] \
     name=clinvar_baseline_concat \
@@ -85,7 +85,7 @@ echo ""
 echo "=== 2. Shared Subspace Analysis ==="
 
 echo "2a. DNA + Protein shared subspace..."
-python -m manylatents.omics.main --config-name=config \
+python -m manylatents.main --config-name=config \
     experiment=clinvar/shared_subspace \
     data.channels=[esm3,evo2] \
     'callbacks.embedding.loadings_analysis.modality_dims=[1536,1920]' \
@@ -96,7 +96,7 @@ python -m manylatents.omics.main --config-name=config \
 # Optional: Include RNA if available
 if [[ -f "${OUTPUT_DIR}/embeddings/clinvar/orthrus.pt" ]]; then
     echo "2b. DNA + RNA + Protein shared subspace..."
-    python -m manylatents.omics.main --config-name=config \
+    python -m manylatents.main --config-name=config \
         experiment=clinvar/shared_subspace \
         data.channels=[esm3,evo2,orthrus] \
         'callbacks.embedding.loadings_analysis.modality_dims=[1536,1920,256]' \
@@ -112,7 +112,7 @@ echo ""
 echo "=== 3. Deviation Analysis ==="
 
 echo "3a. Deviation analysis (k=20)..."
-python -m manylatents.omics.main --config-name=config \
+python -m manylatents.main --config-name=config \
     experiment=clinvar/deviation \
     data.channels=[esm3,evo2] \
     metrics.embedding.outlier_score.k=20 \
@@ -120,7 +120,7 @@ python -m manylatents.omics.main --config-name=config \
     ${CLUSTER}
 
 echo "3b. Deviation analysis (k=50)..."
-python -m manylatents.omics.main --config-name=config \
+python -m manylatents.main --config-name=config \
     experiment=clinvar/deviation \
     data.channels=[esm3,evo2] \
     metrics.embedding.outlier_score.k=50 \
