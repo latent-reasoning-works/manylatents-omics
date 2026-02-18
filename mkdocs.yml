@@ -6,6 +6,8 @@ theme:
 
 exclude_docs: |
   plans/
+  README.md
+  EXPERIMENT_SPEC.md
 
 markdown_extensions:
   - pymdownx.tabbed:
