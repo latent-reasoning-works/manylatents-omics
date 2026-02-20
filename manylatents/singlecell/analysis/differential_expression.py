@@ -34,8 +34,8 @@ class DifferentialExpression:
         self._df = pd.DataFrame(rows)
         return self._df
 
-    def get_significant_genes(self, adata: sc.AnnData, key: str = None) -> set:
-        """Extract set of significant gene names."""
+    def get_significant_genes(self) -> set:
+        """Extract set of significant gene names from the last run() call."""
         if self._df is None:
             raise RuntimeError("Call run() before get_significant_genes()")
         sig = self._df[

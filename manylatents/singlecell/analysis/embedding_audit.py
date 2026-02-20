@@ -21,7 +21,7 @@ class EmbeddingAudit:
         self.setting_a = setting_a
         self.setting_b = setting_b
         self.leiden_resolution = leiden_resolution
-        self.de = DifferentialExpression(
+        self._de_kwargs = dict(
             method=de_method, p_threshold=de_p_threshold, lfc_threshold=de_lfc_threshold
         )
         self.csa = ComplementSetAnalysis()
@@ -34,20 +34,23 @@ class EmbeddingAudit:
         umap_key = f"X_umap_{suffix}"
         adata.obsm[umap_key] = adata.obsm["X_umap"].copy()
         leiden_key = f"leiden_{suffix}"
-        sc.tl.leiden(adata, resolution=self.leiden_resolution, key_added=leiden_key)
+        sc.tl.leiden(adata, resolution=self.leiden_resolution, key_added=leiden_key, flavor="leidenalg")
         n_clusters = adata.obs[leiden_key].nunique()
         logger.info(f"Setting {suffix}: {n_clusters} clusters (k={setting['n_neighbors']})")
         return leiden_key, n_clusters
 
     def run(self, adata: sc.AnnData) -> dict:
         """Full pipeline: embed -> cluster -> DE -> compare."""
+        de_a = DifferentialExpression(**self._de_kwargs)
+        de_b = DifferentialExpression(**self._de_kwargs)
+
         leiden_a, n_clusters_a = self._embed_and_cluster(adata, self.setting_a, "setting_a")
-        df_a = self.de.run(adata, groupby=leiden_a, key_added="de_setting_a")
-        genes_a = self.de.get_significant_genes(adata)
+        df_a = de_a.run(adata, groupby=leiden_a, key_added="de_setting_a")
+        genes_a = de_a.get_significant_genes()
 
         leiden_b, n_clusters_b = self._embed_and_cluster(adata, self.setting_b, "setting_b")
-        df_b = self.de.run(adata, groupby=leiden_b, key_added="de_setting_b")
-        genes_b = self.de.get_significant_genes(adata)
+        df_b = de_b.run(adata, groupby=leiden_b, key_added="de_setting_b")
+        genes_b = de_b.get_significant_genes()
 
         results = self.csa.compare(genes_a, genes_b, df_a=df_a, df_b=df_b)
         results["setting_a_clusters"] = n_clusters_a

@@ -40,7 +40,7 @@ class TestDifferentialExpression:
         adata = _make_test_adata()
         de = DifferentialExpression(method="wilcoxon", p_threshold=0.05, lfc_threshold=0.5)
         de.run(adata, groupby="cluster")
-        genes = de.get_significant_genes(adata)
+        genes = de.get_significant_genes()
         assert isinstance(genes, set)
         assert len(genes) > 0
 
@@ -49,6 +49,6 @@ class TestDifferentialExpression:
         adata = _make_test_adata(n_cells=300)
         de = DifferentialExpression(method="wilcoxon", p_threshold=0.05, lfc_threshold=1.0)
         de.run(adata, groupby="cluster")
-        genes = de.get_significant_genes(adata)
+        genes = de.get_significant_genes()
         boosted = {f"gene_{i}" for i in range(5)}
         assert boosted & genes, f"Expected some of {boosted} in significant genes {genes}"
