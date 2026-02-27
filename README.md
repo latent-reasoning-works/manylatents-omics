@@ -33,10 +33,10 @@ Optional extras:
 ```bash
 uv add "manylatents-omics[popgen]"      # population genetics
 uv add "manylatents-omics[singlecell]"  # single-cell (scanpy, anndata)
-uv add "manylatents-omics[esm]"         # ESM3 protein encoder
-uv add "manylatents-omics[orthrus]"     # Orthrus RNA encoder
-uv add "manylatents-omics[evo2]"        # Evo2 DNA encoder
+uv add "manylatents-omics[dogma]"       # protein + RNA encoders (ESM3, Orthrus)
 ```
+
+> **DNA encoder (Evo2)** requires a separate venv due to torch version conflicts. See `scripts/setup-dna-venv.sh`.
 
 Or from the core manylatents repo:
 

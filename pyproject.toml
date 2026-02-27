@@ -26,18 +26,17 @@ dependencies = [
 singlecell = ["anndata>=0.11.3", "python-igraph>=1.0.0", "scanpy>=1.11.5"]
 popgen = ["pandas-plink>=2.2.9"]
 
-# Individual encoders — install what you need
-esm = ["esm>=3.0"]
-orthrus = ["orthrus", "mamba-ssm==2.2.6.post3"]
-evo2 = ["evo2"]
+# Protein + RNA encoders (ESM3 + Orthrus, torch 2.5.x compatible)
+# DNA encoder (Evo2) requires separate venv — see scripts/setup-dna-venv.sh
+dogma = ["esm>=3.0", "orthrus", "mamba-ssm==2.2.6.post3"]
 
 # Utilities
 gpu = ["faiss-gpu-cu12"]
 docs = ["mkdocs>=1.6", "mkdocs-material>=9.6"]
 
-# Dev/CI only — all encoders (not for end users)
+# Dev/CI only
 dev = [
-    "manylatents-omics[esm,orthrus,singlecell,popgen]",
+    "manylatents-omics[dogma,singlecell,popgen]",
     "pytest>=9.0.2",
 ]
 
