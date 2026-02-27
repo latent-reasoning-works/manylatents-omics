@@ -5,17 +5,17 @@ and concatenates the embeddings.
 
 Usage:
     # Default (GFP sequence)
-    python -m manylatents.dogma.experiments.run_fusion
+    python experiments/dogma/run_fusion.py
 
     # With specific preset
-    python -m manylatents.dogma.experiments.run_fusion --preset synthetic_8aa
-    python -m manylatents.dogma.experiments.run_fusion --preset brca1
+    python experiments/dogma/run_fusion.py --preset synthetic_8aa
+    python experiments/dogma/run_fusion.py --preset brca1
 
     # With normalization
-    python -m manylatents.dogma.experiments.run_fusion --normalize
+    python experiments/dogma/run_fusion.py --normalize
 
     # Save embeddings
-    python -m manylatents.dogma.experiments.run_fusion --output embeddings.pt
+    python experiments/dogma/run_fusion.py --output embeddings.pt
 
 GPU Requirements:
     - ~24GB+ VRAM to load all 3 encoders simultaneously
