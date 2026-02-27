@@ -33,7 +33,15 @@ Optional extras:
 ```bash
 uv add "manylatents-omics[popgen]"      # population genetics
 uv add "manylatents-omics[singlecell]"  # single-cell (scanpy, anndata)
-uv add "manylatents-omics[dogma]"       # foundation encoders (GPU required)
+uv add "manylatents-omics[esm]"         # ESM3 protein encoder
+uv add "manylatents-omics[orthrus]"     # Orthrus RNA encoder
+uv add "manylatents-omics[evo2]"        # Evo2 DNA encoder
+```
+
+Or from the core manylatents repo:
+
+```bash
+uv sync --extra omics   # installs manylatents-omics as a namespace extension
 ```
 
 <details>
@@ -45,6 +53,19 @@ cd manylatents-omics && uv sync
 ```
 
 </details>
+
+## Architecture
+
+manylatents-omics is a **namespace extension** of [manylatents](https://github.com/latent-reasoning-works/manylatents). It lives alongside the core repo and adds domain-specific modules under the `manylatents.*` namespace via `pkgutil.extend_path()`.
+
+```
+lrw/
+├── manylatents/    # core DR engine
+├── omics/          # this repo — popgen, singlecell, dogma encoders
+└── shop/           # cluster infrastructure
+```
+
+**Design decision:** The core engine stays domain-agnostic. Each "flavor pack" (omics, vision, etc.) is a separate repo/package that extends the `manylatents` namespace without polluting the core with domain-specific dependencies. Experiment configs (ClinVar pipelines, fusion sweeps, cluster resource presets) belong in downstream experiment repos, not here — this package ships only instantiation configs that define what encoders, datasets, and algorithms *are*.
 
 ## Quick start
 
@@ -85,15 +106,7 @@ All encoders inherit from [`FoundationEncoder`](manylatents/dogma/encoders/base.
 
 ## ClinVar pipeline
 
-Three-stage variant encoding and geometric analysis. See [docs/clinvar_pipeline.md](docs/clinvar_pipeline.md) for full details.
-
-```bash
-python -m manylatents.main experiment=clinvar/encode_dna      # Evo2 → (N, 1920)
-python -m manylatents.main experiment=clinvar/encode_protein   # ESM3 → (N, 1536)
-python -m manylatents.main experiment=clinvar/geometric_analysis
-```
-
-Fusion strategies: concat, concat_pca, modality_proj, SVD, autoencoder, frobenius_ae. Configs: [`dogma/configs/fusion/`](manylatents/dogma/configs/experiment/fusion/)
+Three-stage variant encoding and geometric analysis. See [docs/clinvar_pipeline.md](docs/clinvar_pipeline.md) for full details. Experiment configs live in downstream repos (e.g. merging_dogma), not in this package.
 
 ## Development
 
