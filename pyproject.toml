@@ -22,19 +22,24 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Domain data modules
 singlecell = ["anndata>=0.11.3", "python-igraph>=1.0.0", "scanpy>=1.11.5"]
 popgen = ["pandas-plink>=2.2.9"]
-gpu = ["faiss-gpu-cu12"]
-docs = ["mkdocs>=1.6", "mkdocs-material>=9.6"]
+
+# Individual encoders — install what you need
 esm = ["esm>=3.0"]
 orthrus = ["orthrus", "mamba-ssm==2.2.6.post3"]
 evo2 = ["evo2"]
 
-# RNA (default locked venv): uv sync --extra dogma
-dogma = ["torch==2.5.1", "esm>=3.0", "orthrus", "mamba-ssm==2.2.6.post3"]
+# Utilities
+gpu = ["faiss-gpu-cu12"]
+docs = ["mkdocs>=1.6", "mkdocs-material>=9.6"]
 
-# DNA (unlocked venv via uv pip): installs torch>=2.8 + evo2
-# See scripts/setup-dna-venv.sh
+# Dev/CI only — all encoders (not for end users)
+dev = [
+    "manylatents-omics[esm,orthrus,singlecell,popgen]",
+    "pytest>=9.0.2",
+]
 
 [project.urls]
 Homepage = "https://github.com/latent-reasoning-works/manylatents-omics"
@@ -56,17 +61,13 @@ packages = ["manylatents"]
 
 [tool.uv]
 managed = true
-# Skip build isolation for mamba-ssm so it sees venv's torch 2.5.1
-# and downloads prebuilt wheel from GitHub instead of compiling
 no-build-isolation-package = ["mamba-ssm"]
 
-# PyTorch CUDA 12.1 index for locked venv (torch 2.5.1 + mamba-ssm)
 [[tool.uv.index]]
 name = "pytorch-cu121"
 url = "https://download.pytorch.org/whl/cu121"
 explicit = true
 
-# PyTorch CUDA 12.6 index for DNA venv (torch 2.8+ via uv pip)
 [[tool.uv.index]]
 name = "pytorch-cu126"
 url = "https://download.pytorch.org/whl/cu126"
