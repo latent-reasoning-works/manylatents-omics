@@ -1,8 +1,8 @@
 # Central Dogma Encoder Experiment Config
 #
 # Usage:
-#   python -m manylatents.dogma.experiments.encode_sequences encoder=esm3
-#   python -m manylatents.dogma.experiments.encode_sequences -m encoder=esm3,orthrus,evo2
+#   python -m manylatents.main experiment=encode_sequences encoder=esm3
+#   python -m manylatents.main -m experiment=encode_sequences encoder=esm3,orthrus,evo2
 
 defaults:
   - _self_
