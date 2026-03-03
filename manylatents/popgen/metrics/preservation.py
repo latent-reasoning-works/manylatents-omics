@@ -7,9 +7,7 @@ from scipy.spatial.distance import pdist, squareform
 
 from manylatents.algorithms.latent.latent_module_base import LatentModule
 from manylatents.utils.metrics import (
-    compute_average_smoothness,
     compute_geodesic_distances,
-    compute_knn_laplacian,
     haversine_vectorized,
 )
 # Import core preservation functions from manylatents
@@ -130,37 +128,6 @@ def compute_continental_admixture_metric_dists(
 
     return None  # if never got a connected graph
 
-
-def compute_continental_admixture_metric_laplacian(
-    ancestry_coords,
-    admixture_ratios,
-    subset_to_test_on=None
-):
-    """
-    Evaluate smoothness x^T L x over adjacency built from ancestry_coords.
-    Return average across admixture components.
-
-    Args:
-        ancestry_coords: numpy array of embedding coordinates
-        admixture_ratios: DataFrame with sample_id + component columns, or numpy array
-        subset_to_test_on: Boolean array for subsetting
-    """
-    if subset_to_test_on is not None:
-        ancestry_coords = ancestry_coords[subset_to_test_on]
-        if isinstance(admixture_ratios, pd.DataFrame):
-            admixture_ratios = admixture_ratios.iloc[subset_to_test_on]
-        else:
-            admixture_ratios = admixture_ratios[subset_to_test_on]
-
-    # Convert DataFrame to numpy array, excluding sample_id column
-    if isinstance(admixture_ratios, pd.DataFrame):
-        component_cols = [c for c in admixture_ratios.columns if c != 'sample_id']
-        admixture_values = admixture_ratios[component_cols].values
-    else:
-        admixture_values = admixture_ratios
-
-    laplacian = compute_knn_laplacian(ancestry_coords, k=5, normalized=True)
-    return compute_average_smoothness(laplacian, admixture_values)
 
 ##############################################################################
 # 4) Ground Truth based metrics (moved to core manylatents)
@@ -355,37 +322,6 @@ def AdmixturePreservationK(embeddings: np.ndarray,
         )
         return_vector[i] = result if result is not None else np.nan
     return return_vector
-
-def AdmixtureLaplacian(embeddings: np.ndarray,
-                       dataset,
-                       module: Optional[LatentModule] = None,
-                       scale_embeddings: bool = True,
-                       admixture_k: int = 5) -> float:
-    """
-    Laplacian-based metric -> single float for callback usage.
-
-    Args:
-        embeddings: Embedding coordinates
-        dataset: Dataset with admixture_ratios attribute
-        module: Optional LatentModule (unused)
-        scale_embeddings: Whether to scale embedding dimensions
-        admixture_k: K value for admixture proportions (default: 5)
-    """
-    if scale_embeddings:
-        embeddings = _scale_embedding_dimensions(embeddings)
-
-    # Handle both int and string keys for backward compatibility
-    k_key = admixture_k
-    if k_key not in dataset.admixture_ratios:
-        k_key = str(admixture_k)
-    if k_key not in dataset.admixture_ratios:
-        available = list(dataset.admixture_ratios.keys())
-        raise ValueError(f"Admixture K={admixture_k} not found. Available: {available}")
-
-    return compute_continental_admixture_metric_laplacian(
-        ancestry_coords=embeddings,
-        admixture_ratios=dataset.admixture_ratios[k_key]
-    )
 
 # GroundTruthPreservation() has been moved to manylatents.metrics.preservation
 # for generic use with any dataset having ground truth distances

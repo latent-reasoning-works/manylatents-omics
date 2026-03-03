@@ -28,7 +28,6 @@ def test_metrics_module_imports():
         GeographicPreservation,
         AdmixturePreservation,
         AdmixturePreservationK,
-        AdmixtureLaplacian,
         SampleId,
     )
     # GroundTruthPreservation moved to core manylatents.metrics.preservation
@@ -38,7 +37,6 @@ def test_metrics_module_imports():
     assert callable(GeographicPreservation)
     assert callable(AdmixturePreservation)
     assert callable(AdmixturePreservationK)
-    assert callable(AdmixtureLaplacian)
     assert callable(GroundTruthPreservation)
     assert callable(SampleId)
 

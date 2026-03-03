@@ -4,7 +4,6 @@ from .preservation import (
     GeographicPreservation,
     AdmixturePreservation,
     AdmixturePreservationK,
-    AdmixtureLaplacian,
 )
 from .sample_id import SampleId
 
@@ -14,6 +13,5 @@ __all__ = [
     "GeographicPreservation",
     "AdmixturePreservation",
     "AdmixturePreservationK",
-    "AdmixtureLaplacian",
     "SampleId",
 ]
