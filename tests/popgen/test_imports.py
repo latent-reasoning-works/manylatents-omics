@@ -27,7 +27,6 @@ def test_metrics_module_imports():
     from manylatents.popgen.metrics import (
         GeographicPreservation,
         AdmixturePreservation,
-        AdmixturePreservationK,
         SampleId,
     )
     # GroundTruthPreservation moved to core manylatents.metrics.preservation
@@ -36,7 +35,6 @@ def test_metrics_module_imports():
     # Verify they're all callable
     assert callable(GeographicPreservation)
     assert callable(AdmixturePreservation)
-    assert callable(AdmixturePreservationK)
     assert callable(GroundTruthPreservation)
     assert callable(SampleId)
 
