@@ -72,7 +72,7 @@ Population genetics metrics evaluate how well a low-dimensional embedding preser
 |--------|-----------------|
 | `GeographicPreservation` | Spearman correlation between haversine distances (lat/lon) and embedding distances |
 | `AdmixturePreservation` | Spearman correlation between geodesic admixture distances and embedding distances |
-| `AdmixtureLaplacian` | Smoothness of admixture proportions over the embedding's KNN graph (x^T L x) |
+
 
 All metrics accept an `embeddings` array, the dataset, and optional parameters. They automatically handle subsetting to samples with meaningful geography (excluding recent migrants and admixed populations).
 

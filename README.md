@@ -102,7 +102,7 @@ All encoders inherit from [`FoundationEncoder`](manylatents/dogma/encoders/base.
 
 - **[GeographicPreservation](manylatents/popgen/metrics/preservation.py)** — Spearman correlation between haversine and embedding distances
 - **[AdmixturePreservation](manylatents/popgen/metrics/preservation.py)** — Geodesic distance fidelity in admixture simplex vs. latent space
-- **[AdmixtureLaplacian](manylatents/popgen/metrics/preservation.py)** — Graph Laplacian smoothness of admixture components over embedding KNN
+
 
 ## ClinVar pipeline
 
