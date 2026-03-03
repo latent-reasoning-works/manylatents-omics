@@ -109,6 +109,7 @@ class TestESM3EncoderFunctional:
 
     @pytest.fixture
     def encoder(self):
+        pytest.importorskip("esm")
         from manylatents.dogma.encoders import ESM3Encoder
         return ESM3Encoder(device="cuda")
 
@@ -135,6 +136,7 @@ class TestOrthrusEncoderFunctional:
 
     @pytest.fixture
     def encoder(self):
+        pytest.importorskip("huggingface_hub")
         from manylatents.dogma.encoders import OrthrusEncoder
         return OrthrusEncoder(device="cuda")
 
@@ -156,6 +158,7 @@ class TestEvo2EncoderFunctional:
 
     @pytest.fixture
     def encoder(self):
+        pytest.importorskip("evo2")
         from manylatents.dogma.encoders import Evo2Encoder
         return Evo2Encoder(model_name="evo2_1b_base", device="cuda")
 
@@ -177,6 +180,7 @@ class TestCentralDogmaConsistency:
 
     def test_encode_same_gene_all_modalities(self):
         """Encode the same gene at DNA, RNA, and protein levels."""
+        pytest.importorskip("esm")
         from manylatents.dogma.encoders import ESM3Encoder, OrthrusEncoder, Evo2Encoder
 
         esm3 = ESM3Encoder(device="cuda")

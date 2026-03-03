@@ -74,6 +74,7 @@ class TestAlphaGenomeEncoderGPU:
 
     def test_encode_returns_tensor(self):
         """encode() should return a PyTorch tensor with correct shape."""
+        pytest.importorskip("jax")
         from manylatents.dogma.encoders import AlphaGenomeEncoder
 
         encoder = AlphaGenomeEncoder(device="cuda")
@@ -89,6 +90,7 @@ class TestAlphaGenomeEncoderGPU:
 
     def test_encode_with_aggregation(self):
         """encode() with chunking should aggregate correctly."""
+        pytest.importorskip("jax")
         from manylatents.dogma.encoders import AlphaGenomeEncoder
 
         encoder = AlphaGenomeEncoder(device="cuda")
@@ -109,6 +111,7 @@ class TestAlphaGenomeEncoderGPU:
 
     def test_predict_returns_dict(self):
         """predict() should return dict of regulatory track tensors."""
+        pytest.importorskip("jax")
         from manylatents.dogma.encoders import AlphaGenomeEncoder
 
         encoder = AlphaGenomeEncoder(device="cuda")
@@ -127,6 +130,7 @@ class TestAlphaGenomeEncoderGPU:
 
     def test_predict_specific_outputs(self):
         """predict() should return only requested output types."""
+        pytest.importorskip("jax")
         from manylatents.dogma.encoders import AlphaGenomeEncoder
 
         encoder = AlphaGenomeEncoder(device="cuda")
