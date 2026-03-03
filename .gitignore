@@ -20,6 +20,7 @@ logs/
 outputs/
 /data/
 *.log
+*.out
 
 # Claude Code state
 .claude/
