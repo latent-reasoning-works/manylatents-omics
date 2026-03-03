@@ -12,6 +12,19 @@ Population genetics studies how genetic variation is distributed across human po
 
 ---
 
+## Prerequisites
+
+The popgen module does not perform genotype QC, PCA, or admixture estimation itself. These steps are handled upstream by [manifold-genetics](https://github.com/latent-reasoning-works/manifold-genetics), a separate command-line tool (not a Python dependency).
+
+**Workflow:**
+
+1. **manifold-genetics** — Takes raw genotype data (VCF/PLINK), runs QC, PCA, and ADMIXTURE, and outputs standardized CSVs
+2. **manylatents-omics** — Loads those CSVs via `ManifoldGeneticsDataset`, runs DR algorithms, and evaluates with popgen-specific metrics
+
+This separation keeps manylatents-omics free of heavy bioinformatics dependencies (PLINK, ADMIXTURE) and makes it biobank-agnostic: any dataset preprocessed by manifold-genetics works out of the box.
+
+---
+
 ## Supported Datasets
 
 | Dataset | Populations | Samples | Config |
