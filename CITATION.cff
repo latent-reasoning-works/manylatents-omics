@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 title: "manyLatents-Omics: Biological Extensions for Unified Dimensionality Reduction"
 type: software
-version: 0.1.0
+version: 0.1.1
 date-released: 2026-03-03
 license: MIT
 url: "https://github.com/latent-reasoning-works/manylatents-omics"

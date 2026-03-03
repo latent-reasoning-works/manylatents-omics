@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.1 (2026-03-03)
+
+### Removed
+- `experiments/` directory — prescriptive experiment configs, cluster presets, and ClinVar pipeline scripts moved to downstream experiment repos
+- `AlphaGenomePredictor` (dead code, never exported)
+- ClinVar-specific scripts from `scripts/` (deploy.sh, smoke-test.sbatch moved to shop)
+
+### Fixed
+- `docs/plans/` added to `.gitignore` (internal design docs excluded from package)
+
 ## v0.1.0 (2026-03-03)
 
 First public release.
