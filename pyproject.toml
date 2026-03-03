@@ -1,6 +1,6 @@
 [project]
 name = "manylatents-omics"
-version = "0.2.0"
+version = "0.1.0"
 description = "Biological extensions for manylatents: popgen and central dogma encoders"
 authors = [
     { name = "César Miguel Valdez Córdova", email = "cesar.valdez@mila.quebec" },
