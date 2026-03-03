@@ -83,30 +83,21 @@ python -m manylatents.main -m \
 
 ## Modules
 
-**[popgen](manylatents/popgen/)** — Population genetics via manifold-genetics CSV pipeline. HGDP+1KGP, UK Biobank, All of Us. Admixture proportions, geographic metadata, QC/relatedness filtering. Configs: [`popgen/configs/`](manylatents/popgen/configs/)
+**[popgen](manylatents/popgen/)** — Population genetics via the [manifold-genetics](https://github.com/latent-reasoning-works/manifold-genetics) CSV pipeline. HGDP+1KGP, UK Biobank, All of Us. Admixture proportions, geographic metadata, QC/relatedness filtering. Requires preprocessing via manifold-genetics (a separate tool, not a Python dependency). Configs: [`popgen/configs/`](manylatents/popgen/configs/)
+  - **[GeographicPreservation](manylatents/popgen/metrics/preservation.py)** — Spearman correlation between haversine and embedding distances
+  - **[AdmixturePreservation](manylatents/popgen/metrics/preservation.py)** — Geodesic distance fidelity in admixture simplex vs. latent space
 
 **[singlecell](manylatents/singlecell/)** — AnnData `.h5ad` loader for scRNA-seq, scATAC-seq, CITE-seq. Ships with PBMC 3k/10k/68k and Embryoid Body. Any `.h5ad` works via `AnnDataset`. Configs: [`singlecell/configs/`](manylatents/singlecell/configs/)
 
-**[dogma](manylatents/dogma/)** — Foundation model encoders for DNA, RNA, and protein sequences. Supports single-modality encoding, multi-layer extraction, and cross-modal fusion. Configs: [`dogma/configs/`](manylatents/dogma/configs/)
-
-## Encoders
-
-All encoders inherit from [`FoundationEncoder`](manylatents/dogma/encoders/base.py) — lazy model loading, batched encoding with OOM retry, standard `fit()`/`transform()` interface.
-
-- **[ESM3](manylatents/dogma/encoders/esm3.py)** — Protein, 1536-dim, masked mean-pool, true batched forward
-- **[Evo2](manylatents/dogma/encoders/evo2.py)** — DNA, 1920/4096/8192-dim (1B/7B/40B), multi-layer extraction, 1M bp context
-- **[Orthrus](manylatents/dogma/encoders/orthrus_native.py)** — RNA, 256/512-dim (4-track/6-track), Mamba SSM re-implementation for mamba-ssm 2.x
-- **[AlphaGenome](manylatents/dogma/encoders/alphagenome.py)** — DNA, 1536/3072-dim (1bp/128bp), JAX-based, regulatory track predictions, chunked encoding
-
-## Metrics
-
-- **[GeographicPreservation](manylatents/popgen/metrics/preservation.py)** — Spearman correlation between haversine and embedding distances
-- **[AdmixturePreservation](manylatents/popgen/metrics/preservation.py)** — Geodesic distance fidelity in admixture simplex vs. latent space
-
+**[dogma](manylatents/dogma/)** — Foundation model encoders for DNA, RNA, and protein sequences. Supports single-modality encoding, multi-layer extraction, and cross-modal fusion. All encoders inherit from [`FoundationEncoder`](manylatents/dogma/encoders/base.py) — lazy model loading, batched encoding with OOM retry, standard `fit()`/`transform()` interface. Configs: [`dogma/configs/`](manylatents/dogma/configs/)
+  - **[ESM3](manylatents/dogma/encoders/esm3.py)** — Protein, 1536-dim, masked mean-pool, true batched forward
+  - **[Evo2](manylatents/dogma/encoders/evo2.py)** — DNA, 1920/4096/8192-dim (1B/7B/40B), multi-layer extraction, 1M bp context
+  - **[Orthrus](manylatents/dogma/encoders/orthrus_native.py)** — RNA, 256/512-dim (4-track/6-track), Mamba SSM re-implementation for mamba-ssm 2.x
+  - **[AlphaGenome](manylatents/dogma/encoders/alphagenome.py)** — DNA, 1536/3072-dim (1bp/128bp), JAX-based, regulatory track predictions, chunked encoding
 
 ## ClinVar pipeline
 
-Three-stage variant encoding and geometric analysis. See [docs/clinvar_pipeline.md](docs/clinvar_pipeline.md) for full details. Experiment configs live in downstream repos (e.g. merging_dogma), not in this package.
+Reference pipeline for variant-effect analysis via geometric methods. Encodes DNA and protein sequences flanking ClinVar variants, then applies dimensionality reduction to study how pathogenic vs. benign variants separate in embedding space. Three stages: DNA encoding, protein encoding, and geometric analysis (fusion + DR). See [docs/clinvar_pipeline.md](docs/clinvar_pipeline.md) for full details. Experiment configs live in downstream repos (e.g. merging_dogma), not in this package.
 
 ## Development
 
