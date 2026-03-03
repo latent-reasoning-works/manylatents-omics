@@ -1,13 +1,14 @@
 <div align="center">
+
 <pre>
-  A T G . . C A T       .  . .
-  . G C A T . G .  -->  . .. .  -->  λ(·)
-   T . A G C . A T       .  . .
+  A T G . . C A T        .  . .
+  . G C A T . G .   -->  . .. .  -->  λ(·)
+   T . A G C . A T        .  . .
      A T G . C A
 
      m a n y l a t e n t s - o m i c s
 
-          from sequence to manifold
+        from sequence to manifold
 </pre>
 
 [![license](https://img.shields.io/badge/license-MIT-FDA4AF.svg)](LICENSE)
