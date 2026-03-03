@@ -73,7 +73,7 @@ class EmbeddingAudit:
             coords = adata.obsm[f"X_umap_{suffix}"]
             clusters = adata.obs[f"leiden_{suffix}"].astype(int)
             n_clusters = clusters.nunique()
-            cmap = plt.cm.get_cmap("tab20", n_clusters)
+            cmap = plt.colormaps.get_cmap("tab20").resampled(n_clusters)
             ax.scatter(coords[:, 0], coords[:, 1], c=clusters, cmap=cmap,
                        s=3, alpha=0.7, rasterized=True)
             ax.set_title(f"{title}\n{n_clusters} clusters")

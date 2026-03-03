@@ -1,4 +1,6 @@
 """Compare DE gene lists across embedding parameter settings."""
+from __future__ import annotations
+
 import pandas as pd
 
 
@@ -6,7 +8,7 @@ class ComplementSetAnalysis:
     """Compare DE results from two parameter settings."""
 
     def compare(self, genes_a: set, genes_b: set,
-                df_a: pd.DataFrame = None, df_b: pd.DataFrame = None) -> dict:
+                df_a: pd.DataFrame | None = None, df_b: pd.DataFrame | None = None) -> dict:
         """Compute complement sets with optional per-gene stats."""
         robust = genes_a & genes_b
         artifacts = genes_a - genes_b
