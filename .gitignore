@@ -22,6 +22,9 @@ outputs/
 *.log
 *.out
 
+# Internal design docs
+docs/plans/
+
 # Claude Code state
 .claude/
 wandb/
