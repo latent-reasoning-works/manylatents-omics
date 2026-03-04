@@ -218,9 +218,14 @@ def GeographicPreservation(embeddings: np.ndarray,
                            dataset,
                            module: Optional[LatentModule] = None,
                            scale_embeddings: bool = True,
+                           cache: Optional[dict] = None,
                            **kwargs) -> float:
     """
     Minimal wrapper that passes extra keyword arguments to compute_geographic_metric.
+
+    Args:
+        cache: Optional shared cache dict (unused — geographic preservation
+               uses haversine distances, not kNN graphs).
     """
     if scale_embeddings:
         embeddings = _scale_embedding_dimensions(embeddings)
@@ -240,6 +245,7 @@ def AdmixturePreservation(embeddings: np.ndarray,
                           admixture_k: Optional[int] = None,
                           max_samples: Optional[int] = None,
                           random_seed: int = 42,
+                          cache: Optional[dict] = None,
                           **kwargs) -> Union[float, np.ndarray]:
     """
     Admixture preservation metric: Spearman correlation between geodesic
@@ -256,6 +262,9 @@ def AdmixturePreservation(embeddings: np.ndarray,
         admixture_k: K value for admixture proportions. None = all Ks.
         max_samples: If specified, randomly subsample to this many samples
         random_seed: Random seed for subsampling reproducibility
+        cache: Optional shared cache dict (unused — admixture preservation
+               builds its own kNN graph on admixture ratios via
+               compute_geodesic_distances, not the pre-warmed embedding cache).
     """
     n_samples = embeddings.shape[0]
 
