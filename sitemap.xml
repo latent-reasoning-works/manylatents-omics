@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://latent-reasoning-works.github.io/manylatents-omics/</loc>
+         <lastmod>2026-03-04</lastmod>
+    </url>
+    <url>
+         <loc>https://latent-reasoning-works.github.io/manylatents-omics/clinvar_pipeline/</loc>
+         <lastmod>2026-03-04</lastmod>
+    </url>
+    <url>
+         <loc>https://latent-reasoning-works.github.io/manylatents-omics/encoders/</loc>
+         <lastmod>2026-03-04</lastmod>
+    </url>
+    <url>
+         <loc>https://latent-reasoning-works.github.io/manylatents-omics/popgen/</loc>
+         <lastmod>2026-03-04</lastmod>
+    </url>
+    <url>
+         <loc>https://latent-reasoning-works.github.io/manylatents-omics/singlecell/</loc>
+         <lastmod>2026-03-04</lastmod>
+    </url>
+</urlset>
