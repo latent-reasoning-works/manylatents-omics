@@ -218,9 +218,15 @@ def GeographicPreservation(embeddings: np.ndarray,
                            dataset,
                            module: Optional[LatentModule] = None,
                            scale_embeddings: bool = True,
+                           cache: Optional[dict] = None,
                            **kwargs) -> float:
     """
     Minimal wrapper that passes extra keyword arguments to compute_geographic_metric.
+
+    Note: ``cache`` is accepted for compatibility with the manylatents core metric
+    protocol (which passes a kNN cache to all metric functions) but is intentionally
+    unused here. Geographic preservation computes haversine + pdist distances on
+    lat/lon coordinates — no kNN graph is involved, so there is nothing to cache.
     """
     if scale_embeddings:
         embeddings = _scale_embedding_dimensions(embeddings)
@@ -240,10 +246,20 @@ def AdmixturePreservation(embeddings: np.ndarray,
                           admixture_k: Optional[int] = None,
                           max_samples: Optional[int] = None,
                           random_seed: int = 42,
+                          cache: Optional[dict] = None,
                           **kwargs) -> Union[float, np.ndarray]:
     """
     Admixture preservation metric: Spearman correlation between geodesic
     admixture distances and embedding distances.
+
+    Note: ``cache`` is accepted for compatibility with the manylatents core metric
+    protocol (which passes a kNN cache to all metric functions) but is intentionally
+    unused here. The cache is keyed on embeddings and dataset.data; admixture
+    preservation instead builds a kNN graph on admixture ratios — a different array
+    that is never pre-warmed into the cache. Additionally, the internal
+    ``compute_geodesic_distances`` function uses sklearn's ``kneighbors_graph``
+    directly rather than the FAISS-backed ``compute_knn``, so it cannot consume
+    the cache format even if the data matched.
 
     When admixture_k is an int, returns a single float for that K value.
     When admixture_k is None, returns an array of scores for all available Ks.
