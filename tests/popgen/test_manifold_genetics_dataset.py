@@ -285,5 +285,139 @@ def test_dataset_partial_sample_overlap(temp_manifold_dir):
     assert len(dataset) == 50
 
 
+def test_get_colormap_info_integer_keys_align_with_labels(temp_manifold_dir):
+    """Integer keys in cmap and label_names must align with get_labels() / get_label_classes()."""
+    dataset = ManifoldGeneticsDataset(
+        pca_path=temp_manifold_dir['pca_path'],
+        labels_path=temp_manifold_dir['labels_path'],
+        colormap_path=temp_manifold_dir['colormap_path'],
+        label_column='Population',
+    )
+
+    info = dataset.get_colormap_info()
+
+    assert isinstance(info.cmap, dict)
+    assert isinstance(info.label_names, dict)
+    assert info.is_categorical is True
+
+    classes = dataset.get_label_classes()  # sorted array of string labels
+    labels = dataset.get_labels()          # integer-encoded
+
+    # Keys must exactly match the set of integer encodings
+    assert set(info.cmap.keys()) == set(range(len(classes)))
+    assert set(info.label_names.keys()) == set(range(len(classes)))
+
+    # label_names[i] must equal the string class for integer i
+    for i, cls in enumerate(classes):
+        assert info.label_names[i] == cls
+
+    # Every integer in get_labels() must have an entry in cmap
+    for encoded_int in labels:
+        assert encoded_int in info.cmap
+
+
+def test_get_colormap_info_colors_from_nested_colormap(temp_manifold_dir):
+    """Colors must come from the correct sub-dict for each label_column."""
+    colormap_fixture = {
+        'Population': {
+            'Pop0': '#FF0000', 'Pop1': '#00FF00', 'Pop2': '#0000FF',
+            'Pop3': '#FFFF00', 'Pop4': '#FF00FF',
+        },
+        'Genetic_region': {
+            'Region0': '#FF6B6B', 'Region1': '#4ECDC4', 'Region2': '#95E1D3',
+        },
+    }
+
+    # Population column
+    ds_pop = ManifoldGeneticsDataset(
+        pca_path=temp_manifold_dir['pca_path'],
+        labels_path=temp_manifold_dir['labels_path'],
+        colormap_path=temp_manifold_dir['colormap_path'],
+        label_column='Population',
+    )
+    info_pop = ds_pop.get_colormap_info()
+    classes_pop = ds_pop.get_label_classes()
+    for i, cls in enumerate(classes_pop):
+        assert info_pop.cmap[i] == colormap_fixture['Population'][cls]
+
+    # Genetic_region column
+    ds_region = ManifoldGeneticsDataset(
+        pca_path=temp_manifold_dir['pca_path'],
+        labels_path=temp_manifold_dir['labels_path'],
+        colormap_path=temp_manifold_dir['colormap_path'],
+        label_column='Genetic_region',
+    )
+    info_region = ds_region.get_colormap_info()
+    classes_region = ds_region.get_label_classes()
+    for i, cls in enumerate(classes_region):
+        assert info_region.cmap[i] == colormap_fixture['Genetic_region'][cls]
+
+    # The two infos must be independent (different number of classes)
+    assert len(info_pop.cmap) == 5
+    assert len(info_region.cmap) == 3
+
+
+def test_get_colormap_info_fallback_no_colormap(temp_manifold_dir):
+    """Falls back to viridis string when no colormap is provided."""
+    dataset = ManifoldGeneticsDataset(
+        pca_path=temp_manifold_dir['pca_path'],
+        labels_path=temp_manifold_dir['labels_path'],
+        label_column='Population',
+    )
+
+    info = dataset.get_colormap_info()
+
+    assert info.cmap == "viridis"
+    assert info.label_names is None
+    assert info.is_categorical is True
+
+
+def test_get_colormap_info_fallback_no_labels(temp_manifold_dir):
+    """Falls back to viridis string when no labels CSV is provided."""
+    dataset = ManifoldGeneticsDataset(
+        pca_path=temp_manifold_dir['pca_path'],
+        colormap_path=temp_manifold_dir['colormap_path'],
+    )
+
+    info = dataset.get_colormap_info()
+
+    assert info.cmap == "viridis"
+    assert info.label_names is None
+
+
+def test_get_colormap_info_missing_label_in_colormap(temp_manifold_dir):
+    """Labels absent from the colormap JSON receive the grey fallback color (#808080)."""
+    # Write a partial colormap that is missing Pop3 and Pop4
+    partial_colormap = {
+        'Population': {
+            'Pop0': '#FF0000',
+            'Pop1': '#00FF00',
+            'Pop2': '#0000FF',
+        }
+    }
+    partial_colormap_path = temp_manifold_dir['dir'] / "partial_colormap.json"
+    with open(partial_colormap_path, 'w') as f:
+        json.dump(partial_colormap, f)
+
+    dataset = ManifoldGeneticsDataset(
+        pca_path=temp_manifold_dir['pca_path'],
+        labels_path=temp_manifold_dir['labels_path'],
+        colormap_path=str(partial_colormap_path),
+        label_column='Population',
+    )
+
+    info = dataset.get_colormap_info()
+    classes = dataset.get_label_classes()
+
+    # All classes must have an entry
+    assert set(info.cmap.keys()) == set(range(len(classes)))
+
+    for i, cls in enumerate(classes):
+        if cls in partial_colormap['Population']:
+            assert info.cmap[i] == partial_colormap['Population'][cls]
+        else:
+            assert info.cmap[i] == "#808080"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
