@@ -1,0 +1,3 @@
+_target_: manylatents.dogma.scorers.AlphaMissenseScorer
+predictions_path: ${data_dir}/alphamissense/AlphaMissense_hg38.tsv.gz
+match_by: genomic
