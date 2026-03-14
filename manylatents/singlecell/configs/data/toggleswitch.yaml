@@ -1,0 +1,12 @@
+defaults:
+  - default
+
+_target_: manylatents.singlecell.data.anndata.AnnDataModule
+adata_path: ${omics_data:}/single_cell/toggleswitch.h5ad
+label_key: null
+layer: null
+use_raw: false
+mode: full
+batch_size: 128
+test_split: 0.2
+shuffle_traindata: false
