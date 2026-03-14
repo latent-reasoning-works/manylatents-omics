@@ -29,6 +29,8 @@ import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset
 
+from manylatents.callbacks.embedding.base import ColormapInfo
+
 logger = logging.getLogger(__name__)
 
 
@@ -418,23 +420,48 @@ class ManifoldGeneticsDataset(Dataset):
     def get_colormap(self) -> Optional[Dict[str, str]]:
         """
         Get colormap for visualization.
-        
+
         If colormap is nested by label type (e.g., {"Population": {...}, "Genetic_region": {...}}),
         returns the colormap for the current label_column.
         Otherwise returns the full colormap.
-        
+
         Returns:
             Dict mapping label values to colors, or None if no colormap loaded
         """
         if self.colormap is None:
             return None
-        
+
         # If colormap is nested by label type, extract the relevant one
         if isinstance(self.colormap, dict) and self.label_column in self.colormap:
             return self.colormap[self.label_column]
-        
+
         # Otherwise return full colormap (backward compatibility)
         return self.colormap
+
+    def get_colormap_info(self) -> ColormapInfo:
+        """
+        Return colormap info for the PlotEmbeddings ColormapProvider protocol.
+
+        Builds an integer-indexed colormap and label_names mapping that aligns
+        with the integer-encoded labels returned by get_labels(). This is needed
+        because get_labels() returns integers (for torch.tensor compatibility) but
+        the colormap JSON uses string keys (e.g. {"GBR": "#hex"}).
+
+        Returns:
+            ColormapInfo with integer-keyed cmap and label_names dicts.
+        """
+        string_colormap = self.get_colormap()
+
+        if self.labels_df is None or string_colormap is None:
+            return ColormapInfo(cmap="viridis", is_categorical=True)
+
+        self._build_label_encoder(self.label_column)
+        classes = self._label_classes[self.label_column]  # sorted string labels
+
+        cmap_int = {i: string_colormap.get(label, "#808080") for i, label in enumerate(classes)}
+        label_names = {i: label for i, label in enumerate(classes)}
+
+        return ColormapInfo(cmap=cmap_int, label_names=label_names, is_categorical=True)
     
     @property
     def latitude(self) -> Optional[pd.Series]:
