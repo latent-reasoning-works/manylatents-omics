@@ -87,22 +87,31 @@ class CellxGeneCensusDataModule(LightningDataModule):
 
         logger.info(f"Querying CellxGene Census: {self.obs_value_filter}")
         with cellxgene_census.open_soma() as census:
+            # Query obs metadata first to get soma_joinids, then subsample
+            # before downloading expression data (avoids OOM on large queries)
+            obs_df = census["census_data"][self.organism].obs.read(
+                value_filter=self.obs_value_filter,
+                column_names=["soma_joinid"] + self.obs_column_names,
+            ).concat().to_pandas()
+
+            logger.info(f"Census query matched {len(obs_df)} cells")
+
+            # Subsample soma_joinids before downloading expression
+            if len(obs_df) > self.n_cells_max:
+                rng = np.random.RandomState(self.random_state)
+                obs_df = obs_df.sample(n=self.n_cells_max, random_state=rng)
+                logger.info(f"Subsampled to {len(obs_df)} cells before download")
+
+            join_ids = obs_df["soma_joinid"].values
+
             adata = cellxgene_census.get_anndata(
                 census,
                 organism=self.organism,
-                obs_value_filter=self.obs_value_filter,
+                obs_coords=join_ids,
                 obs_column_names=self.obs_column_names,
             )
 
-        logger.info(f"Census returned {adata.shape[0]} cells x {adata.shape[1]} genes")
-
-        # Subsample if too large
-        if adata.shape[0] > self.n_cells_max:
-            rng = np.random.RandomState(self.random_state)
-            idx = rng.choice(adata.shape[0], self.n_cells_max, replace=False)
-            idx.sort()
-            adata = adata[idx].copy()
-            logger.info(f"Subsampled to {adata.shape[0]} cells")
+        logger.info(f"Downloaded {adata.shape[0]} cells x {adata.shape[1]} genes")
 
         # Extract expression matrix
         X = adata.X
