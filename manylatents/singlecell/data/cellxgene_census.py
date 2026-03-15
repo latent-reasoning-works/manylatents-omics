@@ -89,7 +89,9 @@ class CellxGeneCensusDataModule(LightningDataModule):
         with cellxgene_census.open_soma() as census:
             # Query obs metadata first to get soma_joinids, then subsample
             # before downloading expression data (avoids OOM on large queries)
-            obs_df = census["census_data"][self.organism].obs.read(
+            # Census uses snake_case internally (homo_sapiens, mus_musculus)
+            organism_key = self.organism.lower().replace(" ", "_")
+            obs_df = census["census_data"][organism_key].obs.read(
                 value_filter=self.obs_value_filter,
                 column_names=["soma_joinid"] + self.obs_column_names,
             ).concat().to_pandas()
