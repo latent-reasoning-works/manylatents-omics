@@ -1,169 +1,192 @@
 #!/usr/bin/env python3
-"""Download and preprocess the Embryoid Body dataset from Moon et al. 2019.
+"""Download + preprocess Embryoid Body from raw 10x files (PHATE tutorial-style).
 
-Source: PHATE paper (Nature Biotechnology 2019)
-  - Raw data: https://github.com/KrishnaswamyLab/PHATE/tree/main/data
-  - Mendeley: https://data.mendeley.com/datasets/v6n743h5ng/1
+Source tutorial:
+https://github.com/KrishnaswamyLab/PHATE/blob/main/Python/tutorial/EmbryoidBody.ipynb
 
-Preprocessing pipeline:
-  1. Download EBdata.mat (16,825 cells × 17,580 genes)
-  2. Normalize total counts per cell (target_sum=1e4)
-  3. Log1p transform
-  4. Select top 2,000 highly variable genes (Seurat v3 method)
-  5. PCA to 50 components
-
-Output:
-  - EBT_2k_hvg.h5ad: AnnData with 2k HVGs, normalized + log1p
-  - EBT_2k_hvg_pca50.npy: (16825, 50) float32 PCA coordinates
-  - EBT_2k_hvg_labels.npy: timepoint labels per cell
-
-Usage:
-    python scripts/download_embryoid_body.py [--output-dir data/single_cell]
-
-Integrity:
-    After download, verify:
-    - Raw shape: (16825, 17580)
-    - HVG h5ad shape: (16825, 2000)
-    - PCA shape: (16825, 50)
-    - MD5 of EBdata.mat: (TODO: pin after first verified download)
+Pipeline:
+1) Download Mendeley archive with raw 10x samples (T0_1A ... T8_9E)
+2) Load 10x matrices with Scanpy
+3) Per-timepoint library-size filtering (20th to 80th percentile)
+4) Filter genes with min_cells=10
+5) Normalize to median library size
+6) Remove top 10% mitochondrial cells
+7) sqrt transform
+8) PCA(50) and save as .h5ad for manylatents experiments
 """
 
+from __future__ import annotations
+
 import argparse
-import hashlib
 import logging
 import os
+import shutil
+import zipfile
 from pathlib import Path
 
+import anndata
 import numpy as np
 import requests
 import scanpy as sc
-from scipy.io import loadmat
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s")
 log = logging.getLogger(__name__)
 
-# Primary: GitHub raw (fast, no redirect)
-# Fallback: Zenodo (stable DOI)
-DOWNLOAD_URLS = [
-    "https://raw.githubusercontent.com/KrishnaswamyLab/PHATE/main/data/EBdata.mat",
-    "https://github.com/KrishnaswamyLab/PHATE/raw/main/data/EBdata.mat",
-]
+RAW10X_DOWNLOAD_URL = "https://data.mendeley.com/public-api/zip/v6n743h5ng/download/1"
 
-EXPECTED_SHAPE = (16825, 17580)
-EXPECTED_N_CELLS = 16825
+SAMPLES = ["T0_1A", "T2_3B", "T4_5C", "T6_7D", "T8_9E"]
+TIMEPOINTS = ["Day 00-03", "Day 06-09", "Day 12-15", "Day 18-21", "Day 24-27"]
 
 
-def download_mat(output_dir: Path) -> Path:
-    """Download EBdata.mat from PHATE repository."""
-    mat_path = output_dir / "EBdata.mat"
+def _download_file(url: str, dst: Path) -> None:
+    with requests.get(url, stream=True, timeout=120) as r:
+        r.raise_for_status()
+        with open(dst, "wb") as f:
+            for chunk in r.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    f.write(chunk)
 
-    if mat_path.exists():
-        log.info(f"EBdata.mat already exists at {mat_path}, skipping download")
-        return mat_path
 
-    for url in DOWNLOAD_URLS:
-        log.info(f"Downloading from {url[:60]}...")
-        try:
-            r = requests.get(url, allow_redirects=True, timeout=120, stream=True)
-            if r.status_code == 200:
-                mat_path.write_bytes(r.content)
-                size_mb = len(r.content) / 1e6
-                log.info(f"Downloaded: {size_mb:.1f} MB")
+def download_and_extract_raw10x(output_dir: Path) -> Path:
+    """Download and extract raw 10x folders under output_dir/scRNAseq_raw10x."""
+    raw_root = output_dir / "scRNAseq_raw10x"
+    raw_root.mkdir(parents=True, exist_ok=True)
 
-                # Compute MD5 for reproducibility tracking
-                md5 = hashlib.md5(r.content).hexdigest()
-                log.info(f"MD5: {md5}")
-                return mat_path
+    if all((raw_root / sample).exists() for sample in SAMPLES):
+        log.info("Raw 10x folders already exist. Skipping download/extraction.")
+        return raw_root
+
+    zip_path = raw_root / "v6n743h5ng-1.zip"
+    temp_extract = raw_root / "temp_extract"
+
+    log.info(f"Downloading raw 10x archive from {RAW10X_DOWNLOAD_URL}...")
+    _download_file(RAW10X_DOWNLOAD_URL, zip_path)
+    log.info(f"Downloaded: {zip_path}")
+
+    if temp_extract.exists():
+        shutil.rmtree(temp_extract)
+    temp_extract.mkdir(parents=True, exist_ok=True)
+
+    log.info("Extracting outer zip...")
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        zf.extractall(temp_extract)
+
+    nested = temp_extract / "scRNAseq.zip"
+    if nested.exists():
+        log.info("Extracting nested scRNAseq.zip...")
+        with zipfile.ZipFile(nested, "r") as zf:
+            zf.extractall(temp_extract)
+
+    sc_folder = temp_extract / "scRNAseq"
+    if not sc_folder.exists():
+        raise RuntimeError(f"Expected extracted folder not found: {sc_folder}")
+
+    log.info("Moving sample folders to scRNAseq_raw10x/...")
+    for item in os.listdir(sc_folder):
+        src = sc_folder / item
+        dst = raw_root / item
+        if dst.exists():
+            if dst.is_dir():
+                shutil.rmtree(dst)
             else:
-                log.warning(f"  HTTP {r.status_code}")
-        except Exception as e:
-            log.warning(f"  Failed: {e}")
+                dst.unlink()
+        shutil.move(str(src), str(dst))
 
-    raise RuntimeError("Could not download EBdata.mat from any source")
+    shutil.rmtree(temp_extract)
+    if zip_path.exists():
+        zip_path.unlink()
+
+    missing = [s for s in SAMPLES if not (raw_root / s).exists()]
+    if missing:
+        raise RuntimeError(f"Missing expected sample folders after extraction: {missing}")
+
+    return raw_root
 
 
-def preprocess(mat_path: Path, output_dir: Path):
-    """Load .mat, preprocess, save h5ad + npy."""
-    import anndata
+def preprocess(raw_root: Path, output_dir: Path, pca_components: int = 50) -> anndata.AnnData:
+    """Apply notebook-style preprocessing and save PCA50 h5ad."""
+    log.info("Loading raw 10x samples with scanpy.read_10x_mtx...")
+    adatas = []
+    for sample, timepoint in zip(SAMPLES, TIMEPOINTS):
+        ad = sc.read_10x_mtx(
+            str(raw_root / sample),
+            var_names="gene_symbols",
+            make_unique=True,
+            cache=True,
+        )
+        ad.obs["timepoint"] = timepoint
+        ad.obs["sample_labels"] = timepoint
+        adatas.append(ad)
 
-    log.info(f"Loading {mat_path}...")
-    mat = loadmat(str(mat_path))
+    adata = sc.concat(adatas, merge="same")
+    adata.obs_names_make_unique()
+    log.info(f"Raw merged: {adata.n_obs} cells x {adata.n_vars} genes")
 
-    data = mat["data"]
-    genes = [g[0] for g in mat["EBgenes_name"].flatten()]
-    log.info(f"Raw data: {data.shape}, genes: {len(genes)}")
+    # QC metrics and mitochondrial fraction
+    adata.var["mt"] = adata.var_names.str.startswith("MT-")
+    sc.pp.calculate_qc_metrics(adata, qc_vars=["mt"], percent_top=None, log1p=False, inplace=True)
 
-    assert data.shape == EXPECTED_SHAPE, (
-        f"Shape mismatch: got {data.shape}, expected {EXPECTED_SHAPE}"
-    )
+    # Per-timepoint library-size filtering (20th to 80th percentile)
+    cells_to_keep = []
+    for tp in TIMEPOINTS:
+        sample_mask = adata.obs["timepoint"] == tp
+        sample_counts = adata.obs.loc[sample_mask, "total_counts"]
+        q20 = np.percentile(sample_counts, 20)
+        q80 = np.percentile(sample_counts, 80)
+        keep = (sample_counts >= q20) & (sample_counts <= q80)
+        cells_to_keep.extend(sample_counts[keep].index.tolist())
+    adata = adata[cells_to_keep, :].copy()
+    log.info(f"After per-timepoint library filter: {adata.n_obs} cells")
 
-    # Build AnnData
-    adata = sc.AnnData(data.astype(np.float32))
-    adata.var_names = genes
+    # Gene and cell filtering
+    sc.pp.filter_genes(adata, min_cells=10)
+    sc.pp.normalize_total(adata, target_sum=np.median(adata.obs["total_counts"]))
+    mito_threshold = np.percentile(adata.obs["pct_counts_mt"], 90)
+    adata = adata[adata.obs["pct_counts_mt"] < mito_threshold].copy()
+    adata.X = np.sqrt(adata.X)
+    log.info(f"After tutorial preprocessing: {adata.n_obs} cells x {adata.n_vars} genes")
 
-    # Extract timepoint labels
-    if "cells" in mat:
-        labels = np.array([
-            str(c[0]) if hasattr(c, "__len__") else str(c)
-            for c in mat["cells"].flatten()
-        ])
-    else:
-        labels = np.array(["unknown"] * data.shape[0])
-    adata.obs["sample_labels"] = labels
+    # PCA(50) output for manylatents PHATE speed/stability
+    sc.tl.pca(adata, n_comps=pca_components, svd_solver="arpack")
+    adata_pca = anndata.AnnData(adata.obsm["X_pca"].astype(np.float32), obs=adata.obs.copy())
 
-    # Preprocessing: normalize + log1p + HVG
-    log.info("Preprocessing: normalize_total + log1p + HVG(2000)...")
-    sc.pp.normalize_total(adata, target_sum=1e4)
-    sc.pp.log1p(adata)
-    sc.pp.highly_variable_genes(adata, n_top_genes=2000)
+    h5ad_path = output_dir / "EBT_10x_tutorial_pca50.h5ad"
+    npy_path = output_dir / "EBT_10x_tutorial_pca50.npy"
+    labels_path = output_dir / "EBT_10x_tutorial_labels.npy"
 
-    adata_hvg = adata[:, adata.var["highly_variable"]].copy()
-    log.info(f"HVG selection: {adata_hvg.shape}")
-
-    # Save h5ad
-    h5ad_path = output_dir / "EBT_2k_hvg.h5ad"
     anndata.settings.allow_write_nullable_strings = True
-    adata_hvg.write(str(h5ad_path))
-    log.info(f"Saved: {h5ad_path}")
+    adata_pca.write(str(h5ad_path))
+    np.save(str(npy_path), adata_pca.X.astype(np.float32))
+    np.save(str(labels_path), adata_pca.obs["timepoint"].values)
 
-    # PCA
-    log.info("Computing PCA(50)...")
-    sc.tl.pca(adata_hvg, n_comps=50, svd_solver="arpack")
-
-    pca_path = output_dir / "EBT_2k_hvg_pca50.npy"
-    labels_path = output_dir / "EBT_2k_hvg_labels.npy"
-    np.save(str(pca_path), adata_hvg.obsm["X_pca"].astype(np.float32))
-    np.save(str(labels_path), adata_hvg.obs["sample_labels"].values)
-    log.info(f"Saved: {pca_path} ({adata_hvg.obsm['X_pca'].shape})")
-    log.info(f"Saved: {labels_path} ({len(np.unique(labels))} unique labels)")
-
-    # Save HVG gene list for reproducibility verification
-    hvg_path = output_dir / "EBT_2k_hvg_genes.txt"
-    hvg_path.write_text("\n".join(adata_hvg.var_names.tolist()))
-    log.info(f"Saved: {hvg_path} (for integrity verification)")
-
-    return adata_hvg
+    log.info(f"Saved: {h5ad_path} ({adata_pca.n_obs} x {adata_pca.n_vars})")
+    log.info(f"Saved: {npy_path}")
+    log.info(f"Saved: {labels_path}")
+    return adata_pca
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Download and preprocess EB dataset")
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Download and preprocess Embryoid Body from raw 10x")
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("data/single_cell"),
         help="Output directory (default: data/single_cell)",
     )
+    parser.add_argument(
+        "--pca-components",
+        type=int,
+        default=50,
+        help="Number of PCA components to save (default: 50)",
+    )
     args = parser.parse_args()
+
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    raw_root = download_and_extract_raw10x(args.output_dir)
+    adata = preprocess(raw_root, args.output_dir, pca_components=args.pca_components)
 
-    mat_path = download_mat(args.output_dir)
-    adata = preprocess(mat_path, args.output_dir)
-
-    log.info(f"\nDone. Output files in {args.output_dir}/:")
-    log.info(f"  EBT_2k_hvg.h5ad     ({adata.shape[0]} cells × {adata.shape[1]} genes)")
-    log.info(f"  EBT_2k_hvg_pca50.npy ({adata.shape[0]} × 50)")
-    log.info(f"  EBT_2k_hvg_labels.npy")
-    log.info(f"  EBT_2k_hvg_genes.txt (HVG list for integrity check)")
+    log.info("\nDone. Output files:")
+    log.info(f"  EBT_10x_tutorial_pca50.h5ad ({adata.n_obs} x {adata.n_vars})")
 
 
 if __name__ == "__main__":
