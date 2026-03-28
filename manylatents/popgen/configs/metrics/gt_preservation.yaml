@@ -3,3 +3,4 @@ gt_preservation:
   _partial_: True
   only_far: False
   scale_embeddings: true
+  at: dataset
