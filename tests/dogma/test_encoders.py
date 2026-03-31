@@ -88,17 +88,17 @@ class TestFoundationEncoderInterface:
 
     def test_esm3_inherits_foundation_encoder(self):
         from manylatents.dogma.encoders import ESM3Encoder
-        from manylatents.dogma.encoders.base import FoundationEncoder
+        from manylatents.algorithms.latent.foundation_encoder import FoundationEncoder
         assert issubclass(ESM3Encoder, FoundationEncoder)
 
     def test_orthrus_inherits_foundation_encoder(self):
         from manylatents.dogma.encoders import OrthrusEncoder
-        from manylatents.dogma.encoders.base import FoundationEncoder
+        from manylatents.algorithms.latent.foundation_encoder import FoundationEncoder
         assert issubclass(OrthrusEncoder, FoundationEncoder)
 
     def test_evo2_inherits_foundation_encoder(self):
         from manylatents.dogma.encoders import Evo2Encoder
-        from manylatents.dogma.encoders.base import FoundationEncoder
+        from manylatents.algorithms.latent.foundation_encoder import FoundationEncoder
         assert issubclass(Evo2Encoder, FoundationEncoder)
 
 
@@ -246,7 +246,7 @@ class TestFoundationEncoderBatchDict:
 
     def test_encode_batch_with_dict_encoder(self):
         """Mock encoder returning dicts should produce dict output from encode_batch."""
-        from manylatents.dogma.encoders.base import FoundationEncoder
+        from manylatents.algorithms.latent.foundation_encoder import FoundationEncoder
 
         class MockMultiLayerEncoder(FoundationEncoder):
             def __init__(self):
@@ -274,7 +274,7 @@ class TestFoundationEncoderBatchDict:
 
     def test_encode_batch_with_tensor_encoder(self):
         """Single-layer encoder should still return flat tensor."""
-        from manylatents.dogma.encoders.base import FoundationEncoder
+        from manylatents.algorithms.latent.foundation_encoder import FoundationEncoder
 
         class MockSingleEncoder(FoundationEncoder):
             def __init__(self):

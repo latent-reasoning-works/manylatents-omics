@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 from torch import Tensor
 
-from manylatents.dogma.encoders.base import FoundationEncoder
+from manylatents.algorithms.latent.foundation_encoder import FoundationEncoder
 
 
 class Evo2Encoder(FoundationEncoder):

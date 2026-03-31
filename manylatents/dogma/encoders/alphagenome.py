@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 import torch
 from torch import Tensor
 
-from manylatents.dogma.encoders.base import FoundationEncoder
+from manylatents.algorithms.latent.foundation_encoder import FoundationEncoder
 
 
 class AlphaGenomeEncoder(FoundationEncoder):

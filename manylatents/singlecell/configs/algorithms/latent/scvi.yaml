@@ -1,0 +1,9 @@
+_target_: manylatents.singlecell.algorithms.SCVIModule
+datamodule: ${data}
+n_latent: 30
+n_hidden: 128
+n_layers: 1
+dropout: 0.1
+lr: 1e-3
+kl_weight: 1.0
+n_epochs_kl_warmup: 400

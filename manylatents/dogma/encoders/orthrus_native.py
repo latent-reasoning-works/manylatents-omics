@@ -22,7 +22,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from manylatents.dogma.encoders.base import FoundationEncoder
+from manylatents.algorithms.latent.foundation_encoder import FoundationEncoder
 
 
 # Nucleotide vocabulary for one-hot encoding
