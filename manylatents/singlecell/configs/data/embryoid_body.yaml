@@ -1,8 +1,8 @@
 defaults:
   - default
 
-# Embryoid Body (Moon et al. 2019): 16,815 cells, 2000 HVGs, raw counts.
-# Counts recovered from sqrt-normalized data (round(X^2), lib-norm to 10k).
+# Embryoid Body (Moon et al. 2019): 16,825 cells, 17,580 genes, true raw counts.
+# Downloaded from EBdata.mat in the PHATE GitHub repo.
 # Gene names are HGNC symbols, compatible with scGPT vocabulary.
 _target_: manylatents.singlecell.data.anndata.AnnDataModule
 adata_path: ${omics_data:}/single_cell/embryoid_body_raw_counts.h5ad
