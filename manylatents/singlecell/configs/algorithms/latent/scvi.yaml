@@ -7,3 +7,6 @@ dropout: 0.1
 lr: 1e-3
 kl_weight: 1.0
 n_epochs_kl_warmup: 400
+gene_likelihood: zinb
+n_batch: 0
+use_observed_lib_size: true
