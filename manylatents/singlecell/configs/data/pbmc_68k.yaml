@@ -1,13 +1,12 @@
 defaults:
   - default
 
-# PBMC 68k (reduced): ~700 cells, subsampled from the original 68k dataset
-# This is a pre-processed reduced version from scanpy for quick testing/parsing.
-# For the full 68,000-cell dataset, see README.md for download instructions.
+# PBMC 68k: full 68,579-cell dataset from 10X Genomics with raw integer counts.
+# Gene names are HGNC symbols, compatible with scGPT vocabulary.
 _target_: manylatents.singlecell.data.anndata.AnnDataModule
-adata_path: ${omics_data:}/single_cell/pbmc_68k.h5ad
-label_key: null  # Available: 'bulk_labels' (cell types), 'louvain' (clustering), or null for unsupervised
-layer: null
+adata_path: ${omics_data:}/single_cell/pbmc_68k_raw_counts.h5ad
+label_key: null
+layer: counts
 use_raw: false
 mode: full
 batch_size: 64
