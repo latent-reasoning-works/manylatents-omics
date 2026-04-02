@@ -15,7 +15,7 @@ from manylatents.algorithms.latent.foundation_encoder import FoundationEncoder
 from .evo2 import Evo2Encoder
 from .orthrus_native import OrthrusNativeEncoder as OrthrusEncoder
 from .esm3 import ESM3Encoder
-from .esm2 import ESMEncoder, ESM2Encoder
+from .esm2 import ESMEncoder
 from .alphagenome import AlphaGenomeEncoder
 
-__all__ = ["FoundationEncoder", "Evo2Encoder", "OrthrusEncoder", "ESM3Encoder", "ESMEncoder", "ESM2Encoder", "AlphaGenomeEncoder"]
+__all__ = ["FoundationEncoder", "Evo2Encoder", "OrthrusEncoder", "ESM3Encoder", "ESMEncoder", "AlphaGenomeEncoder"]

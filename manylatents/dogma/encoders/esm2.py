@@ -178,7 +178,3 @@ class ESMEncoder(FoundationEncoder):
     @property
     def modality(self) -> str:
         return "protein"
-
-
-# Backwards-compatible alias
-ESM2Encoder = ESMEncoder
