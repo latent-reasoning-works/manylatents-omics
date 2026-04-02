@@ -1,5 +1,0 @@
-_target_: manylatents.dogma.encoders.AlphaGenomeEncoder
-model_name: alphagenome
-layer_name: embeddings_1bp
-weights_path: null  # Falls back to HuggingFace download
-device: cuda

@@ -23,7 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # Domain data modules
-singlecell = ["anndata>=0.11.3", "leidenalg>=0.10", "python-igraph>=1.0.0", "scanpy>=1.11.5"]
+singlecell = ["anndata>=0.11.3", "geosketch>=1.3", "leidenalg>=0.10", "python-igraph>=1.0.0", "scanpy>=1.11.5"]
 popgen = ["pandas-plink>=2.2.9"]
 
 # Protein + RNA encoders (ESM3 + Orthrus, torch 2.5.x compatible)

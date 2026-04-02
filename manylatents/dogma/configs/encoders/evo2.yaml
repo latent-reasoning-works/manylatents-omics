@@ -1,4 +1,0 @@
-_target_: manylatents.dogma.encoders.Evo2Encoder
-model_name: evo2_1b_base
-layer_name: blocks.14.mlp.l3
-device: cuda

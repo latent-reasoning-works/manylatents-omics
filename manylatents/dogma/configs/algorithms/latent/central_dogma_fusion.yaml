@@ -1,11 +1,11 @@
 # Central Dogma Fusion Algorithm
 #
 # Concatenates embeddings from all 3 central dogma foundation models:
-#   - DNA: Evo2 (2048-dim)
+#   - DNA: Evo2 (1920-dim, 1B model)
 #   - RNA: Orthrus (256-dim)
 #   - Protein: ESM3 (1536-dim)
 #
-# Output: Concatenated embedding of shape (batch, 3840)
+# Output: Concatenated embedding of shape (batch, 3712)
 #
 # GPU Requirements:
 #   - ~24GB+ VRAM to load all 3 encoders simultaneously
@@ -41,4 +41,4 @@ esm3_config:
 
 # Fusion options
 normalize: false  # L2-normalize each modality before concatenation
-n_components: 3840  # 2048 (DNA) + 256 (RNA) + 1536 (Protein)
+n_components: 3712  # 1920 (DNA) + 256 (RNA) + 1536 (Protein)

@@ -1,0 +1,8 @@
+# Geometric sketching — preserves rare populations via kernel herding
+# Usage: metrics/sampling=sampling/geosketch
+sampling:
+  _target_: manylatents.singlecell.sampling.GeosketchSampling
+  seed: 42
+  fraction: 0.1
+  space: data      # "data" = high-dim input (default), "embeddings" = DR output
+  replace: false
