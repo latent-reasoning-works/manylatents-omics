@@ -13,7 +13,7 @@ Implements the full scVI generative model (Lopez et al. 2018):
     - Optional learned library size encoder
 
 Usage via Hydra config:
-    algorithms/latent: scvi
+    algorithms/lightning: scvi
     # which points at a config with _target_: manylatents.singlecell.algorithms.SCVIModule
 """
 

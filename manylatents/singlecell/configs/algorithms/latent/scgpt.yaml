@@ -1,0 +1,9 @@
+_target_: manylatents.singlecell.algorithms.ScGPTEncoder
+datamodule: ${data}
+model_dir: /network/weights/scGPT_human
+gene_col: gene_name
+max_length: 1200
+batch_size: 64
+device: cuda
+use_fast_transformer: false
+n_hvg: 3000

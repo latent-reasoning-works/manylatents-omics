@@ -1,0 +1,8 @@
+# ESM protein encoder — wraps ESM-1, ESM-1b, ESM-1v, ESM-2 (inference only)
+# Requires fair-esm (NOT the ESM3 esm package — they conflict)
+# For variant effect prediction, use esm1v_t33_650M_UR90S_{1..5}
+_target_: manylatents.dogma.encoders.ESMEncoder
+model_name: esm2_t33_650M_UR50D
+repr_layer: null  # null = final layer
+max_length: 1022
+device: cuda

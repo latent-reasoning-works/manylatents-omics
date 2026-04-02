@@ -46,7 +46,7 @@ jobs:
           python -c "
           from manylatents.popgen.data import ManifoldGeneticsDataset, ManifoldGeneticsDataModule
           from manylatents.popgen.metrics import GeographicPreservation, AdmixturePreservation
-          from manylatents.dogma.encoders.base import FoundationEncoder
+          from manylatents.dogma.encoders import FoundationEncoder
           from manylatents.data.synthetic_dataset import SwissRoll
           import manylatents.popgen
           import manylatents.dogma
