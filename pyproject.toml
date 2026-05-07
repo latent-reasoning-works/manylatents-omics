@@ -30,6 +30,12 @@ popgen = ["pandas-plink>=2.2.9"]
 # DNA encoder (Evo2) requires separate venv — see scripts/setup-dna-venv.sh
 dogma = ["esm>=3.0", "orthrus", "mamba-ssm==2.2.6.post3"]
 
+# Workshop / ESM-1, ESM-1b, ESM-1v, ESM-2 via fair-esm.
+# NB: fair-esm and the EvolutionaryScale `esm` package both register the
+# top-level `esm` module — they cannot coexist in one venv. Install this
+# extra in a separate environment from `dogma`.
+workshop = ["fair-esm>=2.0", "umap-learn>=0.5"]
+
 # Utilities
 gpu = ["faiss-gpu-cu12"]
 docs = ["mkdocs>=1.6", "mkdocs-material>=9.6"]

@@ -1,0 +1,24 @@
+# Batch protein encoder using ESM-1b (fair-esm).
+#
+# Mirrors batch_encoder_protein.yaml (which uses ESM3 / EvolutionaryScale)
+# but selects the original ESM-1b model widely used for VEP. Requires the
+# `workshop` extra (`fair-esm`); cannot coexist with `dogma`'s ESM3 in the
+# same venv (namespace collision on `esm`).
+#
+# Output: Embeddings of shape (N, 1280) for N protein sequences.
+#
+# Use with ClinVarDataModule (modality='protein') or VariantDataModule
+# (channel='mut' or 'wt' for delta computation).
+
+_target_: manylatents.dogma.algorithms.BatchEncoder
+modality: protein
+batch_size: 8
+normalize: false
+n_components: 1280
+
+encoder_config:
+  _target_: manylatents.dogma.encoders.ESMEncoder
+  model_name: esm1b_t33_650M_UR50S
+  repr_layer: null      # null = final layer (mean-pooled)
+  max_length: 1022
+  device: cuda          # override to cpu/mps for laptop demos
