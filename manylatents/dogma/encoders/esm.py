@@ -146,6 +146,51 @@ class ESMEncoder(FoundationEncoder):
         embedding = token_repr[0, 1 : seq_len[0] - 1].mean(0, keepdim=True)
         return embedding
 
+    def encode_with_logits(self, sequence: str):
+        """Encode a sequence; return both the embedding and per-token logits.
+
+        The fair-esm forward pass already produces masked-LM logits alongside
+        per-layer representations; ``encode()`` discards them. This method
+        exposes them for variant-effect work (see
+        ``manylatents.dogma.vep.compute_llr``). Outputs are numpy arrays to
+        match the historical ``vep_utils.ESM1bEncoder.encode()`` contract,
+        so downstream metric helpers do not need a torch dependency.
+
+        Returns:
+            (embedding, logits):
+                embedding: shape ``(embedding_dim,)`` — mean-pooled over
+                    residues, excluding BOS/EOS/PAD.
+                logits: shape ``(seq_len + 2, vocab_size)`` — per-token
+                    logits. Index 0 is BOS; positions 1..L map to
+                    1-indexed residues; index L+1 is EOS. Use index
+                    ``mutation.position`` directly to read a residue.
+        """
+        self._ensure_loaded()
+
+        _, _, batch_tokens = self._batch_converter([("_", sequence)])
+        batch_tokens = batch_tokens.to(self.device)
+
+        with torch.no_grad():
+            results = self._model(
+                batch_tokens, repr_layers=[self.repr_layer]
+            )
+
+        token_repr = results["representations"][self.repr_layer]
+        seq_len = (batch_tokens != self._alphabet.padding_idx).sum(1)
+        embedding = token_repr[0, 1 : seq_len[0] - 1].mean(0).float().cpu().numpy()
+        logits = results["logits"][0].float().cpu().numpy()
+        return embedding, logits
+
+    def tok_id(self, aa: str) -> int:
+        """Return the fair-esm alphabet index for a single AA letter.
+
+        Convenience wrapper around ``self._alphabet.get_idx`` so variant-
+        effect code (LLR lookup) does not reach into the encoder's
+        internals.
+        """
+        self._ensure_loaded()
+        return self._alphabet.get_idx(aa)
+
     # --- Batched inference ---
 
     def _supports_batched_forward(self) -> bool:
