@@ -7,6 +7,8 @@ Test synthetic sequences representing the same biological information:
 - Protein: MKFGVRA (translation, no stop codon for ESM3)
 """
 
+import sys
+
 import pytest
 import torch
 
@@ -373,6 +375,114 @@ class TestEmbeddingDimConsistency:
         from manylatents.dogma.encoders import Evo2Encoder
         expected = Evo2Encoder.MODELS["evo2_1b_base"]["embedding_dim"]
         assert CentralDogmaFusion.DEFAULT_DIMS["evo2"] == expected
+
+
+class TestESM3PerLayer:
+    """ESM3 per-layer extraction via forward hooks (regression for the
+    layer-collapse bug where every requested layer was an identical copy of
+    the final embedding). Uses a fake hookable model — no esm pkg / weights."""
+
+    @staticmethod
+    def _fake_model(d=8, n=6):
+        import types
+        import torch.nn as nn
+
+        class FakeBlock(nn.Module):
+            def __init__(self, k):
+                super().__init__()
+                self.lin = nn.Linear(d, d, bias=False)
+                with torch.no_grad():
+                    self.lin.weight.copy_(torch.eye(d) * (k + 1))  # distinct per block
+
+            def forward(self, x):
+                return self.lin(x)
+
+        class FakeTransformer(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.blocks = nn.ModuleList([FakeBlock(k) for k in range(n)])
+
+            def forward(self, x):
+                for b in self.blocks:
+                    x = b(x)
+                return x
+
+        class FakeESM3(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.transformer = FakeTransformer()
+                self.device = "cpu"
+
+            def encode(self, protein):
+                # Input-sensitive tokens with a BOS prefix, like real ESM3:
+                # residue p (0-based) lands at token index p + 1.
+                toks = [0] + [ord(c) for c in protein.sequence]
+                return types.SimpleNamespace(
+                    sequence=torch.tensor(toks, dtype=torch.long))
+
+            def forward(self, sequence_tokens=None):
+                B, L = sequence_tokens.shape
+                x = sequence_tokens.float().unsqueeze(-1).repeat(1, 1, d)
+                return types.SimpleNamespace(embeddings=self.transformer(x))
+
+        return FakeESM3()
+
+    @pytest.fixture(autouse=True)
+    def _stub_esm_api(self, monkeypatch):
+        import types
+        api = types.ModuleType("esm.sdk.api")
+        api.ESMProtein = lambda sequence: types.SimpleNamespace(sequence=sequence)
+        monkeypatch.setitem(sys.modules, "esm", types.ModuleType("esm"))
+        monkeypatch.setitem(sys.modules, "esm.sdk", types.ModuleType("esm.sdk"))
+        monkeypatch.setitem(sys.modules, "esm.sdk.api", api)
+
+    def _encoder(self, **kwargs):
+        from manylatents.dogma.encoders import ESM3Encoder
+        enc = ESM3Encoder(**kwargs)
+        enc._model = self._fake_model()
+        return enc
+
+    def test_multi_layer_returns_ordered_dict(self):
+        enc = self._encoder(layer_indices=[0, 2, 4])
+        out = enc.encode("MKFGV")
+        assert isinstance(out, dict)
+        assert list(out) == ["layer_0", "layer_2", "layer_4"]
+        assert all(v.shape == (1, 8) for v in out.values())
+
+    def test_layers_are_not_collapsed(self):
+        """The actual regression, via the shared core no-collapse contract."""
+        from manylatents.testing import assert_layers_distinct
+        enc = self._encoder(layer_indices=[0, 2, 4])
+        assert_layers_distinct(enc.encode("MKFGV"))
+
+    def test_per_layer_contract(self):
+        """Full 'overfit one batch' contract: layers present + distinct, and
+        two different inputs yield different embeddings."""
+        from manylatents.testing import assert_per_layer_contract
+        enc = self._encoder(layer_indices=[0, 2, 4])
+        assert_per_layer_contract(enc.encode, "MKFGV", "PKFGV")
+
+    def test_single_layer_backward_compat(self):
+        enc = self._encoder()  # no layer_indices
+        out = enc.encode("MKFGV")
+        assert isinstance(out, torch.Tensor)
+        assert out.shape == (1, 8)
+
+    def test_position_reduce_requires_position(self):
+        enc = self._encoder(layer_indices=[0, 2], reduce="position")
+        with pytest.raises(ValueError):
+            enc.encode("MKFGV")
+
+    def test_position_reduce_picks_residue_token(self):
+        enc = self._encoder(layer_indices=[0], reduce="position")
+        out = enc.encode("MKFGV", position=2)  # residue 2 = 'F' → token index 3
+        # block 0 scales x by 1, so the captured value is the token id == ord('F')
+        assert torch.allclose(out["layer_0"], torch.full((1, 8), float(ord("F"))))
+
+    def test_invalid_reduce_rejected(self):
+        from manylatents.dogma.encoders import ESM3Encoder
+        with pytest.raises(ValueError):
+            ESM3Encoder(reduce="median")
 
 
 if __name__ == "__main__":
