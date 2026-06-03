@@ -24,6 +24,8 @@ from pathlib import Path
 
 import scanpy as sc
 
+from manylatents._data_paths import omics_data_root
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -111,11 +113,14 @@ def main():
         default="3k",
         help="Which PBMC dataset to download (default: 3k)",
     )
+    default_output_dir = omics_data_root() / "single_cell"
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("data/single_cell"),
-        help="Output directory for downloaded datasets (default: data/single_cell)",
+        default=default_output_dir,
+        help=f"Output directory for downloaded datasets (default: {default_output_dir}). "
+        "This matches where the ${omics_data:} config resolver looks; override with "
+        "$MANYLATENTS_DATA.",
     )
     parser.add_argument(
         "--force",

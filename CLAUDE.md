@@ -51,7 +51,7 @@ uv run python -c "import manylatents.dogma; print('dogma OK')"  # needs CUDA
 - **mamba-ssm must be exactly 2.2.6.post3** — Orthrus breaks above this version.
 - **ESM3 must stay float32** — dtype mismatch bug in the ESM library.
 - **Offline clusters (Tamia, Narval)** — models must be cached locally. No HuggingFace downloads on compute nodes. `WANDB_MODE=offline` is set automatically.
-- **`${omics_data:}` resolver** — use in data configs for `.h5ad` paths. Resolves to `<repo>/data/`.
+- **`${omics_data:}` resolver** — use in data configs for `.h5ad` paths. Resolves via `manylatents/_data_paths.py:omics_data_root()`: `$MANYLATENTS_DATA` if set, else `<repo>/data/` from a source checkout, else `~/.cache/manylatents/data` for an installed wheel (site-packages has no `data/`). `scripts/download_pbmc.py` writes to the same root. Data is gitignored and not packaged — it must be fetched, not assumed present.
 
 ---
 

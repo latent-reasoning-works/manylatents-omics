@@ -5,27 +5,26 @@ register on import. Entry-points don't work with Hydra 1.3, so we register
 manually.
 
 Also registers the ``omics_data`` OmegaConf resolver so singlecell/popgen
-data configs can use ``${omics_data:}/single_cell/file.h5ad`` — resolved
-automatically from the installed package location.
+data configs can use ``${omics_data:}/single_cell/file.h5ad`` — resolved to a
+writable data root via :func:`manylatents._data_paths.omics_data_root` (works
+for both editable checkouts and installed wheels).
 """
-
-from pathlib import Path
 
 from hydra.core.config_search_path import ConfigSearchPath
 from hydra.core.plugins import Plugins
 from hydra.plugins.search_path_plugin import SearchPathPlugin
 from omegaconf import OmegaConf
 
-# Omics repo root — two levels up from this file (manylatents/omics_plugin.py → repo root)
-_OMICS_ROOT = Path(__file__).resolve().parents[1]
+from manylatents._data_paths import omics_data_root
 
-
-# --- OmegaConf resolver: ${omics_data:} → <omics_repo>/data ---
+# --- OmegaConf resolver: ${omics_data:} → omics data root ---
+# Resolves to a real, writable location whether the package is an editable
+# source checkout or an installed wheel — see manylatents._data_paths.
 
 if not OmegaConf.has_resolver("omics_data"):
     OmegaConf.register_new_resolver(
         "omics_data",
-        lambda: str(_OMICS_ROOT / "data"),
+        lambda: str(omics_data_root()),
         use_cache=True,
     )
 
