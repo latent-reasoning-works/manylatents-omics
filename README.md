@@ -70,9 +70,15 @@ lrw/
 
 ## Quick start
 
-Omics configs are auto-discovered when the package is installed:
+Omics configs are auto-discovered when the package is installed. The datasets
+themselves are **not** shipped with the package (they're gitignored and not in
+the wheel) — fetch them first:
 
 ```bash
+# Download the PBMC datasets into the location ${omics_data:} resolves to.
+# (Writes to <repo>/data from a checkout, else ~/.cache/manylatents/data.)
+python scripts/download_pbmc.py --dataset 3k
+
 python -m manylatents.main --config-name=config \
   experiment=single_algorithm data=pbmc_3k
 
@@ -80,6 +86,14 @@ python -m manylatents.main --config-name=config \
 python -m manylatents.main -m \
   cluster=tamia resources=gpu \
   data=hgdp,pbmc_10k algorithms/latent=umap,phate
+```
+
+The `${omics_data:}` config resolver and `download_pbmc.py` agree on where data
+lives. To pin it explicitly, set `MANYLATENTS_DATA` (both honor it):
+
+```bash
+export MANYLATENTS_DATA=/path/to/data
+python scripts/download_pbmc.py --dataset 3k   # writes $MANYLATENTS_DATA/single_cell/
 ```
 
 ## Modules

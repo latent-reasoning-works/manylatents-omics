@@ -36,9 +36,15 @@ uv sync --extra dogma --index-strategy unsafe-best-match
 
 ## Quick Start
 
-Omics configs are auto-discovered when the package is installed:
+Omics **configs** are auto-discovered when the package is installed, but the
+**datasets** are not bundled (they're gitignored and excluded from the wheel).
+Download them first into the location `${omics_data:}` resolves to:
 
 ```bash
+# Fetches PBMC 3k to <repo>/data from a checkout, else ~/.cache/manylatents/data.
+# Override the destination with: export MANYLATENTS_DATA=/path/to/data
+python scripts/download_pbmc.py --dataset 3k
+
 # Single-cell: UMAP on PBMC 3k
 python -m manylatents.main data=pbmc_3k algorithms/latent=umap
 
@@ -50,7 +56,12 @@ python -m manylatents.main experiment=clinvar/encode_dna
 ```
 
 !!! note
-    Omics configs are auto-discovered when `manylatents-omics` is installed. Just use `python -m manylatents.main` — omics data configs (`data=pbmc_3k`, `data=hgdp`, etc.) will be available automatically.
+    Omics data configs (`data=pbmc_3k`, `data=hgdp`, etc.) are discovered
+    automatically once `manylatents-omics` is installed. The `${omics_data:}`
+    resolver points at a writable data root — a source checkout's `data/`, else
+    a per-user cache dir — so `data=pbmc_3k` finds the file regardless of whether
+    the package is editable or an installed wheel. Set `MANYLATENTS_DATA` to
+    override it.
 
 ---
 
