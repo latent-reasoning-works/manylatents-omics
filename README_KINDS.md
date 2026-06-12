@@ -192,14 +192,14 @@ loaded = Gemonics.load("output.zarr")
 
 ## Example Ops
 
-Located in `ops/example_ops.py`. Demonstrates how ops validate required dims:
+Located in `tests/singlecell/test_op/example_ops.py`. Demonstrates how ops validate required dims:
 
 ### temporal_analysis
 
 Requires `time` dimension; fails cleanly without it.
 
 ```python
-from ops.example_ops import temporal_analysis
+from tests.singlecell.test_op.example_ops import temporal_analysis
 
 kind = LabeledArray.load("data.zarr")
 
@@ -215,7 +215,7 @@ if "time" in kind._da.dims:
 Works on any `LabeledArray`. No special dim requirements.
 
 ```python
-from ops.example_ops import basic_filter
+from tests.singlecell.test_op.example_ops import basic_filter
 
 kind = LabeledArray.load("data.zarr")
 filtered = basic_filter(kind, min_expression=0.1)

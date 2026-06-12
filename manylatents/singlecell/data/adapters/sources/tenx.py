@@ -35,11 +35,20 @@ def make_data(
         f"(use_raw={use_raw}, layer={layer}, use_time={use_time})"
     )
 
+    if adata.obs_names is None or len(adata.obs_names) == 0:
+        raise ValueError(f"AnnData at {adata_path} has no obs_names (cell barcodes).")
+    if adata.var_names is None or len(adata.var_names) == 0:
+        raise ValueError(f"AnnData at {adata_path} has no var_names (gene names).")
+
     var = adata.var
     gene_ids = var["gene_ids"].values if "gene_ids" in var else None
+    if gene_ids is None:
+        raise ValueError(
+            f"AnnData at {adata_path} is missing the 'gene_ids' column in var; "
+            f"available columns: {var.columns.tolist()}"
+        )
     feature_types = var["feature_types"].values if "feature_types" in var else None
 
-    # Edge validation that data is scRNA-seq.
     if feature_types is not None:
         feature_counts = pd.Series(feature_types).value_counts()
         if not (feature_counts.index == "Gene Expression").all():
@@ -52,9 +61,8 @@ def make_data(
     coords = {
         "cell": adata.obs_names,
         "gene": adata.var_names,
+        "gene_ids": ("gene", gene_ids),
     }
-    if gene_ids is not None:
-        coords["gene_ids"] = ("gene", gene_ids)
 
     if use_time:
         try:
@@ -63,8 +71,13 @@ def make_data(
         except Exception as e:  # noqa: BLE001 - barcode format varies across datasets
             logger.warning(f"Could not extract time from cell barcodes: {e}")
 
-    metadata["genome"] = adata.var.genome.iloc[0]
-    
+    if "genome" not in adata.var or len(adata.var) == 0:
+        raise ValueError(
+            f"AnnData at {adata_path} is missing a non-empty 'genome' column in var; "
+            f"available columns: {adata.var.columns.tolist()}"
+        )
+    metadata["genome"] = adata.var["genome"].iloc[0]
+
     return from_anndata(
         adata,
         coords=coords,

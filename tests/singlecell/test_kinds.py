@@ -186,7 +186,7 @@ class TestOpDimensionRequirements:
     """Ops declare and enforce the dims they consume."""
 
     def test_temporal_op_requires_time_dim(self):
-        from ops.example_ops import temporal_analysis
+        from tests.singlecell.test_op.example_ops import temporal_analysis
 
         da_time = xr.DataArray(
             np.random.rand(10, 5, 3),
@@ -202,7 +202,7 @@ class TestOpDimensionRequirements:
         assert "time" in result.data.dims
 
     def test_temporal_op_rejects_missing_time_dim(self):
-        from ops.example_ops import temporal_analysis
+        from tests.singlecell.test_op.example_ops import temporal_analysis
 
         da_no_time = xr.DataArray(
             np.random.rand(10, 5),
@@ -213,7 +213,7 @@ class TestOpDimensionRequirements:
             temporal_analysis(LabeledArray(da_no_time))
 
     def test_basic_filter_works_without_time(self):
-        from ops.example_ops import basic_filter
+        from tests.singlecell.test_op.example_ops import basic_filter
 
         da = xr.DataArray(
             np.random.rand(10, 5),
@@ -225,7 +225,7 @@ class TestOpDimensionRequirements:
         assert result.data.dims == ("cell", "gene")
 
     def test_require_dims_helper_rejects_missing_dim(self):
-        from ops.example_ops import require_dims
+        from tests.singlecell.test_op.example_ops import require_dims
 
         da = xr.DataArray(np.ones((4, 2)), dims=["cell", "gene"])
         with pytest.raises(ValueError, match="requires dimension"):
@@ -323,7 +323,7 @@ def _download_h5(url: str) -> Path:
 def test_random_10x_dataset_loads_validates_and_enforces_dims(ds_name, url):
     """A randomly chosen 10x dataset loads, validates, and respects op dim contracts."""
     from manylatents.singlecell.data.adapters.sources.tenx import make_data
-    from ops.example_ops import basic_filter, temporal_analysis
+    from tests.singlecell.test_op.example_ops import basic_filter, temporal_analysis
 
     h5 = _download_h5(url)
 

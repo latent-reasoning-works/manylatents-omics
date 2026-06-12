@@ -9,6 +9,7 @@ import logging
 from abc import ABC, abstractmethod
 
 import xarray as xr
+from torch_geometric.data import Data
 
 logger = logging.getLogger(__name__)
 
@@ -39,69 +40,100 @@ class Kind(ABC):
 
 
 class LabeledArray(Kind):
-    """xarray DataArray with named dimensions.
-
-    Required dims are declared by the adapter at ingestion and passed in; the
-    kind only enforces whatever it was handed.
-    """
-
-    def __init__(self, da: xr.DataArray, required_dims: set[str] | None = None, required_coords: set[str] | None = None):
-        if not isinstance(da, xr.DataArray):
-            raise TypeError(f"Expected xr.DataArray, got {type(da)}")
-        self._da = da
-        self.required_dims = required_dims or set()
-        self.required_coords = required_coords or set()
+    """xarray DataArray with named dimensions."""
+    
+    def __init__(self, da: xr.DataArray): self._da = da
         
     def validate(self) -> None:
-        missing = self.required_dims - set(self._da.dims)
-        if missing:
-            raise ValueError(
-                f"LabeledArray missing required dims: {missing}. "
-                f"Present dims: {list(self._da.dims)}"
-            )
-
-        missing_coords = self.required_coords - set(self._da.coords)
-        if missing_coords:
-            raise ValueError(
-                f"LabeledArray missing coordinates for dims: {missing_coords}. "
-                f"Present coords: {list(self._da.coords)}"
-            )
-
-        logger.debug(
-            f"LabeledArray validated: dims={list(self._da.dims)}, "
-            f"coords={list(self._da.coords)}"
-        )
+        if not isinstance(self._da, xr.DataArray):
+            raise ValueError("LabeledArray must wrap a DataArray")
+        return self
+    
+    def require(self, *dims: str, coords: tuple[str, ...] = ()) -> "LabeledArray":
+        missing_dims = [d for d in dims if d not in self._da.dims]
+        if missing_dims:
+            raise ValueError(f"requires dims {missing_dims}; got {tuple(self._da.dims)}")
         
-        # Check for nulls; indicates metadata loss
-        for coord in self.required_coords:
-            if coord in self._da.coords:
-                null_count = self._da.coords[coord].isnull().sum().item()
-                if null_count:
-                    raise ValueError(
-                        f"Coord '{coord}' has {null_count} null values across cells."
-                    )
+        # Code can be removed if time is decided to be a dim rather than a coord
+        missing_coords = [c for c in coords if c not in self._da.coords]
+        if missing_coords:
+            raise ValueError(f"requires coords {missing_coords}; got {tuple(self._da.coords)}")
+        return self
 
     def serialize(self, path: str) -> None:
-        """Write the underlying DataArray to disk as zarr."""
         logger.info(f"Serializing {type(self).__name__} to {path}")
         self._da.to_zarr(path, mode="w")
 
     @classmethod
-    def load(cls, path: str) -> "LabeledArray":
-        """Load a zarr DataArray from disk and validate on read."""
-        logger.info(f"Loading {cls.__name__} from {path}")
-        da = xr.open_dataarray(path, engine="zarr")
-        obj = cls(da)
-        obj.validate()
-        return obj
+    def load(cls, path):
+        da = xr.open_dataset(path, engine="zarr")["data"]
+        return cls(da).validate()
 
     @property
-    def data(self) -> xr.DataArray:
-        """Access the underlying DataArray."""
+    def da(self) -> xr.DataArray:
         return self._da
-
+    
     def __repr__(self) -> str:
         return f"LabeledArray(dims={list(self._da.dims)}, shape={self._da.shape})"
 
-class test:
-    pass
+# TODO: flesh out
+# So far: container of an edge list and number of nodes
+class SparseGraph(Kind):
+    """torch_geometric Data graph."""
+
+    def __init__(self, data: Data): self._data = data
+
+    def validate(self) -> None:
+        if not isinstance(self._data, Data):
+            raise ValueError("SparseGraph must wrap a Data")
+        return self
+
+    def require(self, *attrs: str) -> "SparseGraph":
+        missing_attrs = [a for a in attrs if a not in self._data]
+        if missing_attrs:
+            raise ValueError(f"requires attrs {missing_attrs}; got {tuple(self._data.keys())}")
+        return self
+
+    def serialize(self, path: str) -> None:
+        import torch
+        logger.info(f"Serializing {type(self).__name__} to {path}")
+        torch.save(self._data, path)
+
+    @classmethod
+    def load(cls, path):
+        import torch
+        data = torch.load(path, weights_only=False)
+        return cls(data).validate()
+
+    @property
+    def data(self) -> Data:
+        return self._data
+
+    def __repr__(self) -> str:
+        return f"SparseGraph(num_nodes={self._data.num_nodes}, num_edges={self._data.num_edges})"
+    
+# Storage method up to change
+class TrajectoryXXX(Kind):
+    def __init__(self):
+        pass
+    
+    def validate(self) -> None:
+        pass
+
+    def require(self,) -> "TrajectoryXXX":
+        pass
+
+    def serialize(self, path: str) -> None:
+        pass
+
+    @classmethod
+    def load(cls, path):
+        pass
+
+    @property
+    def data(self): # -> "datatype"
+        pass
+
+    def __repr__(self) -> str:
+        pass
+    

@@ -39,13 +39,14 @@ def from_anndata(
     else:
         X = adata.X
     
-    # xarray cannot wrap a scipy.sparse matrix directly (it treats it as a
-    # 0-d object). Convert to a pydata ``sparse.COO`` duck array, which xarray
-    # supports natively and which keeps large 10x matrices out of dense memory.
+    # xarray cannot wrap a scipy.sparse matrix directly
+    # Convert to a pydata ``sparse.COO`` duck array
     if sp.issparse(X):
         data = sparse.COO.from_scipy_sparse(X.tocsr())
     else:
         data = sparse.COO.from_numpy(np.asarray(X))
+
+    # TODO: handle time once we encounter time-series data
 
     da = xr.DataArray(
         data,
@@ -54,7 +55,7 @@ def from_anndata(
         attrs=metadata or {},
     )
 
-    kind = LabeledArray(da, required_dims={"cell", "gene"}, required_coords=coords.keys())
+    kind = LabeledArray(da)
     
     kind.validate()
 
