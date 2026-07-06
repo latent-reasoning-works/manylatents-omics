@@ -31,3 +31,13 @@ class Kind(ABC):
     def load(cls, path: str) -> "Kind":
         """Load the kind from disk, validating on read."""
         ...
+
+    @abstractmethod
+    def require(self, *dims: str, coords: tuple[str, ...] = ()) -> "Kind":
+        """Assert named dims/coords are present; raise cleanly if not. Returns self."""
+        ...
+
+    @abstractmethod
+    def tagged(self, op_name: str) -> "Kind":
+        """Return a copy with ``op_name`` appended to the provenance trail."""
+        ...
