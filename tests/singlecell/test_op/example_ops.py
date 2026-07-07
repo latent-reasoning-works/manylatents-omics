@@ -9,7 +9,7 @@ position.
 
 import logging
 
-from manylatents.kinds import LabeledArray  # Core typed kind
+from geomancy.kinds import LabeledArray
 
 logger = logging.getLogger(__name__)
 

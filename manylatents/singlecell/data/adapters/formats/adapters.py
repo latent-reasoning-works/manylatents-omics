@@ -13,7 +13,7 @@ import numpy as np
 import xarray as xr
 import scipy.sparse as sp
 import sparse
-from manylatents.kinds import LabeledArray
+from geomancy.kinds import LabeledArray
 import pandas as pd
 
 logger = logging.getLogger(__name__)

@@ -6,7 +6,7 @@ import pandas as pd
 import scanpy as sc
 
 from ..formats.adapters import from_anndata
-from manylatents.kinds import LabeledArray
+from geomancy.kinds import LabeledArray
 
 logger = logging.getLogger(__name__)
 
@@ -70,12 +70,19 @@ def read_tenx(
         # asked for time labels this dataset does not have — reject rather than
         # silently proceed without a time axis.
         time = pd.Series(adata.obs_names, dtype="string").str.extract(r"-(\d+)$")[0]
-        if time.isna().all():
+        # Reject if *any* barcode lacks the suffix, not just all of them: a partial
+        # extraction would leave <NA> entries that silently serialize to '' (a bogus
+        # label), and mixing labelled/unlabelled cells is an ambiguous time axis.
+        n_missing = int(time.isna().sum())
+        if n_missing:
             raise ValueError(
-                f"AnnData at {adata_path}: use_time=True but no cell barcode carries a "
-                f"trailing '-<int>' time suffix; this dataset has no time labels to extract."
+                f"AnnData at {adata_path}: use_time=True but {n_missing} of {len(time)} "
+                f"cell barcodes carry no trailing '-<int>' suffix; refusing to emit a "
+                f"partial/ambiguous time coord."
             )
-        coords["time"] = ("cell", time.to_numpy())
+        # Cast to an integer coord — the raw extract is string dtype, which corrupts
+        # downstream numeric ops (mean/sort over time) and the zarr round-trip.
+        coords["time"] = ("cell", time.astype("int64").to_numpy())
 
     if "genome" not in adata.var or len(adata.var) == 0:
         raise ValueError(
