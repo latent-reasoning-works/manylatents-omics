@@ -28,7 +28,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from geomancy.kinds import LabeledArray
+from manykinds import LabeledArray
 from manylatents.singlecell.data.manifests import select_random_tenx
 
 

@@ -20,7 +20,7 @@ import sparse
 ad = pytest.importorskip("anndata")
 import pandas as pd
 
-from geomancy.kinds import LabeledArray
+from manykinds import LabeledArray
 from manylatents.singlecell.data.adapters.formats.adapters import from_anndata
 
 

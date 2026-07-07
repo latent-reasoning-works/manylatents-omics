@@ -9,7 +9,7 @@ position.
 
 import logging
 
-from geomancy.kinds import LabeledArray
+from manykinds import LabeledArray
 
 logger = logging.getLogger(__name__)
 

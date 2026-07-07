@@ -6,7 +6,7 @@ import pandas as pd
 import scanpy as sc
 
 from ..formats.adapters import from_anndata
-from geomancy.kinds import LabeledArray
+from manykinds import LabeledArray
 
 logger = logging.getLogger(__name__)
 
