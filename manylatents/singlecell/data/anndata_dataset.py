@@ -8,6 +8,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+from manylatents.callbacks.embedding.base import ColormapInfo
+
 logger = logging.getLogger(__name__)
 
 
@@ -100,6 +102,16 @@ class AnnDataset(Dataset):
     def get_labels(self) -> np.ndarray:
         """Return integer label codes (compatible with torch.tensor / metrics)."""
         return self.metadata
+
+    def get_colormap_info(self) -> ColormapInfo:
+        """Provide categorical colormap metadata for embedding plots."""
+        if self.label_names is not None:
+            return ColormapInfo(
+                cmap="categorical",
+                label_names={i: str(name) for i, name in enumerate(self.label_names)},
+                is_categorical=True,
+            )
+        return ColormapInfo(cmap="viridis", is_categorical=True)
 
     def get_label_names(self):
         """Return string↔code mapping, or None if no named labels."""
