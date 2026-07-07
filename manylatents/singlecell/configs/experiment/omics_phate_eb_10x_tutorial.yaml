@@ -1,0 +1,39 @@
+# @package _global_
+name: omics_phate_eb_10x_tutorial_knn4_t12_decay15_nland2000
+
+defaults:
+  - override /algorithms/latent: phate
+  - override /data: embryoid_body
+  - override /callbacks/embedding: minimal
+  - override /metrics: noop
+
+seed: 42
+project: manylatents-omics
+
+# Reuse embryoid_body datamodule but point to tutorial-processed 10x data.
+data:
+  adata_path: ${omics_data:}/single_cell/EBT_10x_tutorial_pca50.h5ad
+  label_key: timepoint
+
+algorithms:
+  latent:
+    n_components: 2
+    knn: 4
+    t: 12
+    decay: 15
+    gamma: 1.0
+    n_landmark: 2000
+    random_landmarking: false
+    backend: null
+    device: null
+    fit_fraction: 1.0
+    n_jobs: -1
+
+callbacks:
+  embedding:
+    plot_embeddings:
+      label_col: timepoint
+      title: PHATE - Timepoint
+      cmap_override: Spectral
+      is_categorical_override: true
+      legend: true
