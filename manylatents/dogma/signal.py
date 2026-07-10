@@ -64,15 +64,22 @@ LAYER_TAXONOMY: Dict[str, str] = {
     "histone": "histone",
     # CAGE / TSS
     "cage": "cage",
-    # RNA expression
+    # RNA expression / 3' processing
     "rna_seq": "rna",
     "rna": "rna",
+    "polya": "rna",  # polyadenylation (RNA 3' processing) -> rna slot
     # splicing
     "splice_sites": "splice",
     "splice_site_usage": "splice",
     "splice_junctions": "splice",
+    "splice_donor": "splice",     # in #19's coding-grid TRACK_SUBSET
+    "splice_acceptor": "splice",  # in #19's coding-grid TRACK_SUBSET
     "splice": "splice",
 }
+
+# Small constant so the log2 fold-change is defined for tracks that are ~0 away
+# from active regions (matches #19's ``compute_track_delta`` eps).
+_EPS: float = 1e-6
 
 
 class UnknownOutputTypeError(KeyError):
@@ -187,10 +194,12 @@ def _collapse_positions(arr: np.ndarray, how: str) -> np.ndarray:
 
 
 def _percentile_rank(values: np.ndarray) -> np.ndarray:
-    """Percentile rank in [0,100] of each value within ``values``.
+    """Percentile rank in [0,100] of each value *within* ``values``.
 
-    v0 placeholder for AlphaGenome's quantile scores: ranks within the current
-    build population. A proper reference distribution is an open question.
+    WITHIN-CALL fallback used only when no background is supplied. It ranks a
+    variant's tracks against each other, which couples layers: a big effect in
+    one layer depresses the ranks of the others (empirically leaks class signal
+    across layers). Prefer ``_percentile_against`` with a real background panel.
     """
     v = np.asarray(values, dtype=float)
     n = v.size
@@ -202,20 +211,47 @@ def _percentile_rank(values: np.ndarray) -> np.ndarray:
     return ranks / (n - 1) * 100.0
 
 
+def _percentile_against(values: np.ndarray, background: np.ndarray) -> np.ndarray:
+    """Percentile in [0,100] of each value against a fixed ``background`` sample.
+
+    ``pctl = 100 * (# background <= value) / len(background)``. Each track is
+    ranked independently of the variant's other tracks, so layers no longer leak
+    signal into one another. This is the "roll with ours" background panel —
+    e.g. |log2FC| over a random-variant reference set for ``effect``, and WT
+    activity over a genome sample for ``activity``.
+    """
+    bg = np.sort(np.asarray(background, dtype=float))
+    v = np.asarray(values, dtype=float)
+    if bg.size == 0:
+        return np.full(v.shape, 50.0)
+    idx = np.searchsorted(bg, v, side="right")
+    return idx / bg.size * 100.0
+
+
 def build_signal_records(
     variant: VariantKey,
     ref_pred: Mapping[str, np.ndarray],
     alt_pred: Mapping[str, np.ndarray],
     track_meta: Optional[Mapping[str, TrackMeta]] = None,
     reduce: str = "mean",
+    effect_background: Optional[np.ndarray] = None,
+    activity_background: Optional[np.ndarray] = None,
 ) -> List[SignalRecord]:
     """Build SignalRecords for one variant from an AlphaGenome-like pred pair.
 
     ``ref_pred`` / ``alt_pred`` mirror ``AlphaGenomeEncoder.predict()`` output:
     a dict keyed by output type (e.g. ``"atac"``, ``"rna_seq"``) mapping to a
     ``(positions, n_tracks)`` array (or a pre-reduced ``(n_tracks,)`` array).
-    ``delta`` is the signed ref->alt change of the position-collapsed track;
-    ``effect_pctl`` / ``activity_pctl`` are ranked across all tracks in this call.
+
+    ``delta`` is the signed **log2 fold-change** of the position-collapsed track,
+    ``log2((alt+eps)/(ref+eps))`` — the AlphaGenome/chorus standard and the same
+    per-track quantity #19's coding-grid scalar maxes over (see
+    :func:`variant_scalar_delta`). Track values are clamped to >= 0 first
+    (AlphaGenome signal is non-negative).
+
+    ``effect_pctl`` / ``activity_pctl`` rank against a fixed ``*_background``
+    sample when supplied (tracks stay independent); otherwise they fall back to
+    a within-call rank (a placeholder that leaks signal across layers).
 
     Args:
         variant: variant identity.
@@ -223,6 +259,10 @@ def build_signal_records(
         alt_pred: alternate-sequence predictions per output type (same keys/shapes).
         track_meta: optional per-output-type cell types / track ids.
         reduce: how to collapse the position axis into a per-track scalar.
+        effect_background: 1-D sample of |log2FC| to rank effect percentiles
+            against (e.g. from a random-variant panel). None -> within-call rank.
+        activity_background: 1-D sample of WT activity to rank activity
+            percentiles against. None -> within-call rank.
 
     Returns:
         List of SignalRecords, one per (output_type, track).
@@ -241,8 +281,9 @@ def build_signal_records(
                 f"output type {output_type!r} present in ref_pred but not alt_pred"
             )
         layer = output_type_to_layer(output_type)
-        ref_scalar = _collapse_positions(ref_arr, reduce)
-        alt_scalar = _collapse_positions(alt_pred[output_type], reduce)
+        # AlphaGenome signal is non-negative; clamp so log2FC is well-defined.
+        ref_scalar = np.maximum(_collapse_positions(ref_arr, reduce), 0.0)
+        alt_scalar = np.maximum(_collapse_positions(alt_pred[output_type], reduce), 0.0)
         if ref_scalar.shape != alt_scalar.shape:
             raise ValueError(
                 f"ref/alt track count mismatch for {output_type!r}: "
@@ -252,7 +293,8 @@ def build_signal_records(
         meta = track_meta.get(output_type, TrackMeta())
         n_tracks = ref_scalar.shape[0]
         for t in range(n_tracks):
-            delta = float(alt_scalar[t] - ref_scalar[t])
+            # Signed log2 fold-change, ref->alt (matches #19's compute_track_delta).
+            delta = float(np.log2((alt_scalar[t] + _EPS) / (ref_scalar[t] + _EPS)))
             activity = float(ref_scalar[t])
             cell_type = (
                 meta.cell_types[t]
@@ -276,8 +318,15 @@ def build_signal_records(
             deltas.append(delta)
             activities.append(activity)
 
-    effect_pctls = _percentile_rank(np.abs(np.asarray(deltas)))
-    activity_pctls = _percentile_rank(np.asarray(activities))
+    abs_deltas = np.abs(np.asarray(deltas))
+    if effect_background is not None:
+        effect_pctls = _percentile_against(abs_deltas, effect_background)
+    else:
+        effect_pctls = _percentile_rank(abs_deltas)
+    if activity_background is not None:
+        activity_pctls = _percentile_against(np.asarray(activities), activity_background)
+    else:
+        activity_pctls = _percentile_rank(np.asarray(activities))
 
     return [
         SignalRecord(
@@ -389,11 +438,46 @@ def stack_layer_matrix(
     return variant_ids, stacked
 
 
+# ---------------------------------------------------------------------------
+# Scalar bridge: the single value #19's coding grid (Gate D4) scores per variant
+# ---------------------------------------------------------------------------
+
+# #19's TRACK_SUBSET = (cage, rna_seq, polya, splice_donor, splice_acceptor)
+# maps, via LAYER_TAXONOMY, onto exactly these canonical layers. Keeping the
+# scalar as a reduction of SignalRecords means the grid value equals a collapse
+# of the per-layer manifold — one Δ definition (log2FC), one source of truth.
+SCALAR_DELTA_LAYERS: Tuple[str, ...] = ("cage", "rna", "splice")
+
+
+def variant_scalar_delta(
+    records: Sequence[SignalRecord],
+    layers: Sequence[str] = SCALAR_DELTA_LAYERS,
+    reduce: str = "maxabs",
+) -> float:
+    """Collapse one variant's records to the scalar the coding grid (#19) scores.
+
+    ``reduce="maxabs"`` reproduces #19's ``max(|log2FC|)`` over its TRACK_SUBSET
+    (here selected by canonical layer). This is the seam that keeps the scalar
+    grid entry and the per-layer manifold consistent — #19 imports this instead
+    of its own ``compute_track_delta``.
+    """
+    keep = set(layers)
+    vals = np.abs(np.array([r.delta for r in records if r.layer in keep], dtype=float))
+    if vals.size == 0:
+        return 0.0
+    if reduce == "maxabs":
+        return float(vals.max())
+    if reduce == "meanabs":
+        return float(vals.mean())
+    raise ValueError(f"reduce must be 'maxabs' or 'meanabs', got {reduce!r}")
+
+
 __all__ = [
     "CANONICAL_LAYERS",
     "LAYER_TAXONOMY",
     "LAYER_STATS",
     "LAYER_VECTOR_DIM",
+    "SCALAR_DELTA_LAYERS",
     "UnknownOutputTypeError",
     "output_type_to_layer",
     "VariantKey",
@@ -405,4 +489,5 @@ __all__ = [
     "reduce_variant_layers",
     "reduce_variant_vector",
     "stack_layer_matrix",
+    "variant_scalar_delta",
 ]

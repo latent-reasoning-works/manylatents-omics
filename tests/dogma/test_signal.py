@@ -10,6 +10,7 @@ import pytest
 from manylatents.dogma.signal import (
     CANONICAL_LAYERS,
     LAYER_VECTOR_DIM,
+    SCALAR_DELTA_LAYERS,
     SignalRecord,
     TrackMeta,
     UnknownOutputTypeError,
@@ -19,6 +20,7 @@ from manylatents.dogma.signal import (
     reduce_variant_layers,
     reduce_variant_vector,
     stack_layer_matrix,
+    variant_scalar_delta,
 )
 
 
@@ -61,6 +63,10 @@ def test_taxonomy_covers_all_alphagenome_heads():
     assert output_type_to_layer("CAGE") == "cage"
     assert output_type_to_layer("RNA_SEQ") == "rna"
     assert output_type_to_layer("splice_sites") == "splice"
+    # #19 coding-grid TRACK_SUBSET heads are covered by the taxonomy.
+    assert output_type_to_layer("polya") == "rna"
+    assert output_type_to_layer("splice_donor") == "splice"
+    assert output_type_to_layer("splice_acceptor") == "splice"
 
 
 def test_unknown_output_type_raises():
@@ -158,6 +164,40 @@ def test_stack_feeds_autoencoder_fusion_contract():
     n_rows = {mat.shape[0] for mat in channels.values()}
     assert n_rows == {2}  # all channels share the row dimension
     assert all(isinstance(mat, np.ndarray) and mat.ndim == 2 for mat in channels.values())
+
+
+def test_delta_is_log2_fold_change():
+    """delta == signed log2((alt)/(ref)) of the position-mean per track."""
+    variant = VariantKey(chrom="chr1", pos=1, ref="A", alt="T", id="fc")
+    ref = {"rna_seq": np.full((4, 1), 1.0)}
+    alt = {"rna_seq": np.full((4, 1), 4.0)}
+    (rec,) = build_signal_records(variant, ref, alt)
+    assert rec.delta == pytest.approx(2.0, abs=1e-4)  # log2(4/1) == 2
+
+
+def test_variant_scalar_delta_matches_grid_reduction():
+    """The #19 scalar == max(|delta|) over cage/rna/splice records."""
+    variant = VariantKey(chrom="chr1", pos=1, ref="A", alt="T", id="s")
+    ref = {"cage": np.full((4, 1), 1.0), "rna_seq": np.full((4, 1), 1.0),
+           "atac": np.full((4, 1), 1.0)}
+    alt = {"cage": np.full((4, 1), 2.0),   # log2FC = 1
+           "rna_seq": np.full((4, 1), 8.0),  # log2FC = 3  (the max over the subset)
+           "atac": np.full((4, 1), 64.0)}    # log2FC = 6 but atac -> accessibility, excluded
+    records = build_signal_records(variant, ref, alt)
+    scalar = variant_scalar_delta(records)
+    assert scalar == pytest.approx(3.0, abs=1e-4)
+    # accessibility is outside SCALAR_DELTA_LAYERS, so the big atac FC is ignored.
+    assert "accessibility" not in SCALAR_DELTA_LAYERS
+
+
+def test_background_percentile_is_independent_of_other_tracks():
+    """With a background, a track's effect_pctl doesn't depend on sibling tracks."""
+    variant = VariantKey(chrom="chr1", pos=1, ref="A", alt="T", id="bg")
+    bg = np.linspace(0, 5, 101)  # |log2FC| reference panel
+    ref = {"rna_seq": np.full((2, 1), 1.0)}
+    alt = {"rna_seq": np.full((2, 1), 2.0)}  # |log2FC| = 1 -> ~20th pctl of [0,5]
+    (rec,) = build_signal_records(variant, ref, alt, effect_background=bg)
+    assert rec.effect_pctl == pytest.approx(20.0, abs=2.0)
 
 
 if __name__ == "__main__":
