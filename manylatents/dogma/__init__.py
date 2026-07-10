@@ -7,7 +7,7 @@ config scanning (configs/ is a sibling package to data/, encoders/, etc.).
 
 __version__ = "0.1.0"
 
-__all__ = ["encoders", "algorithms", "data", "signal"]
+__all__ = ["encoders", "algorithms", "data", "signal", "oracles"]
 
 
 def __getattr__(name):
