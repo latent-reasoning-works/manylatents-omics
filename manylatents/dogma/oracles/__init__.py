@@ -41,18 +41,13 @@ if TYPE_CHECKING:
     from manylatents.dogma.signal import SignalRecord, Variant
 
 
-# v0 layer vocabulary the contract expects each oracle to draw ``layers`` from.
-# The #26 ``SignalRecord`` schema is the canonical owner of this enum; this
-# tuple is the oracle-side mirror, kept here so oracle authors and the fusion
-# seam have a name to reference until the schema lands. Keep the two in sync.
-SIGNAL_LAYERS: tuple[str, ...] = (
-    "accessibility",
-    "tf",
-    "histone",
-    "cage",
-    "rna",
-    "splice",
-)
+# v0 layer vocabulary each oracle draws ``layers`` from. The #26 ``SignalRecord``
+# schema is the canonical owner; now that it has landed, import it rather than
+# keep a duplicate mirror in sync. Same-package import (both live in
+# manylatents.dogma). NOTE: the core-side geometry (manylatents.metrics) keeps
+# its own copy on purpose — core cannot depend on omics, so the canonical vocab
+# cannot be centralized here if core must also name it.
+from manylatents.dogma.signal import CANONICAL_LAYERS as SIGNAL_LAYERS
 
 
 @runtime_checkable

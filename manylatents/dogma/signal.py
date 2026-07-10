@@ -120,6 +120,10 @@ class VariantKey:
         return (self.chrom, self.pos, self.ref, self.alt, self.id)
 
 
+# Public alias: the oracle contract (#29) refers to this type as ``Variant``.
+Variant = VariantKey
+
+
 @dataclass(frozen=True)
 class SignalRecord:
     """One (variant, track) signal: the atomic unit of the signal manifold.
@@ -393,6 +397,7 @@ __all__ = [
     "UnknownOutputTypeError",
     "output_type_to_layer",
     "VariantKey",
+    "Variant",
     "SignalRecord",
     "TrackMeta",
     "build_signal_records",
