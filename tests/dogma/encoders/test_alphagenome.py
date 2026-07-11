@@ -65,6 +65,7 @@ def test_import_from_encoders():
 
 @pytest.mark.gpu
 @pytest.mark.slow
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA GPU required for integration tests")
 class TestAlphaGenomeEncoderGPU:
     """Integration tests requiring GPU and model weights.
 
