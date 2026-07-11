@@ -97,11 +97,17 @@ class AlphaGenomeEncoder(FoundationEncoder):
         self._torch_to_jax = torch_to_jax
         self._dna_model = dna_model
 
+        import jax
+        jax_device = None
+        platforms = {getattr(d, "platform", "") for d in jax.devices()}
+        if not (platforms & {"cuda", "gpu"}):
+            jax_device = jax.devices("cpu")[0]
+
         # Try local weights first, fall back to HuggingFace
         if self.weights_path and Path(self.weights_path).exists():
-            self._model = dna_model.create_from_huggingface(self.weights_path)
+            self._model = dna_model.create_from_huggingface(self.weights_path, device=jax_device)
         else:
-            self._model = dna_model.create_from_huggingface("all_folds")
+            self._model = dna_model.create_from_huggingface("all_folds", device=jax_device)
 
     @staticmethod
     def _patch_jax_memory_compat(dna_model_module) -> None:
@@ -477,11 +483,16 @@ class AlphaGenomeEncoder(FoundationEncoder):
             if track_data is None or track_data.values is None:
                 continue
 
-            ot_terms = meta.ontology_terms_by_output_type.get(ot)
-            if ot_terms is None:
+            attr_name = ot.name.lower()
+            df = getattr(meta, attr_name, None)
+            if df is None:
                 continue
 
-            ot_term_strs = [str(term) for term in ot_terms]
+            ot_term_strs = []
+            for _, row in df.iterrows():
+                name_val = row["name"]
+                strand_val = row.get("strand", ".")
+                ot_term_strs.append(f"{ot.name}/{name_val}/{strand_val}")
 
             for assay_id in assay_ids:
                 if assay_id.split("/")[0].upper() != ot.name:
@@ -491,16 +502,6 @@ class AlphaGenomeEncoder(FoundationEncoder):
                 idx = ot_term_strs.index(assay_id)
 
                 values_1d = np.asarray(track_data.values[:, idx], dtype=np.float32)
-
-                class PredictedTrack:
-                    def __init__(self, assay_id, output_type, cell_type, resolution_bp, start, end, values):
-                        self.assay_id = assay_id
-                        self.output_type = output_type
-                        self.cell_type = cell_type
-                        self.resolution_bp = resolution_bp
-                        self.prediction_start_0based = start
-                        self.prediction_end_0based = end
-                        self.values = values
 
                 resolution = 128 if ot.name in ("CHIP_TF", "CHIP_HISTONE") else 1
                 cell_type = ""
@@ -513,13 +514,12 @@ class AlphaGenomeEncoder(FoundationEncoder):
                         cell_type = name
                         break
 
-                results[assay_id] = PredictedTrack(
-                    assay_id=assay_id,
-                    output_type=ot.name,
-                    cell_type=cell_type,
-                    resolution_bp=resolution,
-                    start=prediction_interval["start_0based"],
-                    end=prediction_interval["end_0based"],
-                    values=values_1d,
-                )
+                results[assay_id] = {
+                    "output_type": ot.name,
+                    "cell_type": cell_type,
+                    "resolution_bp": resolution,
+                    "prediction_start_0based": prediction_interval["start_0based"],
+                    "prediction_end_0based": prediction_interval["end_0based"],
+                    "values": values_1d,
+                }
         return results
