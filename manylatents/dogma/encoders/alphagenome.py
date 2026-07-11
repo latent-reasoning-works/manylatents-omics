@@ -440,3 +440,86 @@ class AlphaGenomeEncoder(FoundationEncoder):
     def context_length(self) -> int:
         """Maximum sequence length the model can process."""
         return self._context_length
+
+    def predict_tracks(
+        self,
+        sequence: str,
+        assay_ids: List[str],
+        prediction_interval: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Predict specific regulatory tracks aligned to genomic coordinates."""
+        self._ensure_loaded()
+
+        import numpy as np
+        OutputType = self._dna_model.OutputType
+        requested_ots = {}
+        for assay_id in assay_ids:
+            ot_name = assay_id.split("/")[0].upper()
+            try:
+                ot = OutputType[ot_name]
+                requested_ots[ot] = ot
+            except KeyError:
+                raise ValueError(f"Unknown OutputType {ot_name} in assay_id {assay_id}")
+
+        output = self._model.predict_sequence(
+            sequence,
+            requested_outputs=list(requested_ots.keys()),
+            ontology_terms=None,
+        )
+
+        from alphagenome_research.model.metadata import metadata as metadata_lib
+        from alphagenome.models import dna_model as dna_model_lib
+        meta = metadata_lib.load(dna_model_lib.Organism.HOMO_SAPIENS)
+
+        results = {}
+        for ot in requested_ots:
+            track_data = output.get(ot)
+            if track_data is None or track_data.values is None:
+                continue
+
+            ot_terms = meta.ontology_terms_by_output_type.get(ot)
+            if ot_terms is None:
+                continue
+
+            ot_term_strs = [str(term) for term in ot_terms]
+
+            for assay_id in assay_ids:
+                if assay_id.split("/")[0].upper() != ot.name:
+                    continue
+                if assay_id not in ot_term_strs:
+                    continue
+                idx = ot_term_strs.index(assay_id)
+
+                values_1d = np.asarray(track_data.values[:, idx], dtype=np.float32)
+
+                class PredictedTrack:
+                    def __init__(self, assay_id, output_type, cell_type, resolution_bp, start, end, values):
+                        self.assay_id = assay_id
+                        self.output_type = output_type
+                        self.cell_type = cell_type
+                        self.resolution_bp = resolution_bp
+                        self.prediction_start_0based = start
+                        self.prediction_end_0based = end
+                        self.values = values
+
+                resolution = 128 if ot.name in ("CHIP_TF", "CHIP_HISTONE") else 1
+                cell_type = ""
+                for term, name in {
+                    "EFO:0001187": "HepG2",
+                    "EFO:0002067": "K562",
+                    "EFO:0002888": "Jurkat",
+                }.items():
+                    if term in assay_id:
+                        cell_type = name
+                        break
+
+                results[assay_id] = PredictedTrack(
+                    assay_id=assay_id,
+                    output_type=ot.name,
+                    cell_type=cell_type,
+                    resolution_bp=resolution,
+                    start=prediction_interval["start_0based"],
+                    end=prediction_interval["end_0based"],
+                    values=values_1d,
+                )
+        return results
