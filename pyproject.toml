@@ -33,6 +33,11 @@ popgen = ["pandas-plink>=2.2.9"]
 # DNA encoder (Evo2) requires separate venv — see scripts/setup-dna-venv.sh
 dogma = ["esm>=3.0", "orthrus", "mamba-ssm==2.2.6.post3"]
 
+# Tiny regulatory DNA encoder (Cherimoya, ~610K-param ChromBPNet successor).
+# tangermeme is Cherimoya's IO dep, used directly for one-hot encoding.
+# CPU-runnable; GPU megakernel needs Triton + CUDA (see cherimoya install guide).
+cherimoya = ["cherimoya", "tangermeme"]
+
 # Utilities
 gpu = ["faiss-gpu-cu12"]
 docs = ["mkdocs>=1.6", "mkdocs-material>=9.6"]

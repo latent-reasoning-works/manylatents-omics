@@ -2,6 +2,13 @@
 
 Biological extensions for manylatents: popgen, single-cell, and foundation model encoders.
 
+> **⚠️ Cherimoya ships NO canonical weights (this branch).** `CherimoyaEncoder`
+> (`manylatents/dogma/encoders/cherimoya.py`) is *trained per experiment*; with no `checkpoint`
+> it builds a FRESH UNTRAINED model (meaningless outputs — plumbing only). Every inference call
+> logs a `NO CANONICAL WEIGHTS` warning. Treat all Cherimoya outputs as provisional until a
+> trained checkpoint with checked provenance exists — unlike `AlphaGenomeEncoder`, no pretrained
+> weights are available.
+
 **See [ARCHITECTURE.md](ARCHITECTURE.md) for the codebase map, data flow, and entrypoint alignment issues.**
 
 **Inherits from**: `manylatents/CLAUDE.md` (core contracts, safety rules)
