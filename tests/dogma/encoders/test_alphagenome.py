@@ -55,6 +55,41 @@ class TestAlphaGenomeEncoderUnit:
         with pytest.raises(ValueError, match="overlap .* must be < chunk_size"):
             AlphaGenomeEncoder._split_sequence("ATGC", chunk_size=100, overlap=100)
 
+    def test_supported_lengths_match_public_client(self):
+        """SUPPORTED_LENGTHS should mirror what the AlphaGenome client permits."""
+        from manylatents.dogma.encoders import AlphaGenomeEncoder
+
+        assert AlphaGenomeEncoder.SUPPORTED_LENGTHS == (
+            16_384,
+            131_072,
+            524_288,
+            1_048_576,
+        )
+
+    def test_encode_layers_requires_layers(self):
+        """encode_layers() should reject an empty layer list before loading."""
+        from manylatents.dogma.encoders import AlphaGenomeEncoder
+
+        encoder = AlphaGenomeEncoder(device="cpu")
+        with pytest.raises(ValueError, match="at least one module"):
+            encoder.encode_layers("ACGT" * 4096, layers=[])
+
+    def test_encode_layers_warns_on_untrained_length(self):
+        """A sequence shorter than 16 kb is an extrapolation and must say so.
+
+        This is the guard for the matched-envelope control: shrinking the input
+        is not the way to match a smaller receptive field.
+        """
+        from manylatents.dogma.encoders import AlphaGenomeEncoder
+
+        encoder = AlphaGenomeEncoder(device="cpu")
+        # 2114 bp is Cherimoya's window — the length the crop control proposed.
+        with pytest.warns(RuntimeWarning, match="not one of AlphaGenome's"):
+            with pytest.raises(Exception):
+                # Loading real weights will fail in unit-test context; the
+                # warning must already have fired by then.
+                encoder.encode_layers("A" * 2114, layers=["alphagenome"])
+
 
 def test_import_from_encoders():
     """AlphaGenomeEncoder should be importable from encoders module."""
@@ -142,3 +177,43 @@ class TestAlphaGenomeEncoderGPU:
         assert "atac" in predictions or "dnase" in predictions
         # Should not have unrequested outputs
         assert "cage" not in predictions or "rna_seq" not in predictions
+
+    def test_available_layers_exposes_transformer_tower(self):
+        """available_layers() should enumerate the nine transformer blocks."""
+        pytest.importorskip("jax")
+        from manylatents.dogma.encoders import AlphaGenomeEncoder
+
+        encoder = AlphaGenomeEncoder(device="cuda")
+        layers = encoder.available_layers(sequence_length=16_384)
+
+        blocks = [n for n in layers if "transformer_tower/mha_block" in n]
+        assert len(blocks) == 9, f"expected 9 transformer blocks, got {blocks}"
+        # Trunk is pooled 128x from the input.
+        assert layers[blocks[0]] == [1, 128, 1536]
+
+    def test_encode_layers_returns_requested_modules(self):
+        """encode_layers() should tap named modules and pool to (1, D)."""
+        pytest.importorskip("jax")
+        from manylatents.dogma.encoders import AlphaGenomeEncoder
+
+        encoder = AlphaGenomeEncoder(device="cuda")
+        wanted = [
+            "alphagenome/transformer_tower/mha_block",
+            "alphagenome/transformer_tower/mha_block_8",
+        ]
+        acts = encoder.encode_layers("ACGT" * 4096, layers=wanted)  # 16384 bp
+
+        assert set(acts) == set(wanted)
+        for name, tensor in acts.items():
+            assert isinstance(tensor, torch.Tensor)
+            assert tensor.shape == (1, 1536), f"{name}: {tensor.shape}"
+            assert not torch.isnan(tensor).any()
+
+    def test_encode_layers_rejects_unknown_module(self):
+        """An unreachable module name should fail loudly, not silently."""
+        pytest.importorskip("jax")
+        from manylatents.dogma.encoders import AlphaGenomeEncoder
+
+        encoder = AlphaGenomeEncoder(device="cuda")
+        with pytest.raises(KeyError, match="not reached"):
+            encoder.encode_layers("ACGT" * 4096, layers=["no/such/module"])

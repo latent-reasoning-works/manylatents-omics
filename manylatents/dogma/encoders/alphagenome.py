@@ -8,6 +8,7 @@ References:
     - GitHub: https://github.com/google-deepmind/alphagenome_research
 """
 
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -50,6 +51,11 @@ class AlphaGenomeEncoder(FoundationEncoder):
     }
 
     DEFAULT_WEIGHTS = "/network/weights/alphagenome/"
+
+    # Input lengths the model is trained for, per alphagenome.models.dna_client.
+    # The Haiku model will happily *trace* at other lengths (2 kb included), but
+    # those are outside the training distribution — see encode_layers().
+    SUPPORTED_LENGTHS = (16_384, 131_072, 524_288, 1_048_576)
 
     def __init__(
         self,
@@ -249,6 +255,55 @@ class AlphaGenomeEncoder(FoundationEncoder):
                 f"Supported: 'embeddings_1bp', 'embeddings_128bp'"
             )
 
+    def _build_transformed(self) -> Any:
+        """Rebuild AlphaGenome as a Haiku transform.
+
+        The public API filters embeddings out of its predictions, so both the
+        embedding path and the layer-tap path need their own forward.
+        """
+        if getattr(self, "_transformed", None) is not None:
+            return self._transformed
+
+        import haiku as hk
+        import jmp
+        from alphagenome.models import dna_model as dna_model_lib
+        from alphagenome_research.model import model as ag_model
+        from alphagenome_research.model.metadata import metadata as metadata_lib
+
+        # Metadata for BOTH organisms (the model was trained with both)
+        metadata = {
+            dna_model_lib.Organism.HOMO_SAPIENS: metadata_lib.load(
+                dna_model_lib.Organism.HOMO_SAPIENS
+            ),
+            dna_model_lib.Organism.MUS_MUSCULUS: metadata_lib.load(
+                dna_model_lib.Organism.MUS_MUSCULUS
+            ),
+        }
+
+        jmp_policy = jmp.get_policy("params=float32,compute=bfloat16,output=bfloat16")
+
+        @hk.transform_with_state
+        def _forward(dna_sequence, organism_index):
+            with hk.mixed_precision.push_policy(ag_model.AlphaGenome, jmp_policy):
+                return ag_model.AlphaGenome(metadata)(dna_sequence, organism_index)
+
+        self._transformed = _forward
+        return _forward
+
+    def _encode_one_hot(self, sequence: str) -> Any:
+        """One-hot encode and add a batch dim: (1, S, 4)."""
+        import jax.numpy as jnp
+
+        one_hot = self._model._one_hot_encoder.encode(sequence)
+        return jnp.asarray(one_hot)[jnp.newaxis]
+
+    @staticmethod
+    def _organism_index() -> Any:
+        """Organism selector; human is index 0."""
+        import jax.numpy as jnp
+
+        return jnp.array([0], dtype=jnp.int32)
+
     def _get_raw_predictions(self, sequence: str) -> Any:
         """Get raw model predictions including embeddings.
 
@@ -261,63 +316,181 @@ class AlphaGenomeEncoder(FoundationEncoder):
         Returns:
             Dict of raw predictions including embeddings_1bp.
         """
-        import functools
-
-        import haiku as hk
         import jax
-        import jax.numpy as jnp
-        import jmp
-        import numpy as np
-        from alphagenome_research.model import model as ag_model
-        from alphagenome_research.model.metadata import metadata as metadata_lib
 
-        # Lazy-create the raw prediction function
         if not hasattr(self, "_raw_predict_fn"):
-            # Get metadata for BOTH organisms (model was trained with both)
-            from alphagenome.models import dna_model as dna_model_lib
-
-            metadata = {
-                dna_model_lib.Organism.HOMO_SAPIENS: metadata_lib.load(
-                    dna_model_lib.Organism.HOMO_SAPIENS
-                ),
-                dna_model_lib.Organism.MUS_MUSCULUS: metadata_lib.load(
-                    dna_model_lib.Organism.MUS_MUSCULUS
-                ),
-            }
-
-            jmp_policy = jmp.get_policy(
-                "params=float32,compute=bfloat16,output=bfloat16"
-            )
-
-            @hk.transform_with_state
-            def _forward(dna_sequence, organism_index):
-                with hk.mixed_precision.push_policy(ag_model.AlphaGenome, jmp_policy):
-                    return ag_model.AlphaGenome(metadata)(dna_sequence, organism_index)
+            forward = self._build_transformed()
 
             def _apply_fn(params, state, dna_sequence, organism_index):
-                (predictions, _), _ = _forward.apply(
+                (predictions, _), _ = forward.apply(
                     params, state, None, dna_sequence, organism_index
                 )
                 return predictions
 
             self._raw_predict_fn = jax.jit(_apply_fn)
 
-        # Encode sequence to one-hot
-        one_hot = self._model._one_hot_encoder.encode(sequence)
-        one_hot = jnp.asarray(one_hot)[jnp.newaxis]  # Add batch dim: (1, S, 4)
-
-        # Create organism index (default to human = 0)
-        organism_index = jnp.array([0], dtype=jnp.int32)
-
-        # Call raw predict function to get predictions including embeddings
-        predictions = self._raw_predict_fn(
+        return self._raw_predict_fn(
             self._model._params,
             self._model._state,
-            one_hot,
-            organism_index,
+            self._encode_one_hot(sequence),
+            self._organism_index(),
         )
 
-        return predictions
+    def available_layers(self, sequence_length: int = 16_384) -> Dict[str, List[int]]:
+        """Enumerate tappable internal modules and their output shapes.
+
+        AlphaGenome is JAX/Haiku, so there is no torch forward hook. The
+        equivalent is ``hk.intercept_methods``, which observes every module
+        ``__call__``. This traces the model without spending FLOPs and reports
+        what can be tapped — notably the nine transformer blocks at
+        ``alphagenome/transformer_tower/mha_block[_N]``.
+
+        Args:
+            sequence_length: Length to trace at. Shapes downstream of the
+                sequence encoder scale with it.
+
+        Returns:
+            Mapping of module path to output shape.
+        """
+        self._ensure_loaded()
+
+        import haiku as hk
+        import jax
+
+        forward = self._build_transformed()
+        seen: Dict[str, List[int]] = {}
+
+        def interceptor(next_f, args, kwargs, context):
+            out = next_f(*args, **kwargs)
+            if context.method_name == "__call__":
+                name = getattr(context.module, "module_name", None)
+                arr = out[0] if isinstance(out, (tuple, list)) and out else out
+                shape = getattr(arr, "shape", None)
+                if name is not None and shape is not None:
+                    seen[name] = list(shape)
+            return out
+
+        def _traced(params, state, dna_sequence, organism_index):
+            with hk.intercept_methods(interceptor):
+                (predictions, _), _ = forward.apply(
+                    params, state, None, dna_sequence, organism_index
+                )
+            return predictions
+
+        jax.eval_shape(
+            _traced,
+            self._model._params,
+            self._model._state,
+            self._encode_one_hot("A" * sequence_length),
+            self._organism_index(),
+        )
+        return seen
+
+    def encode_layers(
+        self,
+        sequence: str,
+        layers: List[str],
+        aggregate: Optional[str] = "mean",
+    ) -> Dict[str, Tensor]:
+        """Extract activations from named internal modules.
+
+        The per-layer counterpart to `encode()`, which returns only the final
+        embedding. Discover valid names with `available_layers()`.
+
+        Args:
+            sequence: DNA sequence. Its length should be one of
+                SUPPORTED_LENGTHS; the model traces at other lengths but was
+                not trained there, so shorter inputs are a silent extrapolation.
+            layers: Module paths to tap, e.g.
+                ``["alphagenome/transformer_tower/mha_block_0"]``.
+            aggregate: Pool over the positional axes ("mean", "max", or None to
+                keep the full activation).
+
+        Returns:
+            Mapping of module path to a PyTorch tensor.
+        """
+        if not layers:
+            raise ValueError("layers must name at least one module to tap")
+
+        if len(sequence) not in self.SUPPORTED_LENGTHS:
+            warnings.warn(
+                f"sequence length {len(sequence)} is not one of AlphaGenome's "
+                f"trained lengths {self.SUPPORTED_LENGTHS}. The model will still "
+                f"run, but the result is an extrapolation — to match a smaller "
+                f"receptive field, pad the flanks with 'N' at a supported length "
+                f"rather than shortening the input.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+        self._ensure_loaded()
+
+        import haiku as hk
+        import jax
+        import jax.numpy as jnp
+
+        wanted = tuple(layers)
+        if not hasattr(self, "_tap_fns"):
+            self._tap_fns: Dict[tuple, Any] = {}
+
+        if wanted not in self._tap_fns:
+            forward = self._build_transformed()
+            keep = set(wanted)
+
+            def _apply_fn(params, state, dna_sequence, organism_index):
+                caught: Dict[str, Any] = {}
+
+                def interceptor(next_f, args, kwargs, context):
+                    out = next_f(*args, **kwargs)
+                    if context.method_name == "__call__":
+                        name = getattr(context.module, "module_name", None)
+                        if name in keep:
+                            caught[name] = (
+                                out[0]
+                                if isinstance(out, (tuple, list)) and out
+                                else out
+                            )
+                    return out
+
+                with hk.intercept_methods(interceptor):
+                    forward.apply(params, state, None, dna_sequence, organism_index)
+                return caught
+
+            self._tap_fns[wanted] = jax.jit(_apply_fn)
+
+        caught = self._tap_fns[wanted](
+            self._model._params,
+            self._model._state,
+            self._encode_one_hot(sequence),
+            self._organism_index(),
+        )
+
+        missing = [name for name in wanted if name not in caught]
+        if missing:
+            raise KeyError(
+                f"modules not reached during the forward pass: {missing}. "
+                f"Call available_layers() for valid names."
+            )
+
+        out: Dict[str, Tensor] = {}
+        for name, arr in caught.items():
+            # Activations are (1, L, D); pair-track modules are (1, P, P, F).
+            # Pool everything between batch and channel so both shapes reduce
+            # to (1, D).
+            if aggregate is not None and arr.ndim > 2:
+                axes = tuple(range(1, arr.ndim - 1))
+                if aggregate == "mean":
+                    arr = jnp.mean(arr, axis=axes)
+                elif aggregate == "max":
+                    arr = jnp.max(arr, axis=axes)
+                else:
+                    raise ValueError(
+                        f"aggregate must be 'mean', 'max', or None, got {aggregate}"
+                    )
+            out[name] = self._jax_to_torch(
+                arr.astype(jnp.float32)
+            ).to(self.device)
+        return out
 
     def _forward_predict(
         self, sequence: str, output_types: Optional[List[str]] = None
