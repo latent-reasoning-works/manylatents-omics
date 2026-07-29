@@ -36,17 +36,20 @@ from manylatents.algorithms.latent.foundation_encoder import FoundationEncoder
 
 logger = logging.getLogger(__name__)
 
-# Cherimoya ships NO canonical/pretrained weights in this branch (it is trained
-# per experiment). Every inference path emits one of these so no run can be
-# mistaken for a validated model. See CHERIMOYA_INTEGRATION / CLAUDE notes.
+# Canonical real-ENCODE Cherimoya weights now exist as CATv1
+# (programmable-genomics/CATv1, CC-BY-4.0: per-experiment DNase/ATAC accessibility
+# models). With no checkpoint we still build a fresh UNTRAINED model, so that path
+# stays loudly guarded; a supplied checkpoint logs provenance rather than a blanket
+# "no weights" warning. See CHERIMOYA_INTEGRATION / CLAUDE notes.
 _NO_WEIGHTS_UNTRAINED = (
-    "Cherimoya: NO CANONICAL WEIGHTS. No checkpoint given -> running a FRESH "
-    "UNTRAINED model; predictions are MEANINGLESS (shape/plumbing only)."
+    "Cherimoya: NO checkpoint given -> running a FRESH UNTRAINED model; predictions "
+    "are MEANINGLESS (shape/plumbing only). For real weights pass a CATv1 checkpoint "
+    "(programmable-genomics/CATv1)."
 )
-_NO_WEIGHTS_CHECKPOINT = (
-    "Cherimoya: NO CANONICAL WEIGHTS ship in this branch. Running inference with "
-    "user-supplied checkpoint %s -- outputs are provisional (checkpoint provenance "
-    "unvalidated), not validated model predictions."
+_CHECKPOINT_PROVENANCE = (
+    "Cherimoya: loading checkpoint %s. Canonical real-ENCODE weights are available as "
+    "CATv1 (programmable-genomics/CATv1, CC-BY-4.0); verify this checkpoint's "
+    "provenance before trusting its scores."
 )
 
 
@@ -136,7 +139,7 @@ class CherimoyaEncoder(FoundationEncoder):
             ) from e
 
         if self.checkpoint is not None:
-            logger.warning(_NO_WEIGHTS_CHECKPOINT, self.checkpoint)
+            logger.info(_CHECKPOINT_PROVENANCE, self.checkpoint)
             model = Cherimoya.load(str(self.checkpoint), device=self.device)
         else:
             logger.warning(_NO_WEIGHTS_UNTRAINED)
