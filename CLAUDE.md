@@ -2,12 +2,15 @@
 
 Biological extensions for manylatents: popgen, single-cell, and foundation model encoders.
 
-> **⚠️ Cherimoya ships NO canonical weights (this branch).** `CherimoyaEncoder`
-> (`manylatents/dogma/encoders/cherimoya.py`) is *trained per experiment*; with no `checkpoint`
-> it builds a FRESH UNTRAINED model (meaningless outputs — plumbing only). Every inference call
-> logs a `NO CANONICAL WEIGHTS` warning. Treat all Cherimoya outputs as provisional until a
-> trained checkpoint with checked provenance exists — unlike `AlphaGenomeEncoder`, no pretrained
-> weights are available.
+> **⚠️ `CherimoyaEncoder` needs an explicit checkpoint.** Cherimoya is *trained per
+> experiment*, so with no `checkpoint` it builds a FRESH UNTRAINED model (meaningless outputs —
+> plumbing only), and that path logs a loud warning.
+>
+> Canonical real-ENCODE weights **do** exist: [CATv1](https://huggingface.co/programmable-genomics/CATv1)
+> (`programmable-genomics/CATv1`, CC-BY-4.0) — per-experiment DNase/ATAC accessibility models
+> covering 1,518 ENCODE experiments. They load through `Cherimoya.load` unchanged. Requires
+> `cherimoya>=0.2.0` (0.0.1 has a width-19 first conv and no `load`, so it size-mismatches).
+> Train from scratch only for tracks CATv1 does not cover.
 
 **See [ARCHITECTURE.md](ARCHITECTURE.md) for the codebase map, data flow, and entrypoint alignment issues.**
 
