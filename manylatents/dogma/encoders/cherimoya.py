@@ -194,9 +194,10 @@ class CherimoyaEncoder(FoundationEncoder):
         logger.info("cherimoya pipeline (fit): %s", " ".join(run_cmd))
         subprocess.run(run_cmd, check=check)
         logger.warning(
-            "Trained a NEW Cherimoya checkpoint at %s. NO CANONICAL WEIGHTS exist; "
-            "its provenance is exactly this training run on '%s' -- validate before "
-            "trusting its scores.",
+            "Trained a NEW Cherimoya checkpoint at %s. This checkpoint is NOT "
+            "canonical: its provenance is exactly this training run on '%s' -- "
+            "validate before trusting its scores. For canonical real-ENCODE "
+            "accessibility weights use CATv1 (programmable-genomics/CATv1).",
             ckpt, signal,
         )
         return cls(checkpoint=str(ckpt), device=device, n_tracks=n_tracks, **encoder_kwargs)
