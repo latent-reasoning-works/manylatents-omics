@@ -230,8 +230,9 @@ def highly_variable_genes(
 
 
 # ── value transforms: a new matrix, nothing removed ──────────────────────────
-def normalize(counts: Any, *, target_sum: float = 1e4) -> np.ndarray:
-    """Library-size normalization — every cell scaled to ``target_sum``. Returns a NEW matrix.
+def normalize(counts: Any, *, target_sum: float = 1e4) -> Any:
+    """Library-size normalization — every cell scaled to ``target_sum``. Returns a NEW matrix,
+    **of the same kind as the input**: sparse in, sparse out.
 
     Operates on a copy: ``sc.pp.normalize_total`` writes in place and the caller's matrix is
     typically the user's own ``.X``.
@@ -244,7 +245,13 @@ def normalize(counts: Any, *, target_sum: float = 1e4) -> np.ndarray:
 
     adata = _as_adata(counts)
     sc.pp.normalize_total(adata, target_sum=float(target_sum))
-    return np.asarray(adata.X)
+    # RETURNED AS-IS, sparsity preserved — and NOT through `np.asarray`, which on a scipy sparse
+    # matrix WRAPS rather than converts: it returns a 0-dimensional object array holding the
+    # matrix, so every downstream shape check silently sees `()`. Measured on a 20 x 6 CSR:
+    # `np.asarray(adata.X)` -> shape () dtype object. Densifying instead would be correct and
+    # wrong for a different reason — this module's contract is sparse in, sparse out, and
+    # pbmc3k densifies from 18.3 MB to 353.6 MB.
+    return adata.X
 
 
 def transform(X: Any, *, method: str = "log1p") -> np.ndarray:

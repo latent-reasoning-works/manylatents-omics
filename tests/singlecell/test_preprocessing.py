@@ -242,3 +242,33 @@ def test_hvg_here_is_across_cells_and_not_across_time():
 
     assert "ACROSS CELLS" in doc
     assert "time" in doc.lower(), "the collision must stay named where someone will read it"
+
+
+def test_normalize_preserves_sparsity_and_does_not_wrap_it():
+    """REGRESSION, and the contract the module's own header states.
+
+    `np.asarray()` on a scipy sparse matrix WRAPS rather than converts — it returns a
+    0-dimensional object array holding the matrix. Measured on a 20 x 6 CSR before the fix:
+    `shape ()`, `dtype object`, so every downstream shape check silently saw `()` and the
+    values were unreachable. Densifying instead would be correct and wrong for a different
+    reason: pbmc3k goes 18.3 MB -> 353.6 MB.
+    """
+    dense = _counts(20, 6)
+    sparse = sp.csr_matrix(dense)
+
+    out = pp.normalize(sparse, target_sum=10.0)
+
+    assert sp.issparse(out), f"sparse in, sparse out — got {type(out).__name__} {getattr(out, 'shape', None)}"
+    assert out.shape == (20, 6)
+    assert np.allclose(np.asarray(out.sum(axis=1)).ravel(), 10.0)
+
+
+def test_normalize_agrees_on_dense_and_sparse_input():
+    """The two paths must not diverge numerically — the whole point of preserving sparsity is
+    that it changes the representation and nothing else."""
+    dense = _counts(20, 6)
+
+    from_dense = pp.normalize(dense, target_sum=10.0)
+    from_sparse = pp.normalize(sp.csr_matrix(dense), target_sum=10.0)
+
+    assert np.allclose(np.asarray(from_dense), from_sparse.toarray(), atol=1e-5)
