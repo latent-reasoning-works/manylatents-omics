@@ -26,7 +26,13 @@ dependencies = [
 # kinds (LabeledArray/SparseGraph) live in the standalone `manykinds` package,
 # which brings xarray/zarr/sparse. xarray + sparse stay listed too — the adapters
 # import them directly to build the DataArray before wrapping it in a kind.
-singlecell = ["anndata>=0.11.3", "geosketch>=1.3", "leidenalg>=0.10", "python-igraph>=1.0.0", "scanpy>=1.11.5", "xarray>=2024.0", "sparse>=0.15", "manykinds>=0.1"]
+# `scikit-image` and `scikit-misc` are NOT optional polish for `preprocessing`: scanpy raises
+# on both. `sc.pp.scrublet` with no explicit threshold needs scikit-image to pick one
+# ("`threshold` is None and thus scrublet requires `scikit-image`"), and
+# `highly_variable_genes(flavor="seurat_v3")` needs scikit-misc for its loess fit. seurat_v3
+# is the flavour that takes RAW counts, which is what a function sitting before `normalize`
+# has to accept — so the dependency follows from where the step is, not from taste.
+singlecell = ["anndata>=0.11.3", "geosketch>=1.3", "leidenalg>=0.10", "python-igraph>=1.0.0", "scanpy>=1.11.5", "scikit-image>=0.22", "scikit-misc>=0.3", "xarray>=2024.0", "sparse>=0.15", "manykinds>=0.1"]
 popgen = ["pandas-plink>=2.2.9"]
 
 # Protein + RNA encoders (ESM3 + Orthrus, torch 2.5.x compatible)
