@@ -128,7 +128,7 @@ If manylatents-omics was useful in your research, a citation goes a long way:
 ```bibtex
 @software{manylatents_omics2026,
   title     = {manyLatents-Omics: Biological Extensions for Unified Dimensionality Reduction},
-  author    = {Scicluna, Matthew and Valdez C{\'o}rdova, C{\'e}sar Miguel},
+  author    = {{Latent Reasoning Works}},
   year      = {2026},
   url       = {https://github.com/latent-reasoning-works/manylatents-omics},
   license   = {MIT}

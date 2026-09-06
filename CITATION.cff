@@ -8,14 +8,7 @@ license: MIT
 url: "https://github.com/latent-reasoning-works/manylatents-omics"
 repository-code: "https://github.com/latent-reasoning-works/manylatents-omics"
 authors:
-  - family-names: Scicluna
-    given-names: Matthew
-    email: matthew.scicluna@mila.quebec
-    affiliation: Mila - Quebec AI Institute
-  - family-names: Valdez Córdova
-    given-names: César Miguel
-    email: cesar.valdez@mila.quebec
-    affiliation: Mila - Quebec AI Institute
+  - name: "Latent Reasoning Works"
 keywords:
   - population-genetics
   - single-cell
