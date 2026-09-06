@@ -31,7 +31,26 @@ dependencies = [
 # `highly_variable_genes(flavor="seurat_v3")` needs scikit-misc for its loess fit. seurat_v3
 # is the flavour that takes RAW counts, which is what a function sitting before `normalize`
 # has to accept — so the dependency follows from where the step is, not from taste.
-singlecell = ["anndata>=0.11.3", "geosketch>=1.3", "leidenalg>=0.10", "python-igraph>=1.0.0", "scanpy>=1.11.5", "scikit-image>=0.22", "scikit-misc>=0.3", "xarray>=2024.0", "sparse>=0.15", "manykinds>=0.1"]
+# `zarr<3` IS LOAD-BEARING AND IS NOT A PIN NOBODY REVISITED. anndata 0.11 accepts zarr 3
+# during RESOLUTION and rejects it at IMPORT — the check is in `anndata/compat/__init__.py`,
+# not in its metadata — so the resolver is satisfied and the failure lands at collection time.
+# Measured on 2026-09-06, resolving CI's own command for linux/py3.11:
+#
+#     without this cap   anndata 0.11.4 · zarr 3.1.5  · archetypes 0.11.0  -> ImportError
+#     with it            anndata 0.11.4 · zarr 2.18.7 · archetypes 0.11.0  -> imports clean
+#
+# The two resolutions differ in ONE package, which is what makes this the minimal fix rather
+# than a version wall. That green CI on 2026-08-14 and red CI today came from the same commit
+# is the whole point: `uv pip install .[...]` resolves fresh every run, so the job is a
+# function of the calendar. The durable fix is to install from a lockfile, and it is blocked
+# on `uv.lock` being gitignored here (`.gitignore:15`) — tracking it is a separate change.
+#
+# WHY NOT RAISE anndata INSTEAD, which is where a reader will go first: manylatents holds
+# scipy below 1.15, that selects archetypes 0.11.0 which needs scipy<1.12, and anndata 0.12+
+# needs scipy>=1.12. Asking for anndata>=0.12 therefore rolls archetypes back to 0.6.2 — a
+# core algorithm dependency traded away to move a storage backend. Lift this cap when those
+# SciPy bounds allow anndata 0.12 without that trade, not before.
+singlecell = ["anndata>=0.11.3", "zarr<3", "geosketch>=1.3", "leidenalg>=0.10", "python-igraph>=1.0.0", "scanpy>=1.11.5", "scikit-image>=0.22", "scikit-misc>=0.3", "xarray>=2024.0", "sparse>=0.15", "manykinds>=0.1"]
 popgen = ["pandas-plink>=2.2.9"]
 
 # Protein + RNA encoders (ESM3 + Orthrus, torch 2.5.x compatible)
