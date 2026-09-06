@@ -12,7 +12,6 @@ site/
 .pytest_cache/
 .coverage
 htmlcov/
-uv.lock
 .ipynb_checkpoints
 
 # macOS Finder metadata (any directory)

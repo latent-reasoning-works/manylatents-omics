@@ -61,11 +61,17 @@ dogma = ["esm>=3.0", "orthrus", "mamba-ssm==2.2.6.post3"]
 gpu = ["faiss-gpu-cu12"]
 docs = ["mkdocs>=1.6", "mkdocs-material>=9.6"]
 
-# Dev/CI only
+# Full encoder development environment
 dev = [
     "manylatents-omics[dogma,singlecell,popgen]",
     "pytest>=9.0.2",
 ]
+
+[dependency-groups]
+# CI needs pytest without the dev extra's dogma/ESM/Orthrus/mamba-ssm stack.
+test = ["pytest>=9.0.2"]
+cpu = ["torch", "torchvision"]
+cuda = ["torch", "torchvision"]
 
 [project.urls]
 Homepage = "https://github.com/latent-reasoning-works/manylatents-omics"
@@ -88,6 +94,15 @@ packages = ["manylatents"]
 [tool.uv]
 managed = true
 no-build-isolation-package = ["mamba-ssm"]
+# Preserve the local CUDA default. CI explicitly selects --no-default-groups --group cpu.
+# Both routes belong in the lock; selecting them together cannot make one torch install.
+default-groups = ["cuda"]
+conflicts = [[{ group = "cpu" }, { group = "cuda" }]]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [[tool.uv.index]]
 name = "pytorch-cu121"
@@ -100,8 +115,16 @@ url = "https://download.pytorch.org/whl/cu126"
 explicit = true
 
 [tool.uv.sources]
-torch = { index = "pytorch-cu121" }
-torchvision = { index = "pytorch-cu121" }
+# --no-sources would fall back to PyPI, whose Linux torch wheels include CUDA.
+# macOS uses PyPI because the CUDA index has no macOS wheels.
+torch = [
+    { index = "pytorch-cpu", group = "cpu", marker = "sys_platform != 'darwin'" },
+    { index = "pytorch-cu121", group = "cuda", marker = "sys_platform != 'darwin'" },
+]
+torchvision = [
+    { index = "pytorch-cpu", group = "cpu", marker = "sys_platform != 'darwin'" },
+    { index = "pytorch-cu121", group = "cuda", marker = "sys_platform != 'darwin'" },
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

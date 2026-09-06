@@ -27,13 +27,11 @@ jobs:
 
       - uses: astral-sh/setup-uv@v5
         with:
-          version: 'latest'
+          version: '0.11.8'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        run: |
-          uv venv
-          uv pip install ".[popgen,singlecell]" pytest
+        run: uv sync --locked --no-editable --no-default-groups --group cpu --group test --extra popgen --extra singlecell
 
       - name: Run tests
         run: |
@@ -67,13 +65,11 @@ jobs:
 
       - uses: astral-sh/setup-uv@v5
         with:
-          version: 'latest'
+          version: '0.11.8'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        run: |
-          uv venv
-          uv pip install ".[docs]"
+        run: uv sync --locked --no-editable --no-default-groups --group cpu --extra docs
 
       - name: Build docs (strict)
         run: |
@@ -98,13 +94,11 @@ jobs:
 
       - uses: astral-sh/setup-uv@v5
         with:
-          version: 'latest'
+          version: '0.11.8'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        run: |
-          uv venv
-          uv pip install ".[docs]"
+        run: uv sync --locked --no-editable --no-default-groups --group cpu --extra docs
 
       - name: Deploy to GitHub Pages
         run: |
