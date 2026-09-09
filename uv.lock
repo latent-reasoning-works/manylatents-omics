@@ -1549,8 +1549,8 @@ dependencies = [
     { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin' or (extra == 'group-17-manylatents-omics-cpu' and extra == 'group-17-manylatents-omics-cuda') or (extra != 'group-17-manylatents-omics-cpu' and extra != 'group-17-manylatents-omics-cuda')" },
     { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'group-17-manylatents-omics-cpu') or (extra == 'group-17-manylatents-omics-cpu' and extra == 'group-17-manylatents-omics-cuda')" },
     { name = "transformers" },
-    { name = "triton", version = "3.1.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'group-17-manylatents-omics-cpu' or extra == 'group-17-manylatents-omics-cuda'" },
-    { name = "triton", version = "3.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(extra == 'group-17-manylatents-omics-cpu' and extra == 'group-17-manylatents-omics-cuda') or (extra != 'group-17-manylatents-omics-cpu' and extra != 'group-17-manylatents-omics-cuda')" },
+    { name = "triton", version = "3.1.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'darwin' and extra == 'group-17-manylatents-omics-cuda') or (extra == 'group-17-manylatents-omics-cpu' and extra == 'group-17-manylatents-omics-cuda')" },
+    { name = "triton", version = "3.8.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin' or extra == 'group-17-manylatents-omics-cpu' or extra != 'group-17-manylatents-omics-cuda'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b6/0c/9373a469ff7a33bdd0644e55fa45165ba3900274dcf7fe9f10ccc232aef9/mamba_ssm-2.2.6.post3.tar.gz", hash = "sha256:826a3cdb651959f191dac64502f8a29627d9116fe6bb7c57e4f562da1aea7bf3", size = 113913, upload-time = "2025-10-10T06:00:44.939Z" }
 
@@ -1613,7 +1613,7 @@ wheels = [
 
 [[package]]
 name = "manylatents-omics"
-version = "0.1.2"
+version = "0.1.3"
 source = { editable = "." }
 dependencies = [
     { name = "manylatents" },
@@ -4094,11 +4094,9 @@ source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version >= '3.12' and sys_platform != 'darwin'",
     "python_full_version < '3.12' and sys_platform != 'darwin'",
-    "python_full_version >= '3.12' and sys_platform == 'darwin'",
-    "python_full_version < '3.12' and sys_platform == 'darwin'",
 ]
 dependencies = [
-    { name = "filelock", marker = "extra == 'group-17-manylatents-omics-cpu' or extra == 'group-17-manylatents-omics-cuda'" },
+    { name = "filelock", marker = "(sys_platform != 'darwin' and extra == 'group-17-manylatents-omics-cuda') or (extra == 'group-17-manylatents-omics-cpu' and extra == 'group-17-manylatents-omics-cuda')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/86/17/d9a5cf4fcf46291856d1e90762e36cbabd2a56c7265da0d1d9508c8e3943/triton-3.1.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0f34f6e7885d1bf0eaaf7ba875a5f0ce6f3c13ba98f9503651c1e6dc6757ed5c", size = 209506424, upload-time = "2024-10-14T16:05:42.337Z" },
@@ -4110,8 +4108,14 @@ name = "triton"
 version = "3.8.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.12'",
-    "python_full_version < '3.12'",
+    "python_full_version >= '3.12' and sys_platform == 'darwin' and extra != 'group-17-manylatents-omics-cpu' and extra == 'group-17-manylatents-omics-cuda'",
+    "python_full_version < '3.12' and sys_platform == 'darwin' and extra != 'group-17-manylatents-omics-cpu' and extra == 'group-17-manylatents-omics-cuda'",
+    "python_full_version >= '3.12' and sys_platform != 'darwin' and extra == 'group-17-manylatents-omics-cpu' and extra != 'group-17-manylatents-omics-cuda'",
+    "python_full_version < '3.12' and sys_platform != 'darwin' and extra == 'group-17-manylatents-omics-cpu' and extra != 'group-17-manylatents-omics-cuda'",
+    "python_full_version >= '3.12' and sys_platform == 'darwin' and extra == 'group-17-manylatents-omics-cpu' and extra != 'group-17-manylatents-omics-cuda'",
+    "python_full_version < '3.12' and sys_platform == 'darwin' and extra == 'group-17-manylatents-omics-cpu' and extra != 'group-17-manylatents-omics-cuda'",
+    "python_full_version >= '3.12' and extra != 'group-17-manylatents-omics-cpu' and extra != 'group-17-manylatents-omics-cuda'",
+    "python_full_version < '3.12' and extra != 'group-17-manylatents-omics-cpu' and extra != 'group-17-manylatents-omics-cuda'",
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a3/cf/d21c9b1a4d1df9ba3aed218069f24f762a4b9565c5a362bef6f110c08e72/triton-3.8.0-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:372285307d4c44ee74cee32de0b4f04bd157e071427e38c6f4ee3e3beb2194f4", size = 226467015, upload-time = "2026-08-28T16:08:05.871Z" },

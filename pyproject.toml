@@ -1,6 +1,6 @@
 [project]
 name = "manylatents-omics"
-version = "0.1.2"
+version = "0.1.3"
 description = "Biological extensions for manylatents: popgen and central dogma encoders"
 authors = [
     { name = "Latent Reasoning Works" },
