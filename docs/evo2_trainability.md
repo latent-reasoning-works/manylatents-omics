@@ -95,6 +95,18 @@ would destroy.
 - **4.1 GB at 128 tokens leaves enormous headroom on an 80 GB H100**, but this
   says nothing about ClinVar windows one to two orders of magnitude longer.
   StripedHyena's memory profile is not a transformer's. Task 5 measures it.
-- Unverified here: whether the cloned model's frozen forward reproduces the
-  unmodified model's numbers bit-for-bit. Task 4 must test that the default
-  path is untouched, since teacher caches depend on it.
+- **Closed 2026-09-15 by job `465469` on Tamia.** The open question was whether
+  a cloned model's frozen forward reproduces an unmodified model's numbers,
+  since every teacher cache depends on the default path being untouched. The
+  test builds both encoders on the same sequences and compares pooled outputs:
+  `test_frozen_path_is_numerically_untouched` PASSED. So did
+  `test_operator_loss_reaches_model_parameters` and the six others — 8 passed in
+  36m30s, 6.2 GB peak across three model loads in one process.
+
+  The run also exposed a prerequisite nothing had tested. Tamia's `.venv-dna`
+  carried `manylatents 0.1.0`, installed editable from a stale sibling checkout
+  with no `manylatents/algorithms/latent/foundation_encoder.py`, so **every**
+  `manylatents.dogma` import failed — Evo 2, Orthrus, ESM3 and the ClinVar
+  loader alike. The spike had passed only because it bypassed the package and
+  drove `evo2`/`vortex` directly. Upgraded to 0.1.7 with `uv`; Tasks 5-8 would
+  otherwise have died on import.
