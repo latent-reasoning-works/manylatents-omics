@@ -32,7 +32,13 @@ class Evo2Encoder(FoundationEncoder):
         model_name: Model variant. One of "evo2_1b_base", "evo2_7b", "evo2_40b".
         layer_name: Single layer to extract from (backward compat). Overridden by layer_names.
         layer_names: List of layers to extract from. Returns dict output.
+        weights_path: Explicit checkpoint path, passed to Evo2 as local_path.
+            Offline clusters cannot resolve by name. Falls back to
+            EVO2_WEIGHTS_DIR/<model_name> when that directory exists.
         device: Device for inference ("cuda" or "cpu").
+
+    Pooling is masked mean over non-padding positions, accumulated in float32
+    on both the single-sequence and batched paths.
 
     Example:
         >>> encoder = Evo2Encoder(model_name="evo2_1b_base")
@@ -40,43 +46,77 @@ class Evo2Encoder(FoundationEncoder):
         >>> # Multi-layer default: result is dict with 3 layer keys
     """
 
-    # Model configurations
+    # Model configurations.
+    #
+    # Upstream block depths are 25 (1B), 32 (7B) and 50 (40B). Every size
+    # declares the same three-layer profile so the return shape does not depend
+    # on which model you picked; previously only the 1B had `default_layers`, so
+    # the 1B returned a dict of three tensors and 7B/40B a single tensor, and a
+    # tensor-based operator builder broke on the dict.
+    #
+    # No default sits at or near the final block. Evo2-7B shows build-and-flush:
+    # informative geometry at intermediate layers, numerical annihilation at the
+    # last one. The percentages below are of total depth.
     MODELS = {
         "evo2_1b_base": {
-            "default_layer": "blocks.14.mlp.l3",  # Middle layer of 25
+            "depth": 25,
+            "default_layer": "blocks.14.mlp.l3",   # 56%
             "default_layers": [
-                "blocks.14.mlp.l3",   # Middle (56%) — local features
-                "blocks.19.mlp.l3",   # Late (76%) — functional features (Goodfire ~75%)
-                "blocks.23.mlp.l3",   # Near-final (92%) — abstract representations
+                "blocks.14.mlp.l3",   # 56% — local features
+                "blocks.19.mlp.l3",   # 76% — functional features (Goodfire ~75%)
+                "blocks.23.mlp.l3",   # 92% — abstract representations
             ],
-            "embedding_dim": 1920,  # hidden_size from model config
+            "embedding_dim": 1920,
         },
         "evo2_7b": {
-            "default_layer": "blocks.16.mlp.l3",  # Middle layer
+            "depth": 32,
+            "default_layer": "blocks.16.mlp.l3",   # 50%
+            "default_layers": [
+                "blocks.16.mlp.l3",   # 50%
+                "blocks.24.mlp.l3",   # 75%
+                "blocks.29.mlp.l3",   # 91%
+            ],
             "embedding_dim": 4096,
         },
         "evo2_7b_base": {
+            "depth": 32,
             "default_layer": "blocks.16.mlp.l3",
+            "default_layers": [
+                "blocks.16.mlp.l3",
+                "blocks.24.mlp.l3",
+                "blocks.29.mlp.l3",
+            ],
             "embedding_dim": 4096,
         },
         "evo2_40b": {
-            "default_layer": "blocks.32.mlp.l3",  # Middle layer
+            "depth": 50,
+            # Was blocks.32, labelled "middle layer". That is the 33rd of 50 — 66%.
+            "default_layer": "blocks.25.mlp.l3",   # 50%
+            "default_layers": [
+                "blocks.25.mlp.l3",   # 50%
+                "blocks.37.mlp.l3",   # 74%
+                "blocks.46.mlp.l3",   # 92%
+            ],
             "embedding_dim": 8192,
         },
         "evo2_40b_base": {
-            "default_layer": "blocks.32.mlp.l3",
+            "depth": 50,
+            "default_layer": "blocks.25.mlp.l3",
+            "default_layers": [
+                "blocks.25.mlp.l3",
+                "blocks.37.mlp.l3",
+                "blocks.46.mlp.l3",
+            ],
             "embedding_dim": 8192,
         },
     }
-
-    # Default weights location on Mila cluster
-    DEFAULT_WEIGHTS = "/network/weights/savanna-evo2-1b-base/savanna_evo2_1b_base/savanna_evo2_1b_base.pt"
 
     def __init__(
         self,
         model_name: str = "evo2_1b_base",
         layer_name: Optional[str] = None,
         layer_names: Optional[List[str]] = None,
+        weights_path: Optional[str] = None,
         device: str = "cuda",
         **kwargs,
     ):
@@ -88,6 +128,9 @@ class Evo2Encoder(FoundationEncoder):
             )
 
         self.model_name = model_name
+        # Offline clusters cannot resolve by name; EVO2_WEIGHTS_DIR lets a site
+        # set one directory rather than threading a path through every config.
+        self.weights_path = weights_path or self._weights_from_environment(model_name)
         self._embedding_dim = self.MODELS[model_name]["embedding_dim"]
         self._model = None
 
@@ -105,6 +148,18 @@ class Evo2Encoder(FoundationEncoder):
             self._layer_names = [self.MODELS[model_name]["default_layer"]]
             self._multi_layer = False
 
+    @staticmethod
+    def _weights_from_environment(model_name: str) -> Optional[str]:
+        """A site-wide EVO2_WEIGHTS_DIR/<model_name> if it exists, else None."""
+        import os
+        from pathlib import Path
+
+        root = os.environ.get("EVO2_WEIGHTS_DIR")
+        if not root:
+            return None
+        candidate = Path(root) / model_name
+        return str(candidate) if candidate.exists() else None
+
     @property
     def layer_names(self) -> List[str]:
         return self._layer_names
@@ -121,7 +176,16 @@ class Evo2Encoder(FoundationEncoder):
         try:
             from evo2 import Evo2
 
-            self._model = Evo2(self.model_name)
+            if self.weights_path:
+                self._model = Evo2(self.model_name, local_path=self.weights_path)
+            else:
+                self._model = Evo2(self.model_name)
+
+            # No active dropout was found, but a teacher cache is only reproducible
+            # if repeated forwards agree, so say so rather than rely on it.
+            inner = getattr(self._model, "model", self._model)
+            if hasattr(inner, "eval"):
+                inner.eval()
 
         except ImportError as e:
             raise ImportError(
@@ -143,8 +207,14 @@ class Evo2Encoder(FoundationEncoder):
             Dict of pooled tensors if multi_layer, else single pooled tensor.
         """
         def _pool_one(hidden: Tensor) -> Tensor:
+            # Accumulate and return float32 on both paths. encode() used to stay
+            # bfloat16 while the batched path promoted via a .float() mask: two
+            # points 0.0026 apart in fp32 collapse to exactly 0.0 in bf16, and the
+            # operator is exp(-d^2 / 2 sigma^2) over cdist of these vectors, so
+            # bf16 pooling erases the near-neighbour structure it is built from.
+            hidden = hidden.float()
             if mask is not None:
-                m = mask.unsqueeze(-1).float().to(hidden.device)
+                m = mask.unsqueeze(-1).to(dtype=hidden.dtype, device=hidden.device)
                 return (hidden * m).sum(dim=1) / m.sum(dim=1).clamp(min=1)
             return hidden.mean(dim=1)
 
@@ -189,8 +259,10 @@ class Evo2Encoder(FoundationEncoder):
         encoded = [self._model.tokenizer.tokenize(seq) for seq in sequences]
         max_len = max(len(e) for e in encoded)
 
-        input_ids = torch.zeros(len(encoded), max_len, dtype=torch.int,
-                                device=self.device)
+        # torch.zeros padded with 0, which is EOS/EOD. The pad id is 1.
+        pad_id = getattr(self._model.tokenizer, "pad_id", 1)
+        input_ids = torch.full((len(encoded), max_len), pad_id, dtype=torch.int,
+                               device=self.device)
         attention_mask = torch.zeros(len(encoded), max_len, dtype=torch.bool,
                                      device=self.device)
 
