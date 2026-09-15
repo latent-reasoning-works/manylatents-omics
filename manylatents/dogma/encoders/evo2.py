@@ -117,6 +117,7 @@ class Evo2Encoder(FoundationEncoder):
         layer_name: Optional[str] = None,
         layer_names: Optional[List[str]] = None,
         weights_path: Optional[str] = None,
+        trainable: bool = False,
         device: str = "cuda",
         **kwargs,
     ):
@@ -131,6 +132,7 @@ class Evo2Encoder(FoundationEncoder):
         # Offline clusters cannot resolve by name; EVO2_WEIGHTS_DIR lets a site
         # set one directory rather than threading a path through every config.
         self.weights_path = weights_path or self._weights_from_environment(model_name)
+        self.trainable = trainable
         self._embedding_dim = self.MODELS[model_name]["embedding_dim"]
         self._model = None
 
@@ -147,6 +149,74 @@ class Evo2Encoder(FoundationEncoder):
         else:
             self._layer_names = [self.MODELS[model_name]["default_layer"]]
             self._multi_layer = False
+
+    def _dematerialise_inference_tensors(self) -> tuple[int, int]:
+        """Replace every parameter and buffer with an ordinary autograd tensor.
+
+        vortex/model/utils.py:102 wraps torch.load and the weight copy in
+        `with torch.inference_mode():`, so every loaded weight is an inference
+        tensor permanently. Such a tensor cannot be saved for backward whatever
+        its requires_grad flag says -- and Evo2-1B reports requires_grad=True on
+        all 1.108B parameters, which is why the flag is no guide. Cloning
+        outside that context is PyTorch's documented escape hatch.
+
+        Buffers are not optional. compute_filter evaluates
+        `(residues[..., None] * (log_poles * self.t).exp()).sum(1)` and `self.t`
+        is a buffer, so one inference operand poisons the graph even with clean
+        parameters. Spike 465441 converted 265 parameters and 4 buffers; see
+        docs/evo2_trainability.md.
+
+        Returns the counts, so a caller can assert the walk reached something.
+        """
+        inner = getattr(self._model, "model", self._model)
+        parameters = buffers = 0
+        for module in inner.modules():
+            for name, param in list(module._parameters.items()):
+                if param is None:
+                    continue
+                module._parameters[name] = torch.nn.Parameter(
+                    param.detach().clone(), requires_grad=param.requires_grad
+                )
+                parameters += 1
+            for name, buffer in list(module._buffers.items()):
+                if buffer is None:
+                    continue
+                module._buffers[name] = buffer.detach().clone()
+                buffers += 1
+        return parameters, buffers
+
+    def _forward_capturing(self, input_ids: Tensor) -> Dict[str, Tensor]:
+        """Forward with hooks that do NOT detach, bypassing Evo2.forward.
+
+        Evo2.forward wraps the model call in `with torch.no_grad():` and its own
+        embedding hook stores `output.detach()`. Either alone severs the graph,
+        so the trainable path calls the inner StripedHyena directly.
+        """
+        inner = getattr(self._model, "model", self._model)
+        captured: Dict[str, Tensor] = {}
+        modules = dict(inner.named_modules())
+        handles = []
+
+        def _make_hook(layer: str):
+            def hook(_module, _inputs, output):
+                captured[layer] = output[0] if isinstance(output, tuple) else output
+            return hook
+
+        try:
+            for layer in self._layer_names:
+                target = modules.get(layer)
+                if target is None:
+                    raise KeyError(f"layer {layer!r} does not resolve in {self.model_name}")
+                handles.append(target.register_forward_hook(_make_hook(layer)))
+            inner(input_ids)
+        finally:
+            for handle in handles:
+                handle.remove()
+
+        missing = [name for name in self._layer_names if name not in captured]
+        if missing:
+            raise RuntimeError(f"no activations captured for {missing}")
+        return captured
 
     @staticmethod
     def _weights_from_environment(model_name: str) -> Optional[str]:
@@ -186,6 +256,9 @@ class Evo2Encoder(FoundationEncoder):
             inner = getattr(self._model, "model", self._model)
             if hasattr(inner, "eval"):
                 inner.eval()
+
+            if self.trainable:
+                self._dematerialise_inference_tensors()
 
         except ImportError as e:
             raise ImportError(
@@ -239,6 +312,9 @@ class Evo2Encoder(FoundationEncoder):
             dtype=torch.int,
         ).unsqueeze(0).to(self.device)
 
+        if self.trainable:
+            return self._pool_embeddings(self._forward_capturing(input_ids))
+
         with torch.no_grad():
             _, embeddings = self._model(
                 input_ids,
@@ -275,11 +351,14 @@ class Evo2Encoder(FoundationEncoder):
 
     def _extract_embeddings(self, batch: dict) -> Union[Tensor, Dict[str, Tensor]]:
         """Single forward pass with masked mean pooling."""
-        _, embeddings = self._model(
-            batch["input_ids"],
-            return_embeddings=True,
-            layer_names=self._layer_names,
-        )
+        if self.trainable:
+            embeddings = self._forward_capturing(batch["input_ids"])
+        else:
+            _, embeddings = self._model(
+                batch["input_ids"],
+                return_embeddings=True,
+                layer_names=self._layer_names,
+            )
         return self._pool_embeddings(embeddings, mask=batch["attention_mask"])
 
     @property
