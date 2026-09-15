@@ -220,15 +220,27 @@ class Evo2Encoder(FoundationEncoder):
 
     @staticmethod
     def _weights_from_environment(model_name: str) -> Optional[str]:
-        """A site-wide EVO2_WEIGHTS_DIR/<model_name> if it exists, else None."""
+        """The merged checkpoint under EVO2_WEIGHTS_DIR, or None.
+
+        Evo2 passes `local_path` straight to load_checkpoint, which calls
+        torch.load on it, so this must resolve to the *file* and never to the
+        staging directory that contains it. The 40B stages as
+        <root>/evo2_40b/{evo2_40b.pt, evo2_40b.pt.part0, evo2_40b.pt.part1},
+        and returning that directory would hand torch.load a directory.
+        """
         import os
         from pathlib import Path
 
         root = os.environ.get("EVO2_WEIGHTS_DIR")
         if not root:
             return None
-        candidate = Path(root) / model_name
-        return str(candidate) if candidate.exists() else None
+        for candidate in (
+            Path(root) / model_name / f"{model_name}.pt",
+            Path(root) / f"{model_name}.pt",
+        ):
+            if candidate.is_file():
+                return str(candidate)
+        return None
 
     @property
     def layer_names(self) -> List[str]:

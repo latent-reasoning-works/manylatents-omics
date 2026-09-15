@@ -6,6 +6,8 @@ the pooled vectors must be trustworthy points, and the two pooling paths must
 agree, because teacher and student must see the same functional.
 """
 
+from pathlib import Path
+
 import pytest
 import torch
 
@@ -107,6 +109,30 @@ def test_weights_path_is_accepted_and_recorded():
     encoder = Evo2Encoder(model_name="evo2_1b_base", layer_name="blocks.14.mlp.l3",
                           weights_path="/weights/evo2_1b_base.pt", device="cpu")
     assert encoder.weights_path == "/weights/evo2_1b_base.pt"
+
+
+def test_weights_from_environment_returns_a_file_not_a_directory(tmp_path, monkeypatch):
+    """Evo2 passes local_path straight to load_checkpoint, which calls
+    torch.load on it. Returning the staging directory hands torch.load a
+    directory: the 40B stages as <root>/evo2_40b/evo2_40b.pt alongside its
+    two shards."""
+    root = tmp_path / "weights"
+    (root / "evo2_40b").mkdir(parents=True)
+    monkeypatch.setenv("EVO2_WEIGHTS_DIR", str(root))
+
+    # Directory present, checkpoint absent: must not be offered as a path.
+    assert Evo2Encoder._weights_from_environment("evo2_40b") is None
+
+    checkpoint = root / "evo2_40b" / "evo2_40b.pt"
+    checkpoint.write_bytes(b"weights")
+    resolved = Evo2Encoder._weights_from_environment("evo2_40b")
+    assert resolved == str(checkpoint)
+    assert Path(resolved).is_file()
+
+
+def test_weights_from_environment_is_none_without_the_variable(monkeypatch):
+    monkeypatch.delenv("EVO2_WEIGHTS_DIR", raising=False)
+    assert Evo2Encoder._weights_from_environment("evo2_1b_base") is None
 
 
 def test_unknown_model_name_is_rejected():

@@ -17,7 +17,10 @@ export EVO2_1B_PT=$(find $HF_HOME/hub/models--arcinstitute--evo2_1b_base -name "
 export CUDA_VISIBLE_DEVICES=0
 echo "checkpoint=$EVO2_1B_PT"
 
-"$OMICS/.venv-dna/bin/python" -u "$PROJECT/spike_evo2_trainable.py"
+# Run the committed script from its repository path: a copy dropped beside
+# the project root cannot be reproduced from a checkout.
+cd "$OMICS"
+"$OMICS/.venv-dna/bin/python" -u "$OMICS/scripts/spike_evo2_trainable.py"
 # Capture before the trailing echo: it would reset $? and SLURM would record
 # COMPLETED/0:0 for a spike that died.
 status=$?

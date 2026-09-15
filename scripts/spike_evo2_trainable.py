@@ -132,7 +132,9 @@ handle.remove()
 head("backward through the operator objective")
 if hidden is None or not hidden.requires_grad:
     print("VERDICT: NOT TRAINABLE -- no grad on hidden states")
-    raise SystemExit(0)
+    # Exit nonzero: the sbatch captures $? precisely so a negative verdict is
+    # not recorded by SLURM as a clean run.
+    raise SystemExit(1)
 
 try:
     pooled = hidden.float().mean(dim=1)
@@ -155,7 +157,14 @@ try:
     for name, norm in got[:5]:
         print(f"   {name}  |grad|={norm:.3e}")
     print(f"peak after backward {torch.cuda.max_memory_allocated() / 1e9:.1f} GB")
-    print("VERDICT: TRAINABLE" if got else "VERDICT: NOT TRAINABLE -- no parameter grads")
+    if got:
+        print("VERDICT: TRAINABLE")
+    else:
+        print("VERDICT: NOT TRAINABLE -- no parameter grads")
+        raise SystemExit(1)
+except SystemExit:
+    raise
 except Exception:
     traceback.print_exc()
     print("VERDICT: BACKWARD FAILED")
+    raise SystemExit(1)

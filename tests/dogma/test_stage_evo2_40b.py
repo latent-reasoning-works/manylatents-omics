@@ -40,6 +40,42 @@ def test_merged_file_of_the_wrong_size_is_refused(tmp_path: Path):
     assert "evo2_40b.pt" in result.stdout + result.stderr
 
 
+def test_shards_without_the_merge_are_refused(tmp_path: Path):
+    """Staging is complete only once the shards are merged: load_checkpoint
+    takes one file. Reporting a half-done stage as good is how a "verified"
+    directory fails at model load."""
+    for name in ("evo2_40b.pt.part0", "evo2_40b.pt.part1"):
+        with (tmp_path / name).open("wb") as handle:
+            handle.truncate(PART_BYTES)
+    result = _run("--verify-only", str(tmp_path))
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "not merged" in result.stdout + result.stderr
+
+
+def test_source_checksum_mismatch_is_refused(tmp_path: Path, monkeypatch):
+    """Sizes cannot tell a corrupted byte from a correct one."""
+    import hashlib
+    import os
+
+    for name in ("evo2_40b.pt.part0", "evo2_40b.pt.part1"):
+        with (tmp_path / name).open("wb") as handle:
+            handle.truncate(PART_BYTES)
+    with (tmp_path / "evo2_40b.pt").open("wb") as handle:
+        handle.truncate(2 * PART_BYTES)
+    checksums = tmp_path / "source.sha256"
+    checksums.write_text(
+        f"{'0' * 64}  /elsewhere/evo2_40b.pt.part0\n"
+        f"{'0' * 64}  /elsewhere/evo2_40b.pt.part1\n"
+    )
+    env = dict(os.environ, EVO2_40B_SOURCE_SHA256=str(checksums))
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "--verify-only", str(tmp_path)],
+        capture_output=True, text=True, env=env,
+    )
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "checksum mismatch" in result.stdout + result.stderr
+
+
 def test_correctly_staged_tree_passes(tmp_path: Path):
     for name in ("evo2_40b.pt.part0", "evo2_40b.pt.part1"):
         with (tmp_path / name).open("wb") as handle:
