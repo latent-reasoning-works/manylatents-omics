@@ -3,10 +3,16 @@
 Record for Task 5, ahead of a cluster run. `scripts/cache_evo2_teacher.sbatch`
 caches one (model, window) point per submission through
 `manylatents/dogma/algorithms/evo2_operator_cache.py`, and appends a JSON line
-of peak memory and wall-clock per batch to `evo2_window_budget.jsonl` at
-`RESULTS`. This document is the place those numbers land; **the sweep has not
-been run yet** -- this worker does not submit jobs (that's `shop`'s job), so
-the table below is the plan and the harness, not a result.
+of peak memory, wall-clock per batch, actual batch sizes and OOM events to
+`evo2_window_budget.jsonl` at `RESULTS`. This document is the place those
+numbers land; **the sweep has not been run yet** -- this worker does not SSH
+or submit jobs (no `sbatch`/`srun`; that's `shop`'s job), so the table below
+is the plan and the harness, not a result. The harness itself has been
+reviewed and fixed since the previous pass: it now warms the model up before
+timing, filters variant IDs and sequences as pairs rather than two lists
+filtered independently, and rejects sequences shorter than the requested
+window instead of silently measuring a smaller one (see
+`tests/dogma/test_evo2_operator_cache.py`).
 
 ## The sweep
 
@@ -29,33 +35,41 @@ for window in 1024 2048 4096 8192; do
 done
 ```
 
-Each job loads a `ClinVarDataModule` batch of DNA sequences, centers each on
-the variant at the requested `window_bp`, encodes with `Evo2Encoder` at that
-model's mid-depth layer (`blocks.14.mlp.l3` / `blocks.16.mlp.l3` /
-`blocks.25.mlp.l3` for 1B/7B/40B), and records `torch.cuda.max_memory_allocated`
-and wall-clock divided by the number of micro-batches.
+Each job loads a `ClinVarDataModule` batch of DNA sequences, pairs each ID
+with its sequence and centers it on the variant at the requested `window_bp`
+(`pair_and_window_sequences` -- sequences shorter than `window_bp` are
+excluded and reported rather than silently measured at a smaller window),
+loads and warms up `Evo2Encoder` at that model's mid-depth layer
+(`blocks.14.mlp.l3` / `blocks.16.mlp.l3` / `blocks.25.mlp.l3` for 1B/7B/40B)
+before measuring, and records `torch.cuda.max_memory_allocated`, wall-clock
+divided by the number of micro-batches *actually run*, the actual size of
+each micro-batch, and any OOM event -- so a completed row states what batch
+size it completed at rather than assuming the requested one held.
 
 ## Results
 
-| model | window_bp | peak_mem_gb | wall_clock_s_per_batch | notes |
-|---|---|---|---|---|
-| evo2_1b_base | 1024 | _pending_ | _pending_ | |
-| evo2_1b_base | 2048 | _pending_ | _pending_ | |
-| evo2_1b_base | 4096 | _pending_ | _pending_ | |
-| evo2_1b_base | 8192 | _pending_ | _pending_ | |
-| evo2_7b | 1024 | _pending_ | _pending_ | |
-| evo2_7b | 2048 | _pending_ | _pending_ | |
-| evo2_7b | 4096 | _pending_ | _pending_ | |
-| evo2_7b | 8192 | _pending_ | _pending_ | |
-| evo2_40b | 1024 | _pending_ | _pending_ | needs h200 |
-| evo2_40b | 2048 | _pending_ | _pending_ | needs h200 |
-| evo2_40b | 4096 | _pending_ | _pending_ | needs h200 |
-| evo2_40b | 8192 | _pending_ | _pending_ | needs h200 |
+| model | window_bp | peak_mem_gb | wall_clock_s_per_batch | actual_batch_sizes | num_oom_events | notes |
+|---|---|---|---|---|---|---|
+| evo2_1b_base | 1024 | _pending_ | _pending_ | _pending_ | _pending_ | |
+| evo2_1b_base | 2048 | _pending_ | _pending_ | _pending_ | _pending_ | |
+| evo2_1b_base | 4096 | _pending_ | _pending_ | _pending_ | _pending_ | |
+| evo2_1b_base | 8192 | _pending_ | _pending_ | _pending_ | _pending_ | |
+| evo2_7b | 1024 | _pending_ | _pending_ | _pending_ | _pending_ | |
+| evo2_7b | 2048 | _pending_ | _pending_ | _pending_ | _pending_ | |
+| evo2_7b | 4096 | _pending_ | _pending_ | _pending_ | _pending_ | |
+| evo2_7b | 8192 | _pending_ | _pending_ | _pending_ | _pending_ | |
+| evo2_40b | 1024 | _pending_ | _pending_ | _pending_ | _pending_ | needs h200 |
+| evo2_40b | 2048 | _pending_ | _pending_ | _pending_ | _pending_ | needs h200 |
+| evo2_40b | 4096 | _pending_ | _pending_ | _pending_ | _pending_ | needs h200 |
+| evo2_40b | 8192 | _pending_ | _pending_ | _pending_ | _pending_ | needs h200 |
 
 Fill this table from `evo2_window_budget.jsonl` once the sweep has run, and
-replace "_pending_" rather than leaving stale numbers if a job OOMs --
-`encode_batch` halves its micro-batch size on OOM and keeps going, so a row
-completing at all does not mean it completed at the requested `batch_size`.
+replace "_pending_" rather than leaving stale numbers if a job OOMs. The
+harness now records the actual per-batch size and OOM count directly (it no
+longer relies on `encode_batch`'s own silent halve-and-retry), so a row
+completing at all does not mean it completed at the requested `batch_size` --
+read `actual_batch_sizes` and `num_oom_events` from the JSON line, not just
+`peak_mem_gb`.
 
 ## What is already known without running it
 

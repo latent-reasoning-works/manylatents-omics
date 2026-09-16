@@ -12,7 +12,11 @@
 # Caches ONE frozen Evo2 teacher's pooled ClinVar representations plus the
 # sigma its operator is built from (manylatents/dogma/algorithms/
 # evo2_operator_cache.py), and records peak GPU memory and wall-clock per
-# batch for the window budget in docs/evo2_window_budget.md.
+# batch for the window budget in docs/evo2_window_budget.md. Measurement
+# starts only after the model is loaded and warmed up, and records the
+# actual per-batch size and any OOM event rather than assuming the
+# requested batch size held; sequences shorter than WINDOW_BP are excluded
+# and reported rather than silently measured at a smaller window.
 #
 # MODEL_NAME and WINDOW_BP select one point of the sweep; submit once per
 # (model, window) pair rather than hardcoding a matrix here, e.g.:
@@ -83,6 +87,7 @@ from pathlib import Path
 import torch
 
 from manylatents.dogma.algorithms.evo2_operator_cache import (
+    pair_and_window_sequences,
     teacher_sigma,
     write_teacher_cache,
 )
@@ -95,22 +100,20 @@ window_bp = int(window_bp)
 max_variants = int(max_variants)
 batch_size = int(batch_size)
 
-
-def center_window(seq: str, window_bp: int) -> str:
-    """The ClinVar FASTA is centered on the variant; take window_bp around
-    that same center rather than the sequence start, so a shorter window
-    still covers the variant."""
-    if len(seq) <= window_bp:
-        return seq
-    mid = len(seq) // 2
-    half = window_bp // 2
-    return seq[mid - half : mid - half + window_bp]
-
-
 dm = ClinVarDataModule(data_dir=clinvar_dir, max_variants=max_variants, batch_size=batch_size)
 dm.setup()
-variant_ids = dm.get_variant_ids()
-sequences = [center_window(s, window_bp) for s in dm.get_sequences()["dna"] if s]
+# IDs and sequences are filtered and windowed together here, never as two
+# independently-filtered lists: an ID list that drops a missing sequence by
+# position rather than by pairing shifts every later ID out of alignment
+# with the representation it is meant to describe.
+variant_ids, sequences, insufficient = pair_and_window_sequences(
+    dm.get_variant_ids(), dm.get_sequences()["dna"], window_bp,
+)
+if not sequences:
+    raise ValueError(
+        f"no sequence has >= {window_bp}bp of context; "
+        f"longest available is {max((n for _, n in insufficient), default=0)}bp"
+    )
 
 encoder = Evo2Encoder(
     model_name=model_name,
@@ -119,13 +122,46 @@ encoder = Evo2Encoder(
     device="cuda",
 )
 
-torch.cuda.reset_peak_memory_stats()
-start = time.perf_counter()
-representations = encoder.encode_batch(sequences, batch_size=batch_size, show_progress=False)
+# Load and warm up before measuring: model loading and first-call kernel
+# autotuning happen once and must not be charged to "wall-clock per batch".
+encoder._ensure_loaded()
+warmup_chunk = sequences[: min(batch_size, len(sequences))]
+with torch.no_grad():
+    encoder._extract_embeddings(encoder._tokenize_batch(warmup_chunk))
 torch.cuda.synchronize()
-elapsed_s = time.perf_counter() - start
-num_batches = max(1, -(-len(sequences) // batch_size))  # ceil division
+
+# Bypass encode_batch's own silent OOM backoff so the actual batch size used
+# for each micro-batch -- and every OOM event -- is visible in the record
+# below, not only logged and discarded.
+torch.cuda.reset_peak_memory_stats()
+representation_chunks = []
+actual_batch_sizes = []
+num_oom_events = 0
+current_bs = batch_size
+cursor = 0
+wall_start = time.perf_counter()
+while cursor < len(sequences):
+    chunk = sequences[cursor : cursor + current_bs]
+    try:
+        batch_inputs = encoder._tokenize_batch(chunk)
+        with torch.no_grad():
+            embeddings = encoder._extract_embeddings(batch_inputs)
+        representation_chunks.append(embeddings.float().cpu())
+        actual_batch_sizes.append(len(chunk))
+        cursor += current_bs
+    except torch.cuda.OutOfMemoryError:
+        torch.cuda.empty_cache()
+        num_oom_events += 1
+        if current_bs <= 1:
+            raise RuntimeError(
+                f"OOM even at batch_size=1 (window_bp={window_bp}, model={model_name})"
+            )
+        current_bs = max(1, current_bs // 2)
+torch.cuda.synchronize()
+elapsed_s = time.perf_counter() - wall_start
 peak_mem_gb = torch.cuda.max_memory_allocated() / 2**30
+representations = torch.cat(representation_chunks, dim=0)
+num_batches = len(actual_batch_sizes)
 
 sigma = teacher_sigma(representations, quantile=0.25)
 
@@ -133,7 +169,7 @@ cache_dir = Path(cache_root) / model_name / f"window_{window_bp}"
 write_teacher_cache(
     cache_dir, representations, sigma=sigma, layer=layer,
     model_name=model_name, window_bp=window_bp, pooling="masked_mean",
-    variant_ids=variant_ids[: len(sequences)],
+    variant_ids=variant_ids,
 )
 
 record = {
@@ -141,9 +177,14 @@ record = {
     "window_bp": window_bp,
     "layer": layer,
     "num_sequences": len(sequences),
-    "batch_size": batch_size,
+    "num_insufficient_context": len(insufficient),
+    "insufficient_context_lengths": sorted({n for _, n in insufficient}),
+    "requested_batch_size": batch_size,
+    "num_batches": num_batches,
+    "actual_batch_sizes": actual_batch_sizes,
+    "num_oom_events": num_oom_events,
     "peak_mem_gb": round(peak_mem_gb, 3),
-    "wall_clock_s_per_batch": round(elapsed_s / num_batches, 3),
+    "wall_clock_s_per_batch": round(elapsed_s / num_batches, 3) if num_batches else None,
     "cache_dir": str(cache_dir),
 }
 print(json.dumps(record))

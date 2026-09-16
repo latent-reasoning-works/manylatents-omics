@@ -7,6 +7,9 @@ sigma. The cache on disk is a directory holding `representations.pt`,
 `splits.json`, `manifest.json` and `completed.json` -- the manifest records
 `pooling`, `layer`, `sigma`, `window_bp` and `model_name`, and a cache missing
 the `pooling` marker is refused rather than silently consumed as unpooled.
+`pair_and_window_sequences` keeps a variant's ID attached to its sequence
+through filtering and windowing, so a missing sequence cannot shift every
+later ID out of alignment with the representation it names.
 """
 
 from __future__ import annotations
@@ -14,7 +17,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import torch
 from torch import Tensor
@@ -36,6 +39,40 @@ def teacher_sigma(representations: Tensor, quantile: float = 0.25) -> Tensor:
     n = distances.shape[0]
     off_diagonal = distances[~torch.eye(n, dtype=torch.bool, device=distances.device)]
     return torch.quantile(off_diagonal, quantile)
+
+
+def pair_and_window_sequences(
+    variant_ids: List[str],
+    sequences: List[str],
+    window_bp: int,
+) -> Tuple[List[str], List[str], List[Tuple[str, int]]]:
+    """Pair each variant ID with its DNA sequence and center it on window_bp.
+
+    IDs and sequences must be filtered together: dropping a missing
+    sequence independently of its ID shifts every later ID out of
+    alignment with the representation it is meant to describe. A sequence
+    shorter than window_bp cannot supply that much context, so it is
+    reported in the third return value and excluded rather than silently
+    measured at a smaller-than-requested window.
+
+    Returns (kept_variant_ids, windowed_sequences, insufficient), where
+    insufficient is a list of (variant_id, actual_length) pairs for
+    sequences too short for the requested window.
+    """
+    kept_ids: List[str] = []
+    windowed: List[str] = []
+    insufficient: List[Tuple[str, int]] = []
+    for variant_id, seq in zip(variant_ids, sequences):
+        if not seq:
+            continue
+        if len(seq) < window_bp:
+            insufficient.append((variant_id, len(seq)))
+            continue
+        mid = len(seq) // 2
+        half = window_bp // 2
+        kept_ids.append(variant_id)
+        windowed.append(seq[mid - half : mid - half + window_bp])
+    return kept_ids, windowed, insufficient
 
 
 def soft_diffop(representations: Tensor, sigma: Tensor) -> Tensor:
