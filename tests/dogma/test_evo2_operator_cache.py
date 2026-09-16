@@ -89,31 +89,45 @@ def test_operator_matches_a_non_cdist_reference_at_production_width(embedding_di
     cdist path that cancels catastrophically above ~25 rows must also be
     checked at the widths teachers actually produce."""
     torch.manual_seed(0)
-    representations = torch.randn(32, embedding_dim)
+    representations = torch.randn(64, embedding_dim)
     sigma = teacher_sigma(representations, quantile=0.25)
     operator = soft_diffop(representations, sigma)
     reference = _reference_operator(representations, sigma)
     assert torch.allclose(operator, reference, atol=1e-5)
 
 
-def test_bf16_pooled_representations_recover_the_float64_reference_operator():
-    """A dtype check alone cannot catch a value regression: pool bfloat16
-    hidden states through Evo2Encoder._pool_embeddings (production width,
-    1920) the way a teacher run does, and check the resulting operator
-    against an independent reference built from those same recovered values,
-    not merely that the output happens to be labelled float32."""
-    torch.manual_seed(0)
-    hidden = torch.randn(4, 6, 1920, dtype=torch.bfloat16)
-    encoder = Evo2Encoder(
-        model_name="evo2_1b_base", layer_name="blocks.14.mlp.l3", device="cpu"
-    )
-    pooled = encoder._pool_embeddings(
-        {"blocks.14.mlp.l3": hidden}, mask=torch.ones(4, 6, dtype=torch.bool)
-    )
-    sigma = teacher_sigma(pooled, quantile=0.25)
-    operator = soft_diffop(pooled, sigma)
-    reference = _reference_operator(pooled, sigma)
-    assert torch.allclose(operator, reference, atol=1e-5)
+@pytest.mark.parametrize("model_name,width,layer", [
+    ("evo2_1b_base", 1920, "blocks.14.mlp.l3"),
+    ("evo2_7b", 4096, "blocks.16.mlp.l3"),
+    ("evo2_40b", 8192, "blocks.25.mlp.l3"),
+])
+@pytest.mark.parametrize("window", [1024, 2048, 4096, 8192])
+def test_bf16_pooling_from_hidden_state_reference(model_name, width, layer, window):
+    # Structured broadcast states keep fixtures small while exercising the full
+    # production pooling shape: eight batches of eight rows, all window sizes.
+    generator = torch.Generator().manual_seed(42)
+    encoder = Evo2Encoder(model_name=model_name, layer_name=layer, device="cpu")
+    pooled_rows, reference_rows = [], []
+    for _ in range(8):
+        values = torch.randn(8, window, 1, generator=generator).bfloat16()
+        hidden = values.expand(8, window, width)
+        mask = torch.arange(window)[None, :] < torch.arange(window - 7, window + 1)[:, None]
+        pooled = encoder._pool_embeddings({layer: hidden}, mask=mask)
+        # Independent float64 reference starts at the bf16 hidden states.
+        expected = ((values.double().squeeze(-1) * mask).sum(1) / mask.sum(1))
+        expected = expected[:, None].expand(8, width)
+        torch.testing.assert_close(pooled.double(), expected, atol=1e-7, rtol=1e-5)
+        pooled_rows.append(pooled)
+        reference_rows.append(expected)
+    pooled = torch.cat(pooled_rows)
+    reference = torch.cat(reference_rows)
+    distances = ((reference[:, None] - reference[None, :]) ** 2).sum(-1).sqrt()
+    sigma_reference = torch.quantile(distances[~torch.eye(64, dtype=torch.bool)], 0.25)
+    sigma = teacher_sigma(pooled)
+    torch.testing.assert_close(sigma.double(), sigma_reference, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(soft_diffop(pooled, sigma),
+                               _reference_operator(reference, sigma_reference),
+                               atol=1e-5, rtol=1e-5)
 
 
 def test_cache_without_a_pooling_marker_is_refused(tmp_path):
@@ -202,3 +216,90 @@ def test_pair_and_window_centers_on_the_sequence_midpoint():
     kept_ids, windowed, _ = pair_and_window_sequences(["v"], [seq], window_bp=4)
     assert kept_ids == ["v"]
     assert windowed == ["AAAA"]
+
+
+def _write_cache(path):
+    write_teacher_cache(path, torch.randn(16, 8), torch.tensor(2.5),
+                        "blocks.16.mlp.l3", "evo2_7b", 4096, "masked_mean")
+
+
+@pytest.mark.parametrize("filename", ["manifest.json", "completed.json", "splits.json", "representations.pt"])
+def test_incomplete_cache_is_refused(tmp_path, filename):
+    _write_cache(tmp_path)
+    (tmp_path / filename).unlink()
+    with pytest.raises(ValueError, match=filename):
+        load_teacher_cache(tmp_path)
+
+
+def test_completed_row_count_is_validated(tmp_path):
+    _write_cache(tmp_path)
+    (tmp_path / "completed.json").write_text('{"num_rows": 100}')
+    with pytest.raises(ValueError, match="num_rows"):
+        load_teacher_cache(tmp_path)
+
+
+def test_existing_cache_is_immutable(tmp_path):
+    _write_cache(tmp_path)
+    before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
+    with pytest.raises(FileExistsError):
+        _write_cache(tmp_path)
+    assert before == {p.name: p.read_bytes() for p in tmp_path.iterdir()}
+
+
+def test_interrupted_write_never_publishes(tmp_path, monkeypatch):
+    target = tmp_path / "cache"
+    def fail_save(*args, **kwargs):
+        assert not target.exists()
+        raise OSError("interrupted")
+    monkeypatch.setattr(torch, "save", fail_save)
+    with pytest.raises(OSError, match="interrupted"):
+        _write_cache(target)
+    assert not target.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("fail_calls, expected_sizes, status", [
+    ({1}, [4, 4], "completed"),  # warmup OOM
+    ({2}, [4, 4], "completed"),  # measured OOM
+    ({1, 2, 3, 4}, [], "oom"),  # warmup fails at one
+    ({2, 3, 4, 5}, [], "oom"),  # measured fails at one
+])
+def test_measurement_oom_reporting(monkeypatch, fail_calls, expected_sizes, status):
+    from manylatents.dogma.algorithms.evo2_operator_cache import measure_teacher
+    class Encoder:
+        calls = 0
+        def _tokenize_batch(self, chunk):
+            return chunk
+        def _extract_embeddings(self, chunk):
+            self.calls += 1
+            if self.calls in fail_calls:
+                raise torch.cuda.OutOfMemoryError("synthetic OOM")
+            return torch.ones(len(chunk), 2)
+    for name in ["synchronize", "empty_cache", "reset_peak_memory_stats"]:
+        monkeypatch.setattr(torch.cuda, name, lambda: None)
+    monkeypatch.setattr(torch.cuda, "max_memory_allocated", lambda: 1024)
+    reps, record = measure_teacher(Encoder(), ["ACGT"] * 8, 8)
+    assert record["status"] == status
+    assert record["actual_batch_sizes"] == expected_sizes
+    assert record["num_oom_events"] == len(fail_calls)
+    assert (reps is None) == (status == "oom")
+
+
+@pytest.mark.parametrize("filename", ["splits.json", "manifest.json", "completed.json"])
+def test_interrupted_metadata_write_never_publishes(tmp_path, monkeypatch, filename):
+    from pathlib import Path
+
+    target = tmp_path / "cache"
+    original = Path.write_text
+
+    def interrupted(path, *args, **kwargs):
+        assert not target.exists()
+        if path.name == filename:
+            raise OSError("interrupted")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", interrupted)
+    with pytest.raises(OSError, match="interrupted"):
+        _write_cache(target)
+    assert not target.exists()
+    assert list(tmp_path.iterdir()) == []

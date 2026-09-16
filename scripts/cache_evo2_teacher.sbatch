@@ -2,7 +2,7 @@
 #SBATCH --job-name=cache_evo2_teacher
 #SBATCH --account=aip-wolfg
 #SBATCH --partition=gpubase_bynode_b1
-#SBATCH --gpus-per-node=h100:1
+#SBATCH --gpus-per-node=h100:4
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --time=1:00:00
@@ -46,6 +46,7 @@ export HF_HOME=$PROJECT/models/huggingface
 # below and are located explicitly instead.
 export EVO2_WEIGHTS_DIR=$PROJECT/models
 export CUDA_VISIBLE_DEVICES=0
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 WANDB_MODE=offline
 
 MODEL_NAME="${MODEL_NAME:?set MODEL_NAME to evo2_1b_base, evo2_7b or evo2_40b}"
 WINDOW_BP="${WINDOW_BP:?set WINDOW_BP, e.g. 1024, 2048, 4096 or 8192}"
@@ -81,12 +82,12 @@ cd "$OMICS"
   "$MAX_VARIANTS" "$BATCH_SIZE" "$CACHE_ROOT" "$RESULTS" << 'PYEOF'
 import json
 import sys
-import time
 from pathlib import Path
 
 import torch
 
 from manylatents.dogma.algorithms.evo2_operator_cache import (
+    measure_teacher,
     pair_and_window_sequences,
     teacher_sigma,
     write_teacher_cache,
@@ -122,55 +123,32 @@ encoder = Evo2Encoder(
     device="cuda",
 )
 
-# Load and warm up before measuring: model loading and first-call kernel
-# autotuning happen once and must not be charged to "wall-clock per batch".
-encoder._ensure_loaded()
-warmup_chunk = sequences[: min(batch_size, len(sequences))]
-with torch.no_grad():
-    encoder._extract_embeddings(encoder._tokenize_batch(warmup_chunk))
-torch.cuda.synchronize()
-
-# Bypass encode_batch's own silent OOM backoff so the actual batch size used
-# for each micro-batch -- and every OOM event -- is visible in the record
-# below, not only logged and discarded.
-torch.cuda.reset_peak_memory_stats()
-representation_chunks = []
-actual_batch_sizes = []
-num_oom_events = 0
-current_bs = batch_size
-cursor = 0
-wall_start = time.perf_counter()
-while cursor < len(sequences):
-    chunk = sequences[cursor : cursor + current_bs]
-    try:
-        batch_inputs = encoder._tokenize_batch(chunk)
-        with torch.no_grad():
-            embeddings = encoder._extract_embeddings(batch_inputs)
-        representation_chunks.append(embeddings.float().cpu())
-        actual_batch_sizes.append(len(chunk))
-        cursor += current_bs
-    except torch.cuda.OutOfMemoryError:
-        torch.cuda.empty_cache()
-        num_oom_events += 1
-        if current_bs <= 1:
-            raise RuntimeError(
-                f"OOM even at batch_size=1 (window_bp={window_bp}, model={model_name})"
-            )
-        current_bs = max(1, current_bs // 2)
-torch.cuda.synchronize()
-elapsed_s = time.perf_counter() - wall_start
-peak_mem_gb = torch.cuda.max_memory_allocated() / 2**30
-representations = torch.cat(representation_chunks, dim=0)
-num_batches = len(actual_batch_sizes)
-
-sigma = teacher_sigma(representations, quantile=0.25)
+# Model loading is excluded from batch timing but terminal load OOMs still
+# produce a results row. Warmup and measured batches share explicit backoff.
+try:
+    encoder._ensure_loaded()
+except torch.cuda.OutOfMemoryError:
+    representations = None
+    measurement = {
+        "status": "oom", "failure_phase": "model_load", "num_oom_events": 1,
+        "oom_phases": ["model_load"], "actual_batch_sizes": [], "num_batches": 0,
+        "peak_mem_gb": torch.cuda.max_memory_allocated() / 2**30,
+        "wall_clock_s_per_batch": None,
+    }
+else:
+    representations, measurement = measure_teacher(encoder, sequences, batch_size)
 
 cache_dir = Path(cache_root) / model_name / f"window_{window_bp}"
-write_teacher_cache(
-    cache_dir, representations, sigma=sigma, layer=layer,
-    model_name=model_name, window_bp=window_bp, pooling="masked_mean",
-    variant_ids=variant_ids,
-)
+if representations is not None:
+    try:
+        sigma = teacher_sigma(representations, quantile=0.25)
+        write_teacher_cache(
+            cache_dir, representations, sigma=sigma, layer=layer,
+            model_name=model_name, window_bp=window_bp, pooling="masked_mean",
+            variant_ids=variant_ids,
+        )
+    except Exception as exc:
+        measurement.update(status="cache_error", error=str(exc))
 
 record = {
     "model_name": model_name,
@@ -180,12 +158,8 @@ record = {
     "num_insufficient_context": len(insufficient),
     "insufficient_context_lengths": sorted({n for _, n in insufficient}),
     "requested_batch_size": batch_size,
-    "num_batches": num_batches,
-    "actual_batch_sizes": actual_batch_sizes,
-    "num_oom_events": num_oom_events,
-    "peak_mem_gb": round(peak_mem_gb, 3),
-    "wall_clock_s_per_batch": round(elapsed_s / num_batches, 3) if num_batches else None,
-    "cache_dir": str(cache_dir),
+    **measurement,
+    "cache_dir": str(cache_dir) if measurement["status"] == "completed" else None,
 }
 print(json.dumps(record))
 
@@ -193,6 +167,8 @@ results_file = Path(results_path)
 results_file.parent.mkdir(parents=True, exist_ok=True)
 with open(results_file, "a") as f:
     f.write(json.dumps(record) + "\n")
+if record["status"] != "completed":
+    sys.exit(1)
 PYEOF
 # Capture before the trailing echo: it would reset $? and SLURM would record
 # COMPLETED/0:0 for a run that died.

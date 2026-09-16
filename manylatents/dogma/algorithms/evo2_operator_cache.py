@@ -15,6 +15,8 @@ later ID out of alignment with the representation it names.
 from __future__ import annotations
 
 import json
+import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
@@ -138,6 +140,7 @@ def write_teacher_cache(
 ) -> None:
     """Write a teacher's pooled representations and one derived sigma to disk.
 
+    Publishes an immutable directory atomically; reruns need a fresh path.
     Refuses a non-scalar sigma: a per-tensor sigma rescales with the
     student and the loss can no longer see a global rescaling at all.
     """
@@ -145,25 +148,32 @@ def write_teacher_cache(
         raise ValueError(f"sigma must be a scalar, got shape {tuple(sigma.shape)}")
 
     cache_dir = Path(cache_dir)
-    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_dir.parent.mkdir(parents=True, exist_ok=True)
+    if cache_dir.exists() and any(cache_dir.iterdir()):
+        raise FileExistsError(f"cache is immutable; choose a new directory: {cache_dir}")
+    # Same-filesystem rename publishes all four files together. Existing nonempty
+    # directories cannot be replaced, including by concurrent writers.
+    with tempfile.TemporaryDirectory(prefix=f".{cache_dir.name}-", dir=cache_dir.parent) as tmp:
+        staging = Path(tmp) / "cache"
+        staging.mkdir()
+        torch.save(representations, staging / "representations.pt")
 
-    torch.save(representations, cache_dir / "representations.pt")
+        n = representations.shape[0]
+        resolved_splits = splits if splits is not None else _default_splits(n, seed=seed)
+        splits_payload = {"variant_ids": variant_ids, **resolved_splits}
+        (staging / "splits.json").write_text(json.dumps(splits_payload))
 
-    n = representations.shape[0]
-    resolved_splits = splits if splits is not None else _default_splits(n, seed=seed)
-    splits_payload = {"variant_ids": variant_ids, **resolved_splits}
-    (cache_dir / "splits.json").write_text(json.dumps(splits_payload))
+        manifest = {
+            "pooling": pooling,
+            "layer": layer,
+            "sigma": float(sigma),
+            "window_bp": window_bp,
+            "model_name": model_name,
+        }
+        (staging / "manifest.json").write_text(json.dumps(manifest))
 
-    manifest = {
-        "pooling": pooling,
-        "layer": layer,
-        "sigma": float(sigma),
-        "window_bp": window_bp,
-        "model_name": model_name,
-    }
-    (cache_dir / "manifest.json").write_text(json.dumps(manifest))
-
-    (cache_dir / "completed.json").write_text(json.dumps({"num_rows": n}))
+        (staging / "completed.json").write_text(json.dumps({"num_rows": n}))
+        staging.rename(cache_dir)
 
 
 def load_teacher_cache(cache_dir: Union[str, Path]) -> TeacherCache:
@@ -174,6 +184,8 @@ def load_teacher_cache(cache_dir: Union[str, Path]) -> TeacherCache:
     student that assumes masked-mean rows.
     """
     cache_dir = Path(cache_dir)
+    if not (cache_dir / "manifest.json").is_file():
+        raise ValueError("incomplete cache: missing manifest.json")
     manifest = json.loads((cache_dir / "manifest.json").read_text())
 
     if "pooling" not in manifest:
@@ -187,10 +199,19 @@ def load_teacher_cache(cache_dir: Union[str, Path]) -> TeacherCache:
             "refusing to load a cache with no teacher-derived bandwidth"
         )
 
-    representations = torch.load(cache_dir / "representations.pt")
-
-    splits_path = cache_dir / "splits.json"
-    splits = json.loads(splits_path.read_text()) if splits_path.is_file() else {}
+    for filename in ("completed.json", "splits.json", "representations.pt"):
+        if not (cache_dir / filename).is_file():
+            raise ValueError(f"incomplete cache: missing {filename}")
+    completed = json.loads((cache_dir / "completed.json").read_text())
+    representations = torch.load(cache_dir / "representations.pt", map_location="cpu", weights_only=True)
+    if completed.get("num_rows") != representations.shape[0]:
+        raise ValueError("completed.json num_rows disagrees with representations")
+    splits = json.loads((cache_dir / "splits.json").read_text())
+    if not all(key in splits for key in ("train", "val", "test", "variant_ids")):
+        raise ValueError("splits.json is missing required row mapping fields")
+    ids = splits["variant_ids"]
+    if ids is not None and len(ids) != representations.shape[0]:
+        raise ValueError("splits.json variant_ids disagrees with num_rows")
 
     return TeacherCache(
         representations=representations,
@@ -201,3 +222,62 @@ def load_teacher_cache(cache_dir: Union[str, Path]) -> TeacherCache:
         window_bp=manifest.get("window_bp"),
         splits=splits,
     )
+
+
+def measure_teacher(encoder, sequences, batch_size):
+    """Measure frozen inference, reporting warmup and measured OOMs alike.
+
+    Returns (representations or None, JSON-compatible record). The caller must
+    persist the record before exiting nonzero on terminal OOM.
+    """
+    if batch_size < 1 or not sequences:
+        raise ValueError("measurement needs sequences and a positive batch_size")
+    record = {"status": "completed", "actual_batch_sizes": [],
+              "num_oom_events": 0, "oom_phases": [], "num_batches": 0,
+              "wall_clock_s_per_batch": None}
+    current_bs = min(batch_size, len(sequences))
+    chunks = []
+    started = None
+    torch.cuda.reset_peak_memory_stats()
+
+    def extract(chunk):
+        with torch.no_grad():
+            result = encoder._extract_embeddings(encoder._tokenize_batch(chunk))
+            torch.cuda.synchronize()
+            return result.float().cpu()
+
+    for phase in ("warmup", "measurement"):
+        cursor = 0
+        if phase == "measurement":
+            started = time.perf_counter()
+        while cursor < len(sequences):
+            failed = False
+            try:
+                result = extract(sequences[cursor:cursor + current_bs])
+            except torch.cuda.OutOfMemoryError:
+                failed = True
+            # Leave the exception scope before clearing CUDA memory, releasing
+            # traceback-held activations before retrying.
+            if failed:
+                record["num_oom_events"] += 1
+                record["oom_phases"].append(phase)
+                torch.cuda.empty_cache()
+                if current_bs == 1:
+                    record["status"] = "oom"
+                    record["failure_phase"] = phase
+                    break
+                current_bs = max(1, current_bs // 2)
+                continue
+            if phase == "warmup":
+                del result
+                break
+            chunks.append(result)
+            record["actual_batch_sizes"].append(len(result))
+            cursor += len(result)
+        if record["status"] == "oom":
+            break
+    record["num_batches"] = len(chunks)
+    record["peak_mem_gb"] = torch.cuda.max_memory_allocated() / 2**30
+    if started is not None and chunks:
+        record["wall_clock_s_per_batch"] = (time.perf_counter() - started) / len(chunks)
+    return (torch.cat(chunks) if record["status"] == "completed" else None), record
