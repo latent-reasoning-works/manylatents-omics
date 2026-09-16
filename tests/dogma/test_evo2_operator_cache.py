@@ -42,6 +42,40 @@ def test_sigma_is_one_scalar():
     assert torch.isfinite(sigma) and sigma > 0
 
 
+@pytest.mark.parametrize("embedding_dim", [1920, 4096, 8192])
+@pytest.mark.parametrize("distinct_rows", [0, 8])
+def test_sigma_rejects_degenerate_production_width(embedding_dim, distinct_rows):
+    representations = torch.ones(64, embedding_dim)
+    representations[:distinct_rows] = 2
+    with pytest.raises(ValueError, match="sigma.*positive"):
+        teacher_sigma(representations)
+
+
+@pytest.mark.parametrize("bad_sigma", [0.0, -1.0, float("nan"), float("inf"), -float("inf")])
+def test_write_rejects_invalid_sigma_before_publication(tmp_path, bad_sigma):
+    target = tmp_path / "cache"
+    with pytest.raises(ValueError, match="sigma"):
+        write_teacher_cache(
+            target, torch.ones(64, 8192), torch.tensor(bad_sigma),
+            "blocks.25.mlp.l3", "evo2_40b", 1024, "masked_mean",
+        )
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("bad_sigma", [0.0, -1.0, float("nan"), float("inf"), -float("inf"), [1.0, 2.0]])
+def test_load_rejects_invalid_cached_sigma(tmp_path, bad_sigma):
+    write_teacher_cache(
+        tmp_path, torch.ones(64, 8192), torch.tensor(2.5),
+        "blocks.25.mlp.l3", "evo2_40b", 1024, "masked_mean",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["sigma"] = bad_sigma
+    manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="sigma"):
+        load_teacher_cache(tmp_path)
+
+
 def test_sigma_is_blind_to_nothing_but_the_teacher():
     """Scaling the teacher scales its bandwidth: sigma is a length in the
     teacher's own space, not a normalised constant."""

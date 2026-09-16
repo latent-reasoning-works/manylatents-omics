@@ -25,6 +25,16 @@ import torch
 from torch import Tensor
 
 
+def _validate_sigma(sigma: Tensor) -> Tensor:
+    """Require one finite, positive bandwidth in the operator's float32 dtype."""
+    if sigma.numel() != 1:
+        raise ValueError(f"sigma must be a scalar, got shape {tuple(sigma.shape)}")
+    sigma = sigma.float().reshape(())
+    if not torch.isfinite(sigma) or sigma <= 0:
+        raise ValueError("sigma must be finite and strictly positive")
+    return sigma
+
+
 def teacher_sigma(representations: Tensor, quantile: float = 0.25) -> Tensor:
     """One bandwidth, taken from the teacher's own pairwise distances.
 
@@ -40,7 +50,7 @@ def teacher_sigma(representations: Tensor, quantile: float = 0.25) -> Tensor:
     )
     n = distances.shape[0]
     off_diagonal = distances[~torch.eye(n, dtype=torch.bool, device=distances.device)]
-    return torch.quantile(off_diagonal, quantile)
+    return _validate_sigma(torch.quantile(off_diagonal, quantile))
 
 
 def pair_and_window_sequences(
@@ -88,7 +98,7 @@ def soft_diffop(representations: Tensor, sigma: Tensor) -> Tensor:
     regardless of the data.
     """
     representations = representations.float()
-    sigma = sigma.float()
+    sigma = _validate_sigma(sigma)
     distances = torch.cdist(
         representations,
         representations,
@@ -141,11 +151,10 @@ def write_teacher_cache(
     """Write a teacher's pooled representations and one derived sigma to disk.
 
     Publishes an immutable directory atomically; reruns need a fresh path.
-    Refuses a non-scalar sigma: a per-tensor sigma rescales with the
-    student and the loss can no longer see a global rescaling at all.
+    Refuses non-scalar, nonfinite and nonpositive bandwidths before writing
+    any files. Degenerate teachers must not publish unusable operators.
     """
-    if sigma.numel() != 1:
-        raise ValueError(f"sigma must be a scalar, got shape {tuple(sigma.shape)}")
+    sigma = _validate_sigma(sigma)
 
     cache_dir = Path(cache_dir)
     cache_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -199,6 +208,12 @@ def load_teacher_cache(cache_dir: Union[str, Path]) -> TeacherCache:
             "refusing to load a cache with no teacher-derived bandwidth"
         )
 
+    try:
+        sigma = torch.tensor(manifest["sigma"], dtype=torch.float32)
+    except (TypeError, ValueError, RuntimeError, OverflowError) as exc:
+        raise ValueError("sigma must be a finite, strictly positive scalar") from exc
+    sigma = _validate_sigma(sigma)
+
     for filename in ("completed.json", "splits.json", "representations.pt"):
         if not (cache_dir / filename).is_file():
             raise ValueError(f"incomplete cache: missing {filename}")
@@ -215,7 +230,7 @@ def load_teacher_cache(cache_dir: Union[str, Path]) -> TeacherCache:
 
     return TeacherCache(
         representations=representations,
-        sigma=torch.tensor(manifest["sigma"]),
+        sigma=sigma,
         pooling=manifest["pooling"],
         layer=manifest.get("layer"),
         model_name=manifest.get("model_name"),

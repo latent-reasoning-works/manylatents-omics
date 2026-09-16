@@ -19,6 +19,10 @@ Caches are immutable. All four files are staged beside the target and published
 with a single directory rename; an existing nonempty target is refused. Use a
 fresh `CACHE_ROOT` for reruns. Readers require completion, splits, and matching
 row counts. Interrupted publication cannot overwrite an earlier cache.
+Bandwidth estimation, publication, loading, and operator construction reject
+nonfinite or nonpositive sigma values. Duplicate representations can make the
+teacher distance quantile zero even when some rows differ; such a run records
+`status=cache_error` and publishes no cache. No epsilon bandwidth is substituted.
 
 ## The sweep
 
