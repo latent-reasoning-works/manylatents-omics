@@ -6,6 +6,7 @@ the pooled vectors must be trustworthy points, and the two pooling paths must
 agree, because teacher and student must see the same functional.
 """
 
+import os
 from pathlib import Path
 
 import pytest
@@ -138,3 +139,37 @@ def test_weights_from_environment_is_none_without_the_variable(monkeypatch):
 def test_unknown_model_name_is_rejected():
     with pytest.raises(ValueError, match="model_name"):
         Evo2Encoder(model_name="evo2_3b", device="cpu")
+
+
+def test_local_path_load_runs_from_the_package_root(tmp_path, monkeypatch):
+    """evo2's CONFIG_MAP is package-relative ("configs/evo2-1b-8k.yml") and its
+    local_path branch opens it with plain open(), against the process CWD. The
+    encoder must therefore construct from the package root, or an explicit
+    weights_path fails with FileNotFoundError from anywhere else."""
+    import sys
+    import types
+
+    seen = {}
+
+    fake = types.ModuleType("evo2")
+    fake.__file__ = str(tmp_path / "evo2" / "__init__.py")
+    (tmp_path / "evo2").mkdir()
+
+    class FakeEvo2:
+        def __init__(self, model_name, local_path=None):
+            seen["cwd"] = os.getcwd()
+            self.model = types.SimpleNamespace(eval=lambda: None)
+            self.tokenizer = None
+
+    fake.Evo2 = FakeEvo2
+    monkeypatch.setitem(sys.modules, "evo2", fake)
+
+    encoder = Evo2Encoder(model_name="evo2_1b_base", layer_name="blocks.14.mlp.l3",
+                          weights_path="/weights/evo2_1b_base.pt", device="cpu")
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+    encoder._load_model()
+
+    assert os.path.realpath(seen["cwd"]) == os.path.realpath(tmp_path / "evo2")
+    assert os.path.realpath(os.getcwd()) == os.path.realpath(outside), "CWD must be restored"

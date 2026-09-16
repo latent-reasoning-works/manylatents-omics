@@ -10,6 +10,7 @@ References:
     - PyPI: https://pypi.org/project/evo2/
 """
 
+import os
 from typing import Any, Dict, List, Optional, Union
 
 import torch
@@ -259,7 +260,24 @@ class Evo2Encoder(FoundationEncoder):
             from evo2 import Evo2
 
             if self.weights_path:
-                self._model = Evo2(self.model_name, local_path=self.weights_path)
+                # evo2's CONFIG_MAP holds a package-relative path such as
+                # "configs/evo2-1b-8k.yml", and its two loading branches resolve
+                # it differently: the download branch uses pkgutil.get_data, but
+                # the local_path branch (models.py:188) calls plain open(), which
+                # resolves against the process CWD. Passing an explicit
+                # checkpoint therefore fails with
+                #   FileNotFoundError: 'configs/evo2-1b-8k.yml'
+                # from any directory but the package root. Run the construction
+                # there and restore the CWD afterwards.
+                import evo2 as _evo2
+
+                package_root = os.path.dirname(_evo2.__file__)
+                previous = os.getcwd()
+                try:
+                    os.chdir(package_root)
+                    self._model = Evo2(self.model_name, local_path=self.weights_path)
+                finally:
+                    os.chdir(previous)
             else:
                 self._model = Evo2(self.model_name)
 
