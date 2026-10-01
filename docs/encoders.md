@@ -234,3 +234,17 @@ matrix = atlas.load_cached_scores(
 Empty caches are skipped. Duplicate variants or differing track metadata raise
 `ValueError`; no cached scores raises `AtlasScoresMissing`. Pass `layer` or
 `gene_reduce` as for `load_atlas_matrix`.
+
+Score a variant TSV locally using an already cached AlphaGenome checkpoint:
+
+```bash
+python -m manylatents.dogma.score_tracks --variants variants.tsv --out scores \
+    --fasta reference.fa --shard 0 --n-shards 2
+```
+
+`--fasta` is required. `shard_slice(n_rows, shard, n_shards)` produces contiguous
+shards; `prefilter_variants(variants, fasta_path, sequence_length)` returns kept
+and dropped tables, with a `reason` column on dropped rows. Input to the helper
+uses canonical `chromosome` names and 1-based `pos`; the CLI adds canonical
+identifiers from `chrom`, `pos`, `ref`, `alt`. FASTA access is lazy, and `--help`
+does not load the model libraries.

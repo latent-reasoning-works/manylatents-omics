@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Local track-scoring CLI with required reference FASTA, contiguous sharding and reference/window prefiltering.
 - Multi-directory Atlas cache loading with track metadata and duplicate-variant checks.
 - Full TraitGym pool loading and reproducible uniform or consequence-matched background sampling with explicit shortfalls.
 - NumPy/pandas benchmark helpers for genomic separation, chained loci, positional scores and distant neighbours.
