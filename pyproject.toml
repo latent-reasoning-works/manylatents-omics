@@ -17,7 +17,7 @@ keywords = [
 license = "MIT"
 
 dependencies = [
-    "manylatents>=0.1.6",
+    "manylatents>=0.1.8",
 ]
 
 [project.optional-dependencies]

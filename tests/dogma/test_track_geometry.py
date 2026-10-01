@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-pytest.importorskip("manylatents.metrics.gpd_lid")
 
 from manylatents.dogma.benchmarks.track_geometry import (
     Settings, aggregation_scores, evaluate_score, measure_defined,
