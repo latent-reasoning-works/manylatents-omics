@@ -191,3 +191,60 @@ Gene-scoped scorers return one row per variant and gene, so reading them needs
 AlphaGenome Atlas outputs are subject to Google DeepMind's terms of use, which
 restrict them to non-commercial use and exclude training other machine-learning
 models on them. Read the terms before fetching.
+
+Locus helpers use only NumPy and pandas:
+
+```python
+from manylatents.dogma.benchmarks.loci import (
+    chain_loci, genomic_separation, positional_scores, distant_neighbour_distances,
+)
+
+loci = chain_loci(variants, gap=1000)  # controls inherit their matched positive's locus
+separation = genomic_separation(variants)
+scores = positional_scores(variants)  # the nearest-positive score uses labels
+# distance is a feature-distance matrix with infinity on its diagonal.
+nearest = distant_neighbour_distances(distance, separation, exclusion=1000, k=10)
+```
+
+Sample a background from a full TraitGym pool, excluding benchmark IDs:
+
+```python
+import numpy as np
+
+pool = traitgym.load_pool("mendelian_traits_all")
+background = traitgym.sample_background(
+    pool, 1000, np.random.default_rng(42), exclude=variants["variant_id"],
+    match_to=variants, column="consequence",
+)
+print(background.attrs["shortfall"], background.attrs["shortfall_by_stratum"])
+```
+
+Omit `match_to` for uniform sampling. Matched quotas use largest-remainder
+rounding; scarce strata return all available candidates without redistributing
+the shortfall. Both modes return rows in pool order.
+
+Read all available scores across local cache shards without a service call:
+
+```python
+matrix = atlas.load_cached_scores(
+    ["scores/shard_000_of_002", "scores/shard_001_of_002"], "DNASE",
+)
+```
+
+Empty caches are skipped. Duplicate variants or differing track metadata raise
+`ValueError`; no cached scores raises `AtlasScoresMissing`. Pass `layer` or
+`gene_reduce` as for `load_atlas_matrix`.
+
+Score a variant TSV locally using an already cached AlphaGenome checkpoint:
+
+```bash
+python -m manylatents.dogma.score_tracks --variants variants.tsv --out scores \
+    --fasta reference.fa --shard 0 --n-shards 2
+```
+
+`--fasta` is required. `shard_slice(n_rows, shard, n_shards)` produces contiguous
+shards; `prefilter_variants(variants, fasta_path, sequence_length)` returns kept
+and dropped tables, with a `reason` column on dropped rows. Input to the helper
+uses canonical `chromosome` names and 1-based `pos`; the CLI adds canonical
+identifiers from `chrom`, `pos`, `ref`, `alt`. FASTA access is lazy, and `--help`
+does not load the model libraries.

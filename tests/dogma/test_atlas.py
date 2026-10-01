@@ -386,3 +386,48 @@ def test_cached_variants_lists_what_can_be_loaded(tmp_path):
     assert cached_variants(tmp_path, "T") == []
     with pytest.raises(FileNotFoundError):
         cached_variants(tmp_path / "nowhere", "S")
+
+
+def test_load_cached_scores_combines_shards(tmp_path):
+    from manylatents.dogma.atlas import load_cached_scores
+
+    dirs = [tmp_path / "a", tmp_path / "b"]
+    variants = _variants(6)
+    for directory, part in zip(dirs, [variants.iloc[:3], variants.iloc[3:]]):
+        _fetch(FakeAtlasClient(), part, directory)
+    matrix = load_cached_scores([tmp_path / "empty", *dirs], "S")
+    expected_pos = [3, 2, 1, 6, 5, 4]
+    assert matrix.variant_ids == [f"chr1:{p}:A>G" for p in expected_pos]
+    np.testing.assert_array_equal(matrix.values, [[p * 10 + t for t in range(3)]
+                                                  for p in expected_pos])
+    quantiles = load_cached_scores(dirs, "S", layer="quantiles")
+    np.testing.assert_allclose(quantiles.values, matrix.values / 1e6)
+    assert matrix.tracks["name"].tolist() == ["t0", "t1", "t2"]
+
+
+def test_load_cached_scores_metadata_and_duplicates(tmp_path):
+    from manylatents.dogma.atlas import load_cached_scores
+
+    dirs = [tmp_path / "a", tmp_path / "b"]
+    _fetch(FakeAtlasClient(), _variants(2).iloc[:1], dirs[0])
+    _fetch(FakeAtlasClient(), _variants(2).iloc[1:], dirs[1])
+    path = dirs[1] / "S" / "chunk_00000.h5ad"
+    changed = anndata.read_h5ad(path)
+    changed.var["name"] = ["different", "t1", "t2"]
+    changed.write_h5ad(path)
+    with pytest.raises(ValueError, match="track metadata"):
+        load_cached_scores(dirs, "S")
+    with pytest.raises(ValueError, match="duplicate variants"):
+        load_cached_scores([dirs[0], dirs[0]], "S")
+
+
+def test_load_cached_scores_nothing_and_gene_reduction(tmp_path):
+    from manylatents.dogma.atlas import load_cached_scores
+
+    with pytest.raises(AtlasScoresMissing):
+        load_cached_scores([tmp_path], "S")
+    _fetch(FakeAtlasClient(genes=["g1", "g2"]), _variants(1), tmp_path)
+    with pytest.raises(AtlasScoresMissing):
+        load_cached_scores([tmp_path], "absent")
+    matrix = load_cached_scores([tmp_path], "S", gene_reduce="maxabs")
+    np.testing.assert_array_equal(matrix.values, [[-990, -989, -988]])

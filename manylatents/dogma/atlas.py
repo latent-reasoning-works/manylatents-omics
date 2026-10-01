@@ -497,3 +497,38 @@ def load_atlas_matrix(
             pick = np.abs(block).argmax(axis=0)
             out[i] = block[pick, np.arange(block.shape[1])]
     return AtlasMatrix(values=out, variant_ids=wanted, tracks=tracks)
+
+
+def load_cached_scores(cache_dirs, scorer: str, *, layer=None, gene_reduce=None) -> AtlasMatrix:
+    """Concatenate every cached variant for a scorer across cache directories.
+
+    Directories are visited in caller order, with rows in each cache's order.
+    Empty or absent caches are skipped. Track metadata must agree exactly and
+    a variant in more than one directory raises ValueError. ``layer`` and
+    ``gene_reduce`` have the same meaning as in :func:`load_atlas_matrix`.
+    Raises AtlasScoresMissing if no directory contains scores for the scorer.
+    """
+    blocks, ids, seen = [], [], set()
+    tracks = None
+    for cache_dir in cache_dirs:
+        if _read_manifest(Path(cache_dir)) is None:
+            continue
+        present = cached_variants(cache_dir, scorer)
+        if not present:
+            continue
+        duplicates = seen.intersection(present)
+        if duplicates:
+            raise ValueError(f"duplicate variants across cache directories: {sorted(duplicates)[:10]}")
+        matrix = load_atlas_matrix(
+            cache_dir, scorer, present, layer=layer, gene_reduce=gene_reduce,
+        )
+        if tracks is None:
+            tracks = matrix.tracks
+        elif not tracks.equals(matrix.tracks):
+            raise ValueError(f"inconsistent track metadata for scorer {scorer!r} across directories")
+        blocks.append(matrix.values)
+        ids.extend(matrix.variant_ids)
+        seen.update(present)
+    if not blocks:
+        raise AtlasScoresMissing(scorer, [])
+    return AtlasMatrix(values=np.concatenate(blocks, axis=0), variant_ids=ids, tracks=tracks)

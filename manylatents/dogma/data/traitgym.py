@@ -18,11 +18,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 
 from manylatents.dogma.variants import with_variant_ids
 
 REPO_ID = "songlab/TraitGym"
+FULL_DATASETS = ("mendelian_traits_all", "complex_traits_all")
 DATASETS = ("mendelian_traits_matched_9", "complex_traits_matched_9")
 
 
@@ -99,3 +101,54 @@ def load_published_metric(
         raise ValueError(f"expected one row in the metric file, found {len(table)}")
     row = table.iloc[0]
     return {"score": float(row["score"]), "se": float(row["se"])}
+
+
+def load_pool(dataset: str, cache_dir: Optional[str] = None) -> pd.DataFrame:
+    """Full TraitGym variant table, including labels and canonical identifiers."""
+    if dataset not in FULL_DATASETS:
+        raise ValueError(f"unknown full TraitGym dataset {dataset!r}; choose from {FULL_DATASETS}")
+    return read_variants(_download(f"{dataset}/test.parquet", cache_dir))
+
+
+def sample_background(pool, n, rng, exclude=(), match_to=None, column="consequence") -> pd.DataFrame:
+    """Sample negative SNVs without replacement, returning rows in pool order.
+
+    ``rng`` is a NumPy Generator. Exclude canonical variant IDs with ``exclude``.
+    With ``match_to``, allocate ``n`` rows proportionally to its ``column``
+    values (including missing values), using largest remainders to round to
+    integers; ties follow first appearance in the target. Otherwise sample
+    uniformly. An empty matching table is invalid for a nonzero request.
+
+    Scarce strata are not filled from other strata. ``result.attrs["shortfall"]``
+    is the total unfilled quota; ``result.attrs["shortfall_by_stratum"]`` maps
+    deficient strata to their shortfall (empty for uniform sampling).
+    """
+    if not isinstance(n, (int, np.integer)) or n < 0:
+        raise ValueError("n must be a nonnegative integer")
+    eligible = ((pool["label"] == False) & (pool["ref"].str.len() == 1) &
+                (pool["alt"].str.len() == 1) & ~pool["variant_id"].isin(exclude))
+    candidates = np.flatnonzero(eligible.fillna(False).to_numpy(dtype=bool))
+    shortfalls = {}
+    if match_to is None:
+        rows = rng.choice(candidates, size=min(n, len(candidates)), replace=False)
+    else:
+        if n and match_to.empty:
+            raise ValueError("match_to must not be empty when n is positive")
+        counts = match_to[column].value_counts(sort=False, dropna=False)
+        quotas = counts.to_numpy(dtype=float) / max(len(match_to), 1) * n
+        wants = np.floor(quotas).astype(int)
+        order = np.argsort(-(quotas - wants), kind="stable")
+        wants[order[:n - wants.sum()]] += 1
+        parts = []
+        for value, want in zip(counts.index, wants):
+            matches = pool[column].isna() if pd.isna(value) else pool[column].eq(value)
+            available = candidates[matches.iloc[candidates].fillna(False).to_numpy(dtype=bool)]
+            take = min(int(want), len(available))
+            if take < want:
+                shortfalls[value] = int(want) - take
+            parts.append(rng.choice(available, size=take, replace=False))
+        rows = np.concatenate(parts) if parts else np.array([], dtype=int)
+    result = pool.iloc[np.sort(rows)].copy()
+    result.attrs["shortfall"] = n - len(result)
+    result.attrs["shortfall_by_stratum"] = shortfalls
+    return result
