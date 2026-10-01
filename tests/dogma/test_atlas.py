@@ -371,3 +371,18 @@ def test_local_model_that_scores_nothing_raises_instead_of_recording_all_missing
     client = _local_client(FakeLocalModel(unservable={1, 2, 3}))
     with pytest.raises(RuntimeError, match="none of 3"):
         _fetch(client, _variants(3), tmp_path, requested_scorers=["DNASE"])
+
+
+def test_cached_variants_lists_what_can_be_loaded(tmp_path):
+    from manylatents.dogma.atlas import cached_variants
+
+    variants = _variants(10)
+    _fetch(FakeAtlasClient(unservable={6}), variants, tmp_path)
+    ids = with_variant_ids(variants)["variant_id"].tolist()
+    cached = cached_variants(tmp_path, "S")
+    assert sorted(cached) == sorted(i for i in ids if i != ids[5])
+    assert len(cached) == len(set(cached))
+    assert load_atlas_matrix(tmp_path, "S", cached).values.shape == (9, 3)
+    assert cached_variants(tmp_path, "T") == []
+    with pytest.raises(FileNotFoundError):
+        cached_variants(tmp_path / "nowhere", "S")

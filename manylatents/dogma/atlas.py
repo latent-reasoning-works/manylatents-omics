@@ -395,6 +395,29 @@ def missing_variants(cache_dir, scorer: str) -> list[str]:
     return out
 
 
+def cached_variants(cache_dir, scorer: str) -> list[str]:
+    """Variants with cached scores for ``scorer``, each once.
+
+    What :func:`load_atlas_matrix` can return right now; useful for a fetch
+    that covered only part of a variant list. The order is the cache's (chunk
+    by chunk, rows as the service returned them), not the request's.
+    """
+    import anndata
+
+    cache_dir = Path(cache_dir)
+    manifest = _read_manifest(cache_dir)
+    if manifest is None:
+        raise FileNotFoundError(f"no Atlas cache at {cache_dir}")
+    out: dict[str, None] = {}
+    for index, entry in sorted(manifest["chunks"].items(), key=lambda item: int(item[0])):
+        path = _chunk_path(cache_dir, scorer, int(index))
+        if entry["status"] != "done" or not path.exists():
+            continue
+        for vid in anndata.read_h5ad(path, backed="r").obs["variant_id"].astype(str):
+            out.setdefault(vid, None)
+    return list(out)
+
+
 def load_atlas_matrix(
     cache_dir,
     scorer: str,
