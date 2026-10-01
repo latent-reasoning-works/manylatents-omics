@@ -205,3 +205,20 @@ scores = positional_scores(variants)  # the nearest-positive score uses labels
 # distance is a feature-distance matrix with infinity on its diagonal.
 nearest = distant_neighbour_distances(distance, separation, exclusion=1000, k=10)
 ```
+
+Sample a background from a full TraitGym pool, excluding benchmark IDs:
+
+```python
+import numpy as np
+
+pool = traitgym.load_pool("mendelian_traits_all")
+background = traitgym.sample_background(
+    pool, 1000, np.random.default_rng(42), exclude=variants["variant_id"],
+    match_to=variants, column="consequence",
+)
+print(background.attrs["shortfall"], background.attrs["shortfall_by_stratum"])
+```
+
+Omit `match_to` for uniform sampling. Matched quotas use largest-remainder
+rounding; scarce strata return all available candidates without redistributing
+the shortfall. Both modes return rows in pool order.

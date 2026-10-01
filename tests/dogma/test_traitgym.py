@@ -93,3 +93,61 @@ def test_misaligned_feature_or_prediction_file_is_refused(repo, tmp_path):
     )
     with pytest.raises(ValueError, match="rows"):
         traitgym.load_predictions(DATASET, "Short")
+
+
+@pytest.mark.parametrize("dataset", traitgym.FULL_DATASETS)
+def test_load_pool(repo, tmp_path, dataset):
+    root = tmp_path / dataset
+    root.mkdir()
+    table = pd.read_parquet(tmp_path / DATASET / "test.parquet")
+    table.to_parquet(root / "test.parquet")
+    loaded = traitgym.load_pool(dataset)
+    pd.testing.assert_frame_equal(loaded, traitgym.read_variants(root / "test.parquet"))
+    assert repo == [f"{dataset}/test.parquet"]
+    with pytest.raises(ValueError, match="full TraitGym"):
+        traitgym.load_pool(DATASET)
+
+
+@pytest.fixture
+def pool():
+    return pd.DataFrame({
+        "variant_id": [f"v{i}" for i in range(24)],
+        "label": [False] * 23 + [True],
+        "ref": ["A"] * 22 + ["AA", "A"],
+        "alt": ["G"] * 21 + ["GG", "G", "G"],
+        "consequence": ["a"] * 10 + ["b"] * 14,
+    })
+
+
+def test_uniform_background(pool):
+    import numpy as np
+
+    def sample():
+        return traitgym.sample_background(pool, 12, np.random.default_rng(7), exclude=["v0"])
+
+    result = sample()
+    pd.testing.assert_frame_equal(result, sample())
+    assert len(result) == 12
+    assert not set(result.variant_id) & {"v0", "v21", "v22", "v23"}
+    assert result.index.is_monotonic_increasing
+    assert result.attrs["shortfall"] == 0
+    scarce = traitgym.sample_background(pool, 30, np.random.default_rng(7))
+    assert scarce.attrs["shortfall"] == 9
+
+
+def test_matched_background(pool):
+    import numpy as np
+
+    target = pd.DataFrame({"consequence": ["a", "b", "b", "b"]})
+    result = traitgym.sample_background(pool, 8, np.random.default_rng(3), match_to=target)
+    assert result.consequence.value_counts().to_dict() == {"b": 6, "a": 2}
+    assert result.index.is_monotonic_increasing
+    pd.testing.assert_frame_equal(result, traitgym.sample_background(
+        pool, 8, np.random.default_rng(3), match_to=target))
+    scarce = traitgym.sample_background(pool, 20, np.random.default_rng(3), match_to=target)
+    assert scarce.attrs == {"shortfall": 4, "shortfall_by_stratum": {"b": 4}}
+    rounded = traitgym.sample_background(pool, 3, np.random.default_rng(3), match_to=target)
+    assert len(rounded) == 3
+    missing = traitgym.sample_background(
+        pool, 2, np.random.default_rng(3), match_to=pd.DataFrame({"consequence": [None]}))
+    assert missing.attrs["shortfall"] == 2
