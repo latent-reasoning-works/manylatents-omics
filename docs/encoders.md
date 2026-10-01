@@ -191,3 +191,17 @@ Gene-scoped scorers return one row per variant and gene, so reading them needs
 AlphaGenome Atlas outputs are subject to Google DeepMind's terms of use, which
 restrict them to non-commercial use and exclude training other machine-learning
 models on them. Read the terms before fetching.
+
+Locus helpers use only NumPy and pandas:
+
+```python
+from manylatents.dogma.benchmarks.loci import (
+    chain_loci, genomic_separation, positional_scores, distant_neighbour_distances,
+)
+
+loci = chain_loci(variants, gap=1000)  # controls inherit their matched positive's locus
+separation = genomic_separation(variants)
+scores = positional_scores(variants)  # the nearest-positive score uses labels
+# distance is a feature-distance matrix with infinity on its diagonal.
+nearest = distant_neighbour_distances(distance, separation, exclusion=1000, k=10)
+```
