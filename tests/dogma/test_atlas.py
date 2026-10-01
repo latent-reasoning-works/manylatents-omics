@@ -290,3 +290,84 @@ def test_scorer_names_unsafe_for_paths_are_cached_and_read_back(tmp_path):
     directories = sorted(p.name for p in tmp_path.iterdir() if p.is_dir())
     assert len(directories) == 2 and "S" in directories
     assert all(p.parent.parent == tmp_path for p in tmp_path.rglob("*.h5ad"))
+
+
+# --- a locally loaded model behind the same cache ---------------------------------
+
+
+class FakeInterval:
+    def __init__(self, chromosome, start, end):
+        self.chromosome, self.start, self.end = chromosome, start, end
+
+
+class FakeLocalModel:
+    """Mimics alphagenome_research's AlphaGenomeModel.score_variant: one AnnData
+    per scorer, one row, no variant column."""
+
+    def __init__(self, unservable=()):
+        self.unservable = set(unservable)
+        self.calls = []
+
+    def score_variant(self, interval, variant, variant_scorers=()):
+        self.calls.append((interval.start, interval.end, tuple(variant_scorers)))
+        if variant.position in self.unservable:
+            raise ValueError("interval out of bounds")
+        results = []
+        for scorer in variant_scorers:
+            offset = {"dnase-scorer": 0.0, "atac-scorer": 0.5}[scorer]
+            x = np.asarray([[_score(variant, t) + offset for t in range(len(TRACKS))]],
+                           dtype=np.float32)
+            results.append(anndata.AnnData(X=x, var=TRACKS.copy()))
+        return results
+
+
+def _local_client(model, **kwargs):
+    from manylatents.dogma.atlas import LocalScorerClient
+
+    return LocalScorerClient(
+        model, {"DNASE": "dnase-scorer", "ATAC": "atac-scorer"}, sequence_length=100,
+        interval_factory=lambda variant, width: FakeInterval(
+            variant.chromosome, variant.position - width // 2, variant.position + width // 2),
+        **kwargs,
+    )
+
+
+def test_local_model_fills_the_same_cache(tmp_path):
+    variants = _variants(6)
+    model = FakeLocalModel()
+    _fetch(_local_client(model), variants, tmp_path, requested_scorers=["DNASE", "ATAC"])
+    ids = with_variant_ids(variants)["variant_id"].tolist()
+    dnase = load_atlas_matrix(tmp_path, "DNASE", ids[::-1])
+    atac = load_atlas_matrix(tmp_path, "ATAC", ids[::-1])
+    np.testing.assert_array_equal(dnase.values[0], [60, 61, 62])
+    np.testing.assert_array_equal(atac.values, dnase.values + 0.5)
+    assert dnase.tracks["name"].tolist() == ["t0", "t1", "t2"]
+    # one model call per variant, both scorers in the same call, window centred on the variant
+    assert len(model.calls) == 6
+    start, end, scorers = model.calls[0]
+    assert (end - start, scorers) == (100, ("dnase-scorer", "atac-scorer"))
+
+
+def test_local_model_failure_is_recorded_as_missing(tmp_path):
+    variants = _variants(6)
+    _fetch(_local_client(FakeLocalModel(unservable={2})), variants, tmp_path,
+           requested_scorers=["DNASE"])
+    ids = with_variant_ids(variants)["variant_id"].tolist()
+    assert missing_variants(tmp_path, "DNASE") == [ids[1]]
+    assert load_atlas_matrix(tmp_path, "DNASE", [ids[0], ids[2]]).values.shape == (2, 3)
+
+
+def test_local_client_refuses_what_it_cannot_do(tmp_path):
+    client = _local_client(FakeLocalModel())
+    assert sorted(client.scorer_metadata()) == ["ATAC", "DNASE"]
+    with pytest.raises(NotImplementedError, match="ontology"):
+        _fetch(client, _variants(2), tmp_path, requested_scorers=["DNASE"],
+               ontology_terms=["CL:1"])
+    with pytest.raises(ValueError, match="RNA_SEQ"):
+        _fetch(client, _variants(2), tmp_path / "b", requested_scorers=["RNA_SEQ"])
+
+
+def test_local_model_that_scores_nothing_raises_instead_of_recording_all_missing(tmp_path):
+    client = _local_client(FakeLocalModel(unservable={1, 2, 3}))
+    with pytest.raises(RuntimeError, match="none of 3"):
+        _fetch(client, _variants(3), tmp_path, requested_scorers=["DNASE"])

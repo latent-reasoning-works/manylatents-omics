@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Added
-- `manylatents.dogma.atlas`: resumable AlphaGenome Atlas score cache and variant-by-track matrix reader (`noncoding` extra).
+- `manylatents.dogma.atlas`: resumable AlphaGenome Atlas score cache and variant-by-track matrix reader (`noncoding` extra). `LocalScorerClient` fills the same cache from a locally loaded AlphaGenome model.
 - `manylatents.dogma.data.traitgym`: TraitGym benchmark tables.
 - `manylatents.dogma.variants`: canonical variant identifiers.
 

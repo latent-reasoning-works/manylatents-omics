@@ -27,7 +27,7 @@ import re
 from numbers import Integral
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional, Sequence
+from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -135,8 +135,6 @@ def _chunk_path(cache_dir: Path, scorer: str, index: int) -> Path:
 
 def _query_chunk(client, variants: list, scorers: list[str], ontology_terms, max_workers):
     """Scores for a chunk. A ValueError from the batch call is retried per variant."""
-    import anndata
-
     try:
         return dict(client.query_variants(
             variants, requested_scorers=scorers, ontology_terms=ontology_terms,
@@ -154,6 +152,13 @@ def _query_chunk(client, variants: list, scorers: list[str], ontology_terms, max
             continue
         for name, adata in result.items():
             parts.setdefault(name, []).append(adata)
+    return _concat_scores(parts)
+
+
+def _concat_scores(parts: Mapping[str, list]) -> dict:
+    """Stack per-variant AnnData pieces into one AnnData per scorer."""
+    import anndata
+
     merged = {}
     for name, pieces in parts.items():
         if pieces:
@@ -164,6 +169,95 @@ def _query_chunk(client, variants: list, scorers: list[str], ontology_terms, max
             combined.obs_names = [str(i) for i in range(combined.n_obs)]
             merged[name] = combined
     return merged
+
+
+class LocalScorerClient:
+    """A locally loaded AlphaGenome model behind the Atlas client's query interface.
+
+    Atlas serves precomputed scores; the open-weights model computes the same
+    variant scorers on demand. Wrapping the model in this class lets
+    :func:`fetch_atlas_scores` fill the same cache from either source, so
+    everything downstream reads one format.
+
+    Args:
+        model: an object with ``score_variant(interval, variant,
+            variant_scorers=...)`` returning one AnnData per scorer, as
+            ``alphagenome_research.model.dna_model.AlphaGenomeModel`` does.
+        scorers: name -> variant scorer, e.g. a subset of
+            ``alphagenome.models.variant_scorers.RECOMMENDED_VARIANT_SCORERS``.
+            The names are what ``requested_scorers`` refers to and what the
+            cache directories are called.
+        sequence_length: width in bp of the input window centred on the variant.
+        interval_factory: ``(variant, width) -> interval``; defaults to
+            ``variant.reference_interval.resize(width)``.
+
+    A variant the model cannot score (window off the chromosome end, reference
+    mismatch) is left out of the result, which the cache records as missing. If
+    every variant of a batch fails the same way the error is raised instead:
+    that is a broken setup, not an unservable variant.
+    """
+
+    _VARIANT_ERRORS = (ValueError, IndexError, KeyError)
+
+    def __init__(self, model, scorers: Mapping[str, Any], sequence_length: int,
+                 interval_factory: Optional[Callable[[Any, int], Any]] = None):
+        self._model = model
+        self._scorers = dict(scorers)
+        self.sequence_length = int(sequence_length)
+        self._interval = interval_factory or (
+            lambda variant, width: variant.reference_interval.resize(width))
+
+    def scorer_metadata(self) -> dict:
+        return dict(self._scorers)
+
+    def query_variant(self, variant, *, requested_scorers, ontology_terms=None, **_) -> dict:
+        import anndata
+
+        if ontology_terms is not None:
+            raise NotImplementedError(
+                "ontology_terms filtering is not supported for a local model; "
+                "select tracks after loading"
+            )
+        names = list(requested_scorers)
+        try:
+            results = self._model.score_variant(
+                self._interval(variant, self.sequence_length), variant,
+                variant_scorers=[self._scorers[name] for name in names],
+            )
+        except self._VARIANT_ERRORS as err:
+            raise ValueError(f"{_id_of(variant)}: {err}") from err
+        out = {}
+        for name, scored in zip(names, results, strict=True):
+            obs = scored.obs.copy()
+            obs["variant"] = [variant] * scored.n_obs
+            obs.index = [str(i) for i in range(scored.n_obs)]
+            layers = {key: np.asarray(value, dtype=np.float32)
+                      for key, value in scored.layers.items()} or None
+            out[name] = anndata.AnnData(
+                X=np.asarray(scored.X, dtype=np.float32), obs=obs,
+                var=scored.var.copy(), layers=layers,
+            )
+        return out
+
+    def query_variants(self, variants, *, requested_scorers, ontology_terms=None, **_) -> dict:
+        names = list(requested_scorers)
+        parts: dict[str, list] = {name: [] for name in names}
+        variants = list(variants)
+        last_error = None
+        for variant in variants:
+            try:
+                result = self.query_variant(
+                    variant, requested_scorers=names, ontology_terms=ontology_terms)
+            except ValueError as err:
+                last_error = err
+                continue
+            for name, scored in result.items():
+                parts[name].append(scored)
+        if variants and last_error is not None and not any(parts.values()):
+            raise RuntimeError(
+                f"the local model scored none of {len(variants)} variants; last error: {last_error}"
+            ) from last_error
+        return _concat_scores(parts)
 
 
 def fetch_atlas_scores(
