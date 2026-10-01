@@ -248,3 +248,43 @@ and dropped tables, with a `reason` column on dropped rows. Input to the helper
 uses canonical `chromosome` names and 1-based `pos`; the CLI adds canonical
 identifiers from `chrom`, `pos`, `ref`, `alt`. FASTA access is lazy, and `--help`
 does not load the model libraries.
+
+### Track geometry evaluation
+
+`manylatents.dogma.benchmarks.track_geometry.run` evaluates a variant-by-track
+query matrix against named reference matrices (the same track columns), with
+`None` selecting the query itself as a transductive cloud. Supply an aligned
+variants table with `chrom`, `pos` and boolean `label`, the primary cloud and
+transform, sensitivity transforms, and `(cloud, transform, k)` control settings.
+A frozen `Settings` holds neighbour counts, PCA dimensions, resampling counts,
+control seeds, locus exclusions and score orientations.
+
+```python
+import numpy as np
+
+from manylatents.dogma.benchmarks.track_geometry import Settings, run
+
+settings = Settings()
+report, scores = run(
+    query=query, clouds={"reference": reference, "transductive": None},
+    variants=variants, primary_cloud="reference", primary_transform="raw",
+    transforms=("raw", "zscore", "unit"),
+    control_settings=(("reference", "raw", settings.primary_k),),
+    random_tracks=None, rng=np.random.default_rng(settings.seed), report={},
+    settings=settings,
+)
+```
+
+The report includes all primary label-free scores, chromosome-weighted AUPRC
+in both orientations, bootstrap errors, a within-chromosome label-permutation
+null, a cloud/transform/neighbour-count sensitivity grid, row-shuffled and
+Gaussian-reference controls, and magnitude and locus-confound analyses. The
+permutation null gives the chance level: chromosome-weighted AUPRC for an
+uninformative score sits above prevalence. `scores` contains the primary
+per-variant arrays; undefined measurements are counted in the report.
+
+An optional `random_tracks(rng)` callable supplies an alternative query and
+cloud mapping for random-track controls. Pass `log` to receive progress
+messages (default: `print`). This module requires the upstream geometry,
+grouped-average-precision and surrogate helpers; until the dependency pin is
+updated, use a development installation containing those helpers.

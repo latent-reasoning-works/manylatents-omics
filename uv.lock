@@ -1663,7 +1663,7 @@ wheels = [
 
 [[package]]
 name = "manylatents"
-version = "0.1.6"
+version = "0.1.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "archetypes" },
@@ -1697,9 +1697,9 @@ dependencies = [
     { name = "umap-learn" },
     { name = "wandb" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1d/10/bd86f7de5c61359ed38d5f9723c1cf12601e69f48c0e864b6d9c7d4e60ee/manylatents-0.1.6.tar.gz", hash = "sha256:e63bf5e0bf7ffed1ead667a42d84bdffdad90d21bf22e04dbd75bf923d2cd1cc", size = 566638, upload-time = "2026-06-06T18:21:56.071Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a1/f8/e30d69f1b6240c56c925b72ed7c6a197a0424393d70b762c50d785d4c2f5/manylatents-0.1.8.tar.gz", hash = "sha256:8265125668f5c464c5bf9167459b460f0eface9baf2a9ab48c9e2730d5105d63", size = 747419, upload-time = "2026-10-01T18:41:52.894Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c0/72/852713f698d544e7faca7e703fe6f7f8f85d1d2e0b36863577bb4bcf474b/manylatents-0.1.6-py3-none-any.whl", hash = "sha256:0501fbcc6e9f7d6ff2be82c289be5049b1cfd82c86da95abada1806b4a8180ea", size = 392115, upload-time = "2026-06-06T18:21:53.91Z" },
+    { url = "https://files.pythonhosted.org/packages/62/58/56aaeb28e174ce5ee4d64e9be0906717221d7e216e7d60d1c4f4cee0ea25/manylatents-0.1.8-py3-none-any.whl", hash = "sha256:4d9bf995c48de0da32fbb1160f608268b737ebdbd2290cf75a5215e072260260", size = 497509, upload-time = "2026-10-01T18:41:51.012Z" },
 ]
 
 [[package]]
@@ -1801,7 +1801,7 @@ requires-dist = [
     { name = "leidenalg", marker = "extra == 'singlecell'", specifier = ">=0.10" },
     { name = "mamba-ssm", marker = "extra == 'dogma'", specifier = "==2.2.6.post3" },
     { name = "manykinds", marker = "extra == 'singlecell'", specifier = ">=0.1" },
-    { name = "manylatents", specifier = ">=0.1.6" },
+    { name = "manylatents", specifier = ">=0.1.8" },
     { name = "manylatents-omics", extras = ["dogma", "singlecell", "popgen", "noncoding"], marker = "extra == 'dev'" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.6" },
