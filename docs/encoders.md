@@ -162,3 +162,32 @@ encoder.fit(x)                          # no-op for pretrained models
 embeddings = encoder.transform(x)       # encodes sequences from datamodule
 embeddings = encoder.encode_batch(seqs) # direct batched encoding
 ```
+
+## Non-coding variant benchmarks
+
+`pip install 'manylatents-omics[noncoding]'`
+
+```python
+from manylatents.dogma import atlas
+from manylatents.dogma.data import traitgym
+
+variants = traitgym.load_variants("mendelian_traits_matched_9")   # chrom, pos, ref, alt, label, variant_id
+
+client = atlas.create_client()                    # reads ALPHAGENOME_API_KEY
+print(list(client.scorer_metadata()))             # available scorer names
+atlas.fetch_atlas_scores(client, variants, ["<scorer>"], cache_dir="atlas_cache")
+matrix = atlas.load_atlas_matrix("atlas_cache", "<scorer>", variants["variant_id"])
+matrix.values      # (n_variants, n_tracks) float32, rows in the order given
+matrix.tracks      # one row of track metadata per column
+```
+
+`fetch_atlas_scores` is resumable: finished chunks are skipped on the next
+call. Variants the service cannot serve are listed by
+`atlas.missing_variants(cache_dir, scorer)` and are never stored as rows of
+zeros; asking `load_atlas_matrix` for one raises `AtlasScoresMissing`.
+Gene-scoped scorers return one row per variant and gene, so reading them needs
+`gene_reduce="maxabs"`.
+
+AlphaGenome Atlas outputs are subject to Google DeepMind's terms of use, which
+restrict them to non-commercial use and exclude training other machine-learning
+models on them. Read the terms before fetching.
