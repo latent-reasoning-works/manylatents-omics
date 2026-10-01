@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from numbers import Integral
 from dataclasses import dataclass
 from pathlib import Path
@@ -119,8 +120,17 @@ def _write_manifest(cache_dir: Path, manifest: dict) -> None:
     tmp.replace(cache_dir / _MANIFEST)
 
 
+def _scorer_dir(scorer: str) -> str:
+    """Directory name for a scorer: the name itself when it is path-safe,
+    otherwise a readable slug plus a hash of the full name."""
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "_", scorer).strip("_.")
+    if slug == scorer:
+        return scorer
+    return f"{slug or 'scorer'}-{hashlib.sha256(scorer.encode()).hexdigest()[:8]}"
+
+
 def _chunk_path(cache_dir: Path, scorer: str, index: int) -> Path:
-    return cache_dir / scorer / f"chunk_{index:05d}.h5ad"
+    return cache_dir / _scorer_dir(scorer) / f"chunk_{index:05d}.h5ad"
 
 
 def _query_chunk(client, variants: list, scorers: list[str], ontology_terms, max_workers):
@@ -194,9 +204,19 @@ def fetch_atlas_scores(
     """
     if not isinstance(chunk_size, Integral) or chunk_size <= 0:
         raise ValueError("chunk_size must be a positive integer")
+    scorers = list(requested_scorers)
+    # A scorer the service does not know makes every variant fail the same way
+    # an unservable variant does; without this check a typo would be recorded
+    # as "all variants missing".
+    if hasattr(client, "scorer_metadata"):
+        known = set(client.scorer_metadata())
+        unknown = [name for name in scorers if name not in known]
+        if unknown:
+            raise ValueError(
+                f"unknown Atlas scorers {unknown}; available: {sorted(known)}"
+            )
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
-    scorers = list(requested_scorers)
     terms = None if ontology_terms is None else list(ontology_terms)
     request = {"requested_scorers": scorers, "ontology_terms": terms,
                "chunk_size": int(chunk_size)}

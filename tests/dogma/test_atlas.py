@@ -259,3 +259,34 @@ def test_all_variants_missing_are_recorded_without_rows(tmp_path):
 def test_invalid_chunk_size_is_refused(tmp_path, chunk_size):
     with pytest.raises(ValueError, match="chunk_size"):
         _fetch(FakeAtlasClient(), _variants(2), tmp_path, chunk_size=chunk_size)
+
+
+class _WithMetadata(FakeAtlasClient):
+    """A client that, like the real one, can list its scorers."""
+
+    def scorer_metadata(self):
+        return {"S": object(), "CenterMask(output=DNASE, width=501)/v1": object()}
+
+
+def test_unknown_scorer_is_refused_before_any_request(tmp_path):
+    client = _WithMetadata()
+    with pytest.raises(ValueError, match="DNASE_typo"):
+        _fetch(client, _variants(4), tmp_path, requested_scorers=["S", "DNASE_typo"])
+    assert client.batch_calls == 0 and client.single_calls == 0
+    assert not (tmp_path / "manifest.json").exists()
+
+
+def test_scorer_names_unsafe_for_paths_are_cached_and_read_back(tmp_path):
+    name = "CenterMask(output=DNASE, width=501)/v1"
+    variants = _variants(5)
+    _fetch(_WithMetadata(), variants, tmp_path, requested_scorers=[name, "S"])
+    ids = with_variant_ids(variants)["variant_id"].tolist()
+    np.testing.assert_array_equal(
+        load_atlas_matrix(tmp_path, name, ids).values,
+        load_atlas_matrix(tmp_path, "S", ids).values,
+    )
+    assert missing_variants(tmp_path, name) == []
+    # one directory per scorer, directly under the cache, nothing nested
+    directories = sorted(p.name for p in tmp_path.iterdir() if p.is_dir())
+    assert len(directories) == 2 and "S" in directories
+    assert all(p.parent.parent == tmp_path for p in tmp_path.rglob("*.h5ad"))
