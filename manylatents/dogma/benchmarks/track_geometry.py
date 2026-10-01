@@ -55,7 +55,7 @@ class Settings:
     pca_components: tuple[int, ...] = (10, 50)
     n_bootstrap: int = 1000
     n_permutations: int = 1000
-    seed: int = 20261001
+    seed: int = 0
     lid_sign: float = -1.0
     n_control_seeds: int = 5
     locus_exclusions: tuple[float, ...] = (0, 1_000, 100_000, 1_000_000, float("inf"))
