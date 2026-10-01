@@ -222,3 +222,15 @@ print(background.attrs["shortfall"], background.attrs["shortfall_by_stratum"])
 Omit `match_to` for uniform sampling. Matched quotas use largest-remainder
 rounding; scarce strata return all available candidates without redistributing
 the shortfall. Both modes return rows in pool order.
+
+Read all available scores across local cache shards without a service call:
+
+```python
+matrix = atlas.load_cached_scores(
+    ["scores/shard_000_of_002", "scores/shard_001_of_002"], "DNASE",
+)
+```
+
+Empty caches are skipped. Duplicate variants or differing track metadata raise
+`ValueError`; no cached scores raises `AtlasScoresMissing`. Pass `layer` or
+`gene_reduce` as for `load_atlas_matrix`.
