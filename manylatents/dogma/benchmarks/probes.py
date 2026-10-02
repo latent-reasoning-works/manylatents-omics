@@ -35,8 +35,6 @@ def chromosome_split_probe(features, labels, chroms, *, c_grid=(1e-3, 1e-2, 1e-1
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import average_precision_score
 
-    from manylatents.metrics import standardize_against
-
     features = np.asarray(features, dtype=np.float64)
     labels = np.asarray(labels)
     chroms = np.asarray(chroms, dtype=object)
@@ -56,10 +54,7 @@ def chromosome_split_probe(features, labels, chroms, *, c_grid=(1e-3, 1e-2, 1e-1
         if np.unique(labels[rows]).size < 2:
             raise MeasurementUnavailable(f"{name} chromosomes do not hold both classes")
 
-    reference = features[in_train]
-    if not np.any(reference != reference[:1]):
-        raise MeasurementUnavailable("no feature varies on the training chromosomes")
-    scaled, _, kept = standardize_against(features, reference, constant="drop")
+    scaled, kept = _standardize_training(features, features[in_train])
 
     tuning, best = {}, None
     for c in grid:
@@ -93,3 +88,18 @@ def _decision_scores(model, features):
     if not np.isfinite(scores).all():
         raise MeasurementUnavailable("probe decision values are not finite")
     return scores
+
+
+def _standardize_training(features, reference):
+    """Scale using only reference rows, counting numerically constant columns."""
+    mean, spread = reference.mean(axis=0), reference.std(axis=0)
+    tolerance = 1e-12 * np.maximum(1.0, np.abs(reference).max(axis=0))
+    if not (np.isfinite(mean).all() and np.isfinite(spread).all()):
+        raise MeasurementUnavailable("training moments are not finite")
+    kept = spread >= tolerance
+    if not kept.any():
+        raise MeasurementUnavailable("no feature varies on the training chromosomes")
+    scaled = (features[:, kept] - mean[kept]) / spread[kept]
+    if not np.isfinite(scaled).all():
+        raise MeasurementUnavailable("standardised features are not finite")
+    return scaled, kept

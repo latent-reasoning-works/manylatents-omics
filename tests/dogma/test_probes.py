@@ -168,3 +168,15 @@ def test_nonfinite_decision_values_are_unavailable():
     chroms = ["1", "1", "2", "2", "3"]
     with pytest.raises(MeasurementUnavailable, match="finite"):
         chromosome_split_probe(features, labels, chroms, c_grid=[1e6])
+
+
+def test_near_constant_training_feature_is_dropped_and_counted():
+    features, labels, chroms = _toy()
+    features[:160, 1] = 0
+    features[0, 1] = 1e-12
+    result = chromosome_split_probe(features, labels, chroms)
+    assert result['n_features_used'] == 4
+    assert result['n_features_dropped'] == 1
+    features[160:, 1] *= 1e9
+    other = chromosome_split_probe(features, labels, chroms)
+    np.testing.assert_array_equal(result['scores'], other['scores'])
