@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 
@@ -61,8 +62,14 @@ def load_track_matrix(cache_dirs, scorers, gene_scorers=()) -> TrackMatrix:
     for scorer in gene_scorers:
         attempted = set()
         for directory in cache_dirs:
-            attempted.update(atlas.cached_variants(directory, scorer))
-            attempted.update(atlas.missing_variants(directory, scorer))
+            try:
+                attempted.update(atlas.cached_variants(directory, scorer))
+                attempted.update(atlas.missing_variants(directory, scorer))
+            except FileNotFoundError:
+                # Match load_cached_scores: an absent cache contributes no IDs.
+                # Missing files inside an existing cache remain an error.
+                if (Path(directory) / "manifest.json").exists():
+                    raise
         unattempted = [v for v in order if v not in attempted]
         if unattempted:
             raise atlas.AtlasScoresMissing(scorer, unattempted)

@@ -109,3 +109,27 @@ def test_real_gene_cache_distinguishes_unattempted_from_no_rows(tmp_path):
     np.testing.assert_array_equal(matrix.without_rows['G'], expected)
     np.testing.assert_array_equal(matrix.values[expected, 3:], 0)
     assert matrix.n_dropped == {'S': 0, 'G': 0}
+
+
+def test_real_empty_gene_rows_and_absent_shard_are_distinguished(tmp_path):
+    from tests.dogma.test_atlas import FakeAtlasClient, _fetch, _variants
+    from manylatents.dogma.variants import with_variant_ids
+
+    class GeneClient(FakeAtlasClient):
+        def _anndata(self, variants):
+            scored = super()._anndata(variants)
+            return scored[[v.position % 2 == 0 for v in scored.obs['variant']]].copy()
+
+    variants = _variants(4)
+    plain, gene, absent = [tmp_path / name for name in ('plain', 'gene', 'absent')]
+    _fetch(FakeAtlasClient(), variants, plain)
+    _fetch(GeneClient(genes=['g1']), variants.iloc[:2], gene, requested_scorers=['G'])
+    ids = with_variant_ids(variants)['variant_id'].tolist()
+    with pytest.raises(AtlasScoresMissing) as error:
+        load_track_matrix([plain, gene, absent], ['S'], gene_scorers=['G'])
+    assert set(error.value.variant_ids) == set(ids[2:])
+    _fetch(GeneClient(genes=['g1']), variants.iloc[2:], absent, requested_scorers=['G'])
+    matrix = load_track_matrix([plain, gene, absent], ['S'], gene_scorers=['G'])
+    expected = np.isin(matrix.variant_ids, [ids[0], ids[2]])
+    np.testing.assert_array_equal(matrix.without_rows['G'], expected)
+    np.testing.assert_array_equal(matrix.values[expected, 3:], 0)
