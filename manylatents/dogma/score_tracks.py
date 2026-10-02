@@ -157,6 +157,11 @@ def main(argv=None) -> int:
     started = time.time()
     manifest = fetch_atlas_scores(client, kept, args.scorers, out, chunk_size=args.chunk_size)
     fetch_seconds = time.time() - started
+    # Variants the model could not score for lack of device memory are missing
+    # in the cache like any other; this file says which ones, so a reader does
+    # not take them for variants with nothing to score.
+    pd.DataFrame(client.resource_failures, columns=["variant_id", "reason"]).to_csv(
+        out / "scoring_failed.tsv", sep="\t", index=False)
     missing = {name: sum(len(chunk["missing"].get(name, [])) for chunk in manifest["chunks"].values())
                for name in args.scorers}
     timing = {
@@ -164,6 +169,7 @@ def main(argv=None) -> int:
         "sequence_length": args.sequence_length, "model_version": args.model_version,
         "n_variants": int(len(variants)), "n_prefilter_dropped": int(len(dropped)),
         "n_scored_requested": int(len(kept)), "missing": missing,
+        "n_resource_failures": len(client.resource_failures),
         "load_seconds": round(load_seconds, 1),
         "first_variant_seconds": [round(s, 3) for s in seconds],
         "fetch_seconds": round(fetch_seconds, 1),
