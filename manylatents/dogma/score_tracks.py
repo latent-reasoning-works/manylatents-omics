@@ -3,6 +3,8 @@
 Run with ``python -m manylatents.dogma.score_tracks --help``. Each shard writes
 its Atlas cache, prefilter_dropped.tsv and timing.json beneath the output
 folder. Checkpoints must already be available in the local Hugging Face cache.
+Gene-scoped scorers fail without their annotation files: supply --gtf-feather,
+--pas-feather, --splice-starts-feather and --splice-ends-feather as required.
 """
 from __future__ import annotations
 
@@ -54,7 +56,8 @@ def prefilter_variants(variants: pd.DataFrame, fasta_path: str, sequence_length:
     return variants[reasons == ""], dropped
 
 
-def main(argv=None) -> int:
+def parse_args(argv=None):
+    """Parse scoring options without importing or loading the model."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--variants", required=True, help="TSV with chrom, pos, ref, alt")
     parser.add_argument("--out", required=True, help="output cache directory")
@@ -67,7 +70,15 @@ def main(argv=None) -> int:
     parser.add_argument("--shard", type=int, default=0)
     parser.add_argument("--n-shards", type=int, default=1)
     parser.add_argument("--limit", type=int, default=0, help="first N variants of the shard (smoke test)")
-    args = parser.parse_args(argv)
+    parser.add_argument("--gtf-feather", help="gene annotation (feather)")
+    parser.add_argument("--pas-feather", help="polyadenylation site annotation (feather)")
+    parser.add_argument("--splice-starts-feather", help="reference splice site starts (feather)")
+    parser.add_argument("--splice-ends-feather", help="reference splice site ends (feather)")
+    return parser.parse_args(argv)
+
+
+def main(argv=None) -> int:
+    args = parse_args(argv)
 
     from manylatents.dogma.atlas import LocalScorerClient, fetch_atlas_scores
     from manylatents.dogma.variants import with_variant_ids
@@ -108,7 +119,11 @@ def main(argv=None) -> int:
         checkpoint,
         organism_settings={
             ag_dna_model.Organism.HOMO_SAPIENS: research_model.OrganismSettings(
-                fasta_path=args.fasta),
+                fasta_path=args.fasta,
+                gtf_feather_path=args.gtf_feather,
+                pas_feather_path=args.pas_feather,
+                splice_site_starts_feather_path=args.splice_starts_feather,
+                splice_site_ends_feather_path=args.splice_ends_feather),
         },
     )
     load_seconds = time.time() - started
