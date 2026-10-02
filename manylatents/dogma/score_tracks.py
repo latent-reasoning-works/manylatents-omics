@@ -149,7 +149,7 @@ def main(argv=None) -> int:
     shapes = {name: list(scored.shape) for name, scored in result.items()}
     example = {name: {"obs_columns": list(scored.obs.columns), "var_columns": list(scored.var.columns),
                       "layers": list(scored.layers.keys()),
-                      "abs_max": float(np.abs(scored.X).max())}
+                      "abs_max": float(np.abs(scored.X).max()) if scored.X.size else None}
                for name, scored in result.items()}
     print(f"per-variant seconds (first six): {[round(s, 2) for s in seconds]}", flush=True)
     print(f"shapes: {shapes}", flush=True)
