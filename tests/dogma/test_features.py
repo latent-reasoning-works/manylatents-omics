@@ -101,3 +101,25 @@ def test_nonfinite_pca_projection_is_unavailable():
     reference = np.array([[-1.] * 4, [1.] * 4])
     with pytest.raises(MeasurementUnavailable, match="finite"):
         category_pca(query, reference, ["A"] * 4)
+
+
+@pytest.mark.parametrize('sparse', [False, True])
+def test_pca_caps_components_at_reference_numerical_rank(sparse):
+    rng = np.random.default_rng(12)
+    if sparse:
+        reference = np.zeros((20, 50))
+        reference[:4] = rng.normal(size=(4, 50))
+        rank, requested = 4, 15
+    else:
+        x, y = rng.normal(size=(2, 20))
+        reference = np.column_stack([x, x, y, x + y])
+        rank, requested = 2, 4
+    query = rng.normal(size=(5, reference.shape[1]))
+    result = category_pca(query, reference, ['A'] * reference.shape[1], requested)
+    q, r, names = result
+    assert q.shape[1] == r.shape[1] == len(names) == rank
+    assert result.n_components_withheld == {'A': requested - rank}
+    changed = reference.copy()
+    changed[0, 0] *= 1 + 1e-15
+    other = category_pca(query, changed, ['A'] * reference.shape[1], requested)
+    np.testing.assert_allclose(abs(q), abs(other[0]), atol=1e-10)

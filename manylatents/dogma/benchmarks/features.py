@@ -27,11 +27,14 @@ class FeatureReduction(tuple):
 
     ``n_dropped`` maps input scorer names to counts of tracks omitted entirely
     (not tracks combined through a maximum or projected onto components).
+    ``n_components_withheld`` counts requested PCA components not returned per
+    scorer, including limits from track count, sample count and numerical rank.
     """
 
-    def __new__(cls, items, n_dropped):
+    def __new__(cls, items, n_dropped, n_components_withheld=None):
         result = super().__new__(cls, items)
         result.n_dropped = n_dropped
+        result.n_components_withheld = n_components_withheld or {}
         return result
 
 
@@ -77,8 +80,9 @@ def category_pca(query, reference, track_scorer, n_components=30):
     """Principal components per scorer, standardised and fitted on the reference.
 
     Returns ``(query_features, reference_features, names)`` with ``n_dropped``
-    counts of constant tracks per scorer. Each scorer contributes at most
-    ``min(n_components, tracks kept, reference rows - 1)`` components, named
+    counts of constant tracks and ``n_components_withheld`` per scorer. Each
+    scorer contributes at most its standardised reference numerical rank,
+    capped by ``n_components`` and ``reference rows - 1`` components, named
     ``DNASE_pc1``, etc. Entirely constant categories contribute nothing.
 
     Raises ValueError for incompatible shapes or invalid component counts,
@@ -93,17 +97,22 @@ def category_pca(query, reference, track_scorer, n_components=30):
     if reference.shape[0] < 2:
         raise MeasurementUnavailable("PCA needs at least two reference rows")
     query_parts, reference_parts, names, dropped = [], [], [], {}
+    withheld = {}
     for scorer in dict.fromkeys(track_scorer.tolist()):
         columns = track_scorer == scorer
         varying = np.any(reference[:, columns] != reference[:1, columns], axis=0)
         dropped[scorer] = int((~varying).sum())
         if not varying.any():
+            withheld[scorer] = int(n_components)
             continue
         q, r, _ = standardize_against(
             query[:, columns][:, varying], reference[:, columns][:, varying], constant="drop"
         )
-        k = min(n_components, r.shape[1], r.shape[0] - 1)
-        _, _, components = np.linalg.svd(r, full_matrices=False)
+        _, singular_values, components = np.linalg.svd(r, full_matrices=False)
+        rank = int((singular_values > singular_values[0] * max(r.shape)
+                    * np.finfo(r.dtype).eps).sum())
+        k = min(n_components, rank, r.shape[0] - 1)
+        withheld[scorer] = int(n_components - k)
         projected_q = q @ components[:k].T
         projected_r = r @ components[:k].T
         if not (np.isfinite(projected_q).all() and np.isfinite(projected_r).all()):
@@ -114,4 +123,4 @@ def category_pca(query, reference, track_scorer, n_components=30):
     if not names:
         raise MeasurementUnavailable("the reference does not vary in any track")
     return FeatureReduction((np.concatenate(query_parts, axis=1),
-                             np.concatenate(reference_parts, axis=1), names), dropped)
+                             np.concatenate(reference_parts, axis=1), names), dropped, withheld)
