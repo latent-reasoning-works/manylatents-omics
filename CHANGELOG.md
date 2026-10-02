@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Added
+- `lookup_tabix_scores`: per-variant values from tabix-indexed score tables, with header/value-count validation.
+- `leave_chromosome_out_probe`: nested chromosome-group tuning, out-of-fold decisions, parallel outer fits and explicit skipped-fold/row counts.
+- `clustered_average_precision_difference`: paired, class-stratified cluster bootstrap intervals for pooled average precision differences.
+- `genomic_blocks` and vectorised `nearest_site_distance` helpers, with explicit errors for query chromosomes lacking sites.
+- Local track-scoring CLI annotation paths: `--gtf-feather`, `--pas-feather`, `--splice-starts-feather` and `--splice-ends-feather` for gene-scoped scorers.
 - Chromosome splits matching AVI training and tuning partitions, with consistent chromosome prefixes.
 - Pinned ncVarDB loader for pathogenic and benign nuclear SNVs, with exclusion counts.
 - Full track matrices across cached scorers, including gene-scoped reductions and missing-row masks.
@@ -16,6 +21,18 @@
 - `manylatents.dogma.atlas`: resumable AlphaGenome Atlas score cache and variant-by-track matrix reader (`noncoding` extra). `LocalScorerClient` fills the same cache from a locally loaded AlphaGenome model.
 - `manylatents.dogma.data.traitgym`: TraitGym benchmark tables.
 - `manylatents.dogma.variants`: canonical variant identifiers.
+
+### Changed
+- The `noncoding` extra now requires `pysam>=0.22`; the dependency lock is refreshed.
+- Split probes search C from 1e-6 to 1.0 by default and expose `chosen_c_on_edge`.
+
+### Fixed
+- Category PCA caps components at the standardised reference numerical rank and reports requested components withheld per scorer.
+- Feature reductions preserve tuple unpacking and dropped-count metadata through pickle and copying.
+- Probes drop and count numerically constant training features and accept validated object-dtype boolean labels.
+- Chromosome splits normalise whitespace, case and integral numeric names and reject invalid or missing chromosomes.
+- Track matrices zero-fill only attempted gene-scorer variants; incomplete caches raise `AtlasScoresMissing` listing unattempted IDs.
+- Tabix lookups reject mismatched value names and fields instead of truncating rows silently.
 
 ## v0.1.1 (2026-03-03)
 
