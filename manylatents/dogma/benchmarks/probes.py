@@ -13,17 +13,22 @@ from manylatents.dogma.benchmarks.splits import (
 from manylatents.utils.exceptions import MeasurementUnavailable
 
 
-def chromosome_split_probe(features, labels, chroms, *, c_grid=(1e-3, 1e-2, 1e-1, 1.0),
+DEFAULT_C_GRID = (1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0)
+
+
+def chromosome_split_probe(features, labels, chroms, *, c_grid=DEFAULT_C_GRID,
                            train=AVI_TRAIN_CHROMOSOMES, tune=AVI_TUNE_CHROMOSOMES,
                            max_iter=2000) -> dict:
     """L2 logistic regression fitted on the training chromosomes.
 
-    Features are standardised with training moments, dropping constant columns.
+    Features are standardised with training moments, dropping columns whose
+    standard deviation is below 1e-12 times max(1, largest absolute train value).
     Classes are balanced; best pooled tuning average precision selects C, with
     ties going to the smaller C. Report rows never enter fitting or tuning.
 
     Returns ``scores`` for every row, ``split``, ``chosen_c``, ``tune_auprc``
-    (C to pooled AP), ``n_features_used``, ``n_features_dropped``,
+    (C to pooled AP), ``chosen_c_on_edge`` (endpoint of a multi-value grid),
+    ``n_features_used``, ``n_features_dropped``,
     ``kept_features`` (column mask), ``n_train`` and ``n_train_positive``.
 
     Raises ValueError for incompatible shapes or invalid C grids, and
@@ -76,6 +81,7 @@ def chromosome_split_probe(features, labels, chroms, *, c_grid=(1e-3, 1e-2, 1e-1
         "scores": _decision_scores(model, scaled),
         "split": split,
         "chosen_c": chosen,
+        "chosen_c_on_edge": len(grid) > 1 and chosen in (grid[0], grid[-1]),
         "tune_auprc": tuning,
         "n_features_used": int(kept.sum()),
         "n_features_dropped": int((~kept).sum()),

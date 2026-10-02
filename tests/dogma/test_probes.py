@@ -26,7 +26,7 @@ def test_informative_feature_is_found_on_report_chromosomes():
     assert report.sum() == 160
     assert average_precision_score(labels[report], result["scores"][report]) > 0.8
     assert result["chosen_c"] in result["tune_auprc"]
-    assert set(result["tune_auprc"]) == {1e-3, 1e-2, 1e-1, 1.0}
+    assert set(result["tune_auprc"]) == {1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0}
     assert result["n_features_used"] == 5
     assert result["n_train"] == 160 and result["n_train_positive"] == int(labels[:160].sum())
 
@@ -189,3 +189,12 @@ def test_object_boolean_labels_match_boolean_scores_and_ignore_report_labels():
     labels[320:] = None
     other = chromosome_split_probe(features, labels, chroms)
     np.testing.assert_array_equal(base['scores'], other['scores'])
+
+
+@pytest.mark.parametrize('grid,edge', [([1], False), ([1, 1], False), ([0.01, 1], True)])
+def test_chosen_c_grid_edge_is_explicit(grid, edge):
+    features = np.tile([[-1.], [1.]], (6, 1))
+    labels = np.tile([False, True], 6)
+    chroms = np.repeat(['1', '2', '3'], 4)
+    result = chromosome_split_probe(features, labels, chroms, c_grid=grid)
+    assert result['chosen_c_on_edge'] is edge
