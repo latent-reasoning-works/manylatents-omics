@@ -198,3 +198,30 @@ def test_chosen_c_grid_edge_is_explicit(grid, edge):
     chroms = np.repeat(['1', '2', '3'], 4)
     result = chromosome_split_probe(features, labels, chroms, c_grid=grid)
     assert result['chosen_c_on_edge'] is edge
+
+
+@pytest.mark.parametrize('values,chosen,gain', [
+    ([0.8, 0.6, 0.5], 0.01, 0.2),
+    ([0.5, 0.8, 0.6], 1.0, 0.0),
+    ([0.5, 0.6, 0.8], 10.0, 0.2),
+    ([0.8, 0.8, 0.8], 0.01, 0.0),
+    ([0.8], 0.01, 0.0),
+])
+def test_nested_tuning_curve_and_edge_gain(monkeypatch, values, chosen, gain):
+    from manylatents.dogma.benchmarks.probes import leave_chromosome_out_probe
+    grid = [0.01, 1.0, 10.0][:len(values)]
+    calls = []
+
+    def pooled_ap(y, scores):
+        calls.append((len(y), len(scores)))
+        return values[(len(calls) - 1) % len(values)]
+
+    monkeypatch.setattr('sklearn.metrics.average_precision_score', pooled_ap)
+    features, labels, chroms = _toy(per_chromosome=12)
+    result = leave_chromosome_out_probe(features, labels, chroms,
+                                        c_grid=grid[::-1], inner_folds=2)
+    assert calls == [(60, 60)] * (6 * len(grid))
+    for chrom in np.unique(chroms):
+        assert result['tune_auprc'][chrom] == dict(zip(grid, values))
+        assert result['chosen_c'][chrom] == chosen
+        assert result['chosen_c_edge_gain'][chrom] == pytest.approx(gain)

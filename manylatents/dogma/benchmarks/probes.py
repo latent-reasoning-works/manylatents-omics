@@ -125,7 +125,10 @@ def leave_chromosome_out_probe(features, labels, chroms, *, c_grid=DEFAULT_C_GRI
     training classes are skipped and counted, including their excluded rows.
 
     Returns scores in input order, per-chromosome dictionaries ``chosen_c``,
-    ``chosen_c_on_edge``, ``n_features_used``, ``n_features_dropped``,
+    ``chosen_c_on_edge``, ``tune_auprc`` (C to pooled inner-fold AP),
+    ``chosen_c_edge_gain`` (chosen AP minus its sole grid neighbour at an
+    endpoint, zero for interior choices or singleton grids),
+    ``n_features_used``, ``n_features_dropped``,
     ``n_inner_folds_skipped``, ``n_inner_rows_skipped``, and ``n_chromosomes``.
     Chromosome keys are normalised. ``n_jobs`` parallelises outer folds only.
 
@@ -171,7 +174,7 @@ def leave_chromosome_out_probe(features, labels, chroms, *, c_grid=DEFAULT_C_GRI
     scores = np.empty(len(features), dtype=float)
     result = {key: {} for key in (
         "chosen_c", "chosen_c_on_edge", "n_features_used", "n_features_dropped",
-        "n_inner_folds_skipped", "n_inner_rows_skipped",
+        "n_inner_folds_skipped", "n_inner_rows_skipped", "tune_auprc", "chosen_c_edge_gain",
     )}
     for chrom, (fold_scores, details) in zip(chromosomes, folds):
         scores[chroms == chrom] = fold_scores
@@ -216,6 +219,7 @@ def _leave_chromosome_out(chrom, features, labels, chroms, grid, inner_folds, ma
     pooled_labels = np.concatenate([fold[3] for fold in folds])
     if not pooled_labels.any():
         raise MeasurementUnavailable(f"inner validation for {chrom} has no positives")
+    tuning = {}
     best_ap, chosen = -np.inf, None
     for c in grid:
         decisions = []
@@ -223,8 +227,13 @@ def _leave_chromosome_out(chrom, features, labels, chroms, grid, inner_folds, ma
             model = _fit_probe(fit_x, fit_y, c, max_iter)
             decisions.append(_decision_scores(model, valid_x))
         ap = float(average_precision_score(pooled_labels, np.concatenate(decisions)))
+        tuning[c] = ap
         if ap > best_ap:
             best_ap, chosen = ap, c
+    edge_gain = 0.0
+    if len(grid) > 1 and chosen in (grid[0], grid[-1]):
+        neighbour = grid[1] if chosen == grid[0] else grid[-2]
+        edge_gain = tuning[chosen] - tuning[neighbour]
     scaled, kept = _standardize_training(features, x)
     model = _fit_probe(scaled[train], y, chosen, max_iter)
     return _decision_scores(model, scaled[~train]), {
@@ -232,6 +241,8 @@ def _leave_chromosome_out(chrom, features, labels, chroms, grid, inner_folds, ma
         "chosen_c_on_edge": len(grid) > 1 and chosen in (grid[0], grid[-1]),
         "n_features_used": int(kept.sum()),
         "n_features_dropped": int((~kept).sum()),
+        "tune_auprc": tuning,
+        "chosen_c_edge_gain": edge_gain,
         "n_inner_folds_skipped": skipped,
         "n_inner_rows_skipped": skipped_rows,
     }
