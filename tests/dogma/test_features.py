@@ -123,3 +123,18 @@ def test_pca_caps_components_at_reference_numerical_rank(sparse):
     changed[0, 0] *= 1 + 1e-15
     other = category_pca(query, changed, ['A'] * reference.shape[1], requested)
     np.testing.assert_allclose(abs(q), abs(other[0]), atol=1e-10)
+
+
+@pytest.mark.parametrize('kind', ['max', 'pca'])
+def test_feature_reduction_pickle_and_copy_preserve_metadata(kind):
+    import copy
+    import pickle
+
+    result = (modality_max([[1, 2]], ['CAGE', 'OTHER']) if kind == 'max' else
+              category_pca([[1, 2]], [[0, 0], [1, 1], [2, 2]], ['A', 'A'], 2))
+    for restored in (pickle.loads(pickle.dumps(result)), copy.copy(result), copy.deepcopy(result)):
+        assert type(restored) is type(result)
+        assert restored.n_dropped == result.n_dropped
+        assert restored.n_components_withheld == result.n_components_withheld
+        for a, b in zip(restored, result):
+            np.testing.assert_array_equal(a, b)

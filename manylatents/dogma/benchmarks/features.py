@@ -37,6 +37,9 @@ class FeatureReduction(tuple):
         result.n_components_withheld = n_components_withheld or {}
         return result
 
+    def __reduce__(self):
+        return (type(self), (tuple(self), self.n_dropped, self.n_components_withheld))
+
 
 def _checked(values, track_scorer):
     values = np.asarray(values, dtype=np.float64)
