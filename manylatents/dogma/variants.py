@@ -40,3 +40,65 @@ def with_variant_ids(variants: pd.DataFrame) -> pd.DataFrame:
     if duplicated:
         raise ValueError(f"duplicate variants: {duplicated[:10]}")
     return out
+
+
+def lookup_tabix_scores(path: str, variants: pd.DataFrame) -> pd.DataFrame:
+    """Per-variant values from a bgzipped, tabix-indexed table of SNV scores.
+
+    The table's first four columns are chromosome, 1-based position, reference
+    and alternate allele; every further column is a numeric value. Its last
+    ``#`` header line names the value columns; without one they are
+    ``value_0``, ``value_1``, ... Chromosomes may be written ``1`` or ``chr1``
+    on either side.
+
+    Returns one row per input variant, in input order: ``variant_id``,
+    ``found``, ``table_ref``, ``reference_matches`` and the value columns. A
+    variant absent from the table has ``found`` False and missing values. A
+    variant whose reference allele differs from the table's is still returned,
+    with ``reference_matches`` False, so the caller decides what to do with it.
+
+    Raises:
+        ImportError: ``pysam`` is not installed.
+        ValueError: a required column is absent, or two rows are the same variant.
+    """
+    try:
+        import pysam
+    except ImportError as error:
+        raise ImportError(
+            "lookup_tabix_scores needs pysam: pip install 'manylatents-omics[noncoding]'"
+        ) from error
+
+    table = with_variant_ids(variants)
+    with pysam.TabixFile(path) as tabix:
+        contigs = set(tabix.contigs)
+        prefixed = any(c.startswith("chr") for c in contigs)
+        names = None
+        if tabix.header:
+            names = tabix.header[-1].lstrip("#").rstrip("\n").split("\t")[4:]
+        rows = []
+        for chromosome, pos, ref, alt in zip(
+            table["chromosome"], table["pos"], table["ref"], table["alt"]
+        ):
+            contig = chromosome if prefixed else chromosome[3:]
+            pos = int(pos)
+            row = {"found": False, "table_ref": None, "reference_matches": pd.NA}
+            if contig in contigs:
+                for line in tabix.fetch(contig, pos - 1, pos):
+                    fields = line.split("\t")
+                    if int(fields[1]) != pos or fields[3] != alt:
+                        continue
+                    values = [float(v) for v in fields[4:]]
+                    if names is None:
+                        names = [f"value_{i}" for i in range(len(values))]
+                    row = {
+                        "found": True,
+                        "table_ref": fields[2],
+                        "reference_matches": fields[2] == ref,
+                        **dict(zip(names, values)),
+                    }
+                    break
+            rows.append(row)
+    out = pd.DataFrame(rows, columns=["found", "table_ref", "reference_matches", *(names or [])])
+    out["reference_matches"] = out["reference_matches"].astype("boolean")
+    out.insert(0, "variant_id", table["variant_id"].to_numpy())
+    return out
