@@ -33,6 +33,8 @@ def cached(monkeypatch):
         return store[scorer]
 
     monkeypatch.setattr(atlas, "load_cached_scores", fake)
+    monkeypatch.setattr(atlas, "cached_variants", lambda directory, scorer: store[scorer].variant_ids if scorer in store else [])
+    monkeypatch.setattr(atlas, "missing_variants", lambda directory, scorer: ["v1", "v3"])
     return calls
 
 
@@ -86,3 +88,24 @@ def test_disjoint_scorers_are_undefined(cached):
 def test_repeated_scorers_are_refused(cached, scorers, genes):
     with pytest.raises(ValueError, match="duplicate"):
         load_track_matrix(["dir"], scorers, gene_scorers=genes)
+
+
+def test_real_gene_cache_distinguishes_unattempted_from_no_rows(tmp_path):
+    from tests.dogma.test_atlas import FakeAtlasClient, _fetch, _variants
+    from manylatents.dogma.variants import with_variant_ids
+
+    variants = _variants(12)
+    plain, partial, rest = [tmp_path / name for name in ('plain', 'partial', 'rest')]
+    _fetch(FakeAtlasClient(), variants, plain)
+    _fetch(FakeAtlasClient(unservable=[1, 3], genes=['g1']), variants.iloc[:4], partial,
+           requested_scorers=['G'])
+    ids = with_variant_ids(variants)['variant_id'].tolist()
+    with pytest.raises(AtlasScoresMissing) as error:
+        load_track_matrix([plain, partial], ['S'], gene_scorers=['G'])
+    assert set(error.value.variant_ids) == set(ids[4:])
+    _fetch(FakeAtlasClient(genes=['g1']), variants.iloc[4:], rest, requested_scorers=['G'])
+    matrix = load_track_matrix([plain, partial, rest], ['S'], gene_scorers=['G'])
+    expected = np.isin(matrix.variant_ids, [ids[0], ids[2]])
+    np.testing.assert_array_equal(matrix.without_rows['G'], expected)
+    np.testing.assert_array_equal(matrix.values[expected, 3:], 0)
+    assert matrix.n_dropped == {'S': 0, 'G': 0}

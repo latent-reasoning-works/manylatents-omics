@@ -28,9 +28,9 @@ def load_track_matrix(cache_dirs, scorers, gene_scorers=()) -> TrackMatrix:
     missing rows get zeros and True in ``without_rows[scorer]``. ``n_dropped``
     counts each scorer's cached variants excluded from the output.
 
-    Missing gene rows are assumed to mean no gene in the input window: callers
-    must ensure caches are complete. An entirely absent scorer still raises
-    AtlasScoresMissing because its track dimensions are unknown.
+    Only variants recorded as attempted in the gene scorer caches may receive
+    zeros. Never-attempted variants raise AtlasScoresMissing with their IDs.
+    An entirely absent scorer also raises because track dimensions are unknown.
 
     Raises ValueError for empty, overlapping or duplicate scorer requests, and
     MeasurementUnavailable if the ordinary scorers have no common variants.
@@ -59,6 +59,13 @@ def load_track_matrix(cache_dirs, scorers, gene_scorers=()) -> TrackMatrix:
         names += [scorer] * matrix.values.shape[1]
         dropped[scorer] = len(matrix.variant_ids) - len(order)
     for scorer in gene_scorers:
+        attempted = set()
+        for directory in cache_dirs:
+            attempted.update(atlas.cached_variants(directory, scorer))
+            attempted.update(atlas.missing_variants(directory, scorer))
+        unattempted = [v for v in order if v not in attempted]
+        if unattempted:
+            raise atlas.AtlasScoresMissing(scorer, unattempted)
         matrix = atlas.load_cached_scores(cache_dirs, scorer, gene_reduce="maxabs")
         position = {v: i for i, v in enumerate(matrix.variant_ids)}
         rows = np.array([position.get(v, -1) for v in order], dtype=int)
