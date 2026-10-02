@@ -74,3 +74,10 @@ def test_header_value_count_mismatch_is_not_silently_truncated(tmp_path, header)
     pysam.tabix_index(str(path) + '.gz', seq_col=0, start_col=1, end_col=1, force=True)
     with pytest.raises(ValueError, match='value names.*value fields'):
         lookup_tabix_scores(str(path) + '.gz', VARIANTS)
+
+
+def test_path_objects_are_accepted(tmp_path):
+    from pathlib import Path
+
+    out = lookup_tabix_scores(Path(_table(tmp_path)), VARIANTS)
+    assert out["found"].tolist() == [True, True, True, False, False]

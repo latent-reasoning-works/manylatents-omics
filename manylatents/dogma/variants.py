@@ -6,6 +6,8 @@ join on the same key.
 """
 from __future__ import annotations
 
+import os
+
 import pandas as pd
 
 VARIANT_COLUMNS = ("chrom", "pos", "ref", "alt")
@@ -69,7 +71,7 @@ def lookup_tabix_scores(path: str, variants: pd.DataFrame) -> pd.DataFrame:
         ) from error
 
     table = with_variant_ids(variants)
-    with pysam.TabixFile(path) as tabix:
+    with pysam.TabixFile(os.fspath(path)) as tabix:
         contigs = set(tabix.contigs)
         prefixed = any(c.startswith("chr") for c in contigs)
         names = None
