@@ -139,6 +139,9 @@ class TestOrthrusEncoderFunctional:
     @pytest.fixture
     def encoder(self):
         pytest.importorskip("huggingface_hub")
+        pytest.importorskip("mamba_ssm")
+        if not torch.cuda.is_available():
+            pytest.skip("Orthrus functional tests require CUDA")
         from manylatents.dogma.encoders import OrthrusEncoder
         return OrthrusEncoder(device="cuda")
 

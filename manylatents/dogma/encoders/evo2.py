@@ -69,9 +69,6 @@ class Evo2Encoder(FoundationEncoder):
         },
     }
 
-    # Default weights location on Mila cluster
-    DEFAULT_WEIGHTS = "/network/weights/savanna-evo2-1b-base/savanna_evo2_1b_base/savanna_evo2_1b_base.pt"
-
     def __init__(
         self,
         model_name: str = "evo2_1b_base",

@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Added
+- Chromosome splits matching AVI training and tuning partitions, with consistent chromosome prefixes.
+- Pinned ncVarDB loader for pathogenic and benign nuclear SNVs, with exclusion counts.
+- Full track matrices across cached scorers, including gene-scoped reductions and missing-row masks.
+- Per-modality maximum and per-category reference-fitted PCA features, with omitted-track counts.
+- Chromosome-split logistic probes with training-only standardisation, tuning selection and dropped-feature counts.
 - Configurable track-geometry evaluation with permutation nulls, sensitivity grids, mismatched controls and locus-confound analysis.
 - Local track-scoring CLI with required reference FASTA, contiguous sharding and reference/window prefiltering.
 - Multi-directory Atlas cache loading with track metadata and duplicate-variant checks.
