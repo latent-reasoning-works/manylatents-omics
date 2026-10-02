@@ -34,3 +34,19 @@ def test_prefixes_agree_in_every_partition():
     assert chromosome_split([1, "chr1", "X", "chrX", 3, "chr3"]).tolist() == [
         "train", "train", "tune", "tune", "report", "report"]
     assert chromosome_split([]).shape == (0,)
+
+
+def test_normalizes_numeric_case_and_whitespace_names_and_partitions():
+    assert chromosome_split([1.0, ' Chr4 ', 'CHR2', ' chrx ', 'y', 'mt']).tolist() == [
+        'train', 'train', 'tune', 'tune', 'report', 'report']
+    assert chromosome_split([' chr1 ', 2.0], train=[1.0], tune=[' CHR2 ']).tolist() == ['train', 'tune']
+
+
+@pytest.mark.parametrize('bad', [None, np.nan, '23', b'1', '1.5', '1_KI270706v1_random'])
+@pytest.mark.parametrize('where', ['chroms', 'train', 'tune'])
+def test_invalid_chromosomes_fail_closed(bad, where):
+    args = dict(chroms=['1'], train=['1'], tune=['2'])
+    args[where] = [bad]
+    with pytest.raises(ValueError, match='chromosome') as error:
+        chromosome_split(**args)
+    assert repr(bad) in str(error.value)
