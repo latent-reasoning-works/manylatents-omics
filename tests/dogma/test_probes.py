@@ -180,3 +180,12 @@ def test_near_constant_training_feature_is_dropped_and_counted():
     features[160:, 1] *= 1e9
     other = chromosome_split_probe(features, labels, chroms)
     np.testing.assert_array_equal(result['scores'], other['scores'])
+
+
+def test_object_boolean_labels_match_boolean_scores_and_ignore_report_labels():
+    features, labels, chroms = _toy()
+    base = chromosome_split_probe(features, labels, chroms)
+    labels = labels.astype(object)
+    labels[320:] = None
+    other = chromosome_split_probe(features, labels, chroms)
+    np.testing.assert_array_equal(base['scores'], other['scores'])

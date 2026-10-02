@@ -54,6 +54,8 @@ def chromosome_split_probe(features, labels, chroms, *, c_grid=(1e-3, 1e-2, 1e-1
         if np.unique(labels[rows]).size < 2:
             raise MeasurementUnavailable(f"{name} chromosomes do not hold both classes")
 
+    train_labels = labels[in_train].astype(bool)
+    tune_labels = labels[in_tune].astype(bool)
     scaled, kept = _standardize_training(features, features[in_train])
 
     tuning, best = {}, None
@@ -62,10 +64,10 @@ def chromosome_split_probe(features, labels, chroms, *, c_grid=(1e-3, 1e-2, 1e-1
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("error", ConvergenceWarning)
-                model.fit(scaled[in_train], labels[in_train])
+                model.fit(scaled[in_train], train_labels)
         except ConvergenceWarning as error:
             raise MeasurementUnavailable(f"probe did not converge for C={c}") from error
-        value = float(average_precision_score(labels[in_tune], _decision_scores(model, scaled[in_tune])))
+        value = float(average_precision_score(tune_labels, _decision_scores(model, scaled[in_tune])))
         tuning[c] = value
         if best is None or value > best[0]:
             best = (value, c, model)
@@ -79,7 +81,7 @@ def chromosome_split_probe(features, labels, chroms, *, c_grid=(1e-3, 1e-2, 1e-1
         "n_features_dropped": int((~kept).sum()),
         "kept_features": kept,
         "n_train": int(in_train.sum()),
-        "n_train_positive": int(labels[in_train].sum()),
+        "n_train_positive": int(train_labels.sum()),
     }
 
 
