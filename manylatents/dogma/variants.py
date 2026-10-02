@@ -90,6 +90,11 @@ def lookup_tabix_scores(path: str, variants: pd.DataFrame) -> pd.DataFrame:
                     values = [float(v) for v in fields[4:]]
                     if names is None:
                         names = [f"value_{i}" for i in range(len(values))]
+                    if len(names) != len(values):
+                        raise ValueError(
+                            f"{len(names)} value names differ from {len(values)} value fields "
+                            f"at {contig}:{pos}"
+                        )
                     row = {
                         "found": True,
                         "table_ref": fields[2],

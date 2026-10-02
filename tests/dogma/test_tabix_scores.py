@@ -63,3 +63,14 @@ def test_table_without_chr_prefix_and_without_header(tmp_path):
 def test_missing_columns_are_refused(tmp_path):
     with pytest.raises(ValueError, match="alt"):
         lookup_tabix_scores(_table(tmp_path), VARIANTS.drop(columns="alt"))
+
+
+@pytest.mark.parametrize('header', ['#CHROM\tPOS\tREF\tALT\traw\n',
+                                    '#CHROM\tPOS\tREF\tALT\traw\tPHRED\n#generated\n'])
+def test_header_value_count_mismatch_is_not_silently_truncated(tmp_path, header):
+    path = tmp_path / 'mismatch.tsv'
+    path.write_text(header + 'chr1\t100\tA\tG\t0.25\t12.5\n')
+    pysam.tabix_compress(str(path), str(path) + '.gz', force=True)
+    pysam.tabix_index(str(path) + '.gz', seq_col=0, start_col=1, end_col=1, force=True)
+    with pytest.raises(ValueError, match='value names.*value fields'):
+        lookup_tabix_scores(str(path) + '.gz', VARIANTS)
