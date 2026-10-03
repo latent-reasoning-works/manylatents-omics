@@ -461,3 +461,23 @@ def test_other_runtime_errors_still_propagate(tmp_path):
 
     with pytest.raises(RuntimeError, match="device lost"):
         _fetch(_local_client(Broken()), _variants(2), tmp_path, requested_scorers=["DNASE"])
+
+
+def test_maxabs_skips_missing_values_from_other_strand_genes(tmp_path):
+    class StrandedClient(FakeAtlasClient):
+        def _anndata(self, variants):
+            adata = super()._anndata(variants)
+            x = adata.X.copy()
+            x[adata.obs["gene_id"].to_numpy() == "g2", 0] = np.nan   # g2 has no value for track 0
+            x[:, 2] = np.nan                                          # no gene has a value for track 2
+            adata.X = x
+            return adata
+
+    variants = _variants(2)
+    _fetch(StrandedClient(genes=["g1", "g2"], with_quantiles=False), variants, tmp_path)
+    ids = with_variant_ids(variants)["variant_id"].tolist()
+    out = load_atlas_matrix(tmp_path, "S", ids, gene_reduce="maxabs").values
+    assert np.isfinite(out[:, 0]).all() and np.isfinite(out[:, 1]).all()
+    assert np.isnan(out[:, 2]).all()
+    # track 0: only g1 has a value, so it is g1's score (position * 10 + 0)
+    assert out[:, 0].tolist() == [10.0, 20.0]

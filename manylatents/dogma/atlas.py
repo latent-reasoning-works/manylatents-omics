@@ -448,7 +448,10 @@ def load_atlas_matrix(
         layer: None for raw scores, or a layer name such as ``"quantiles"``.
         gene_reduce: how to collapse a gene-scoped scorer's several rows per
             variant into one. ``"maxabs"`` keeps, per track, the signed score
-            of largest magnitude across genes. None refuses such scorers.
+            of largest magnitude across the genes that have a value for that
+            track (missing values, as for a gene on the other strand, are
+            skipped); a track no gene has a value for stays missing. None
+            refuses such scorers.
 
     Raises:
         AtlasScoresMissing: some requested variants have no cached scores.
@@ -510,8 +513,13 @@ def load_atlas_matrix(
         out = np.empty((len(wanted), values.shape[1]), dtype=np.float32)
         for i, vid in enumerate(wanted):
             block = values[rows_of[vid]]
-            pick = np.abs(block).argmax(axis=0)
-            out[i] = block[pick, np.arange(block.shape[1])]
+            # A gene-scoped scorer leaves a track missing (NaN) for a gene on the
+            # other strand. Choose among the genes that have a value; a track no
+            # gene has a value for stays missing.
+            magnitude = np.where(np.isfinite(block), np.abs(block), -np.inf)
+            pick = magnitude.argmax(axis=0)
+            chosen = block[pick, np.arange(block.shape[1])]
+            out[i] = np.where(np.isfinite(magnitude).any(axis=0), chosen, np.nan)
     return AtlasMatrix(values=out, variant_ids=wanted, tracks=tracks)
 
 
