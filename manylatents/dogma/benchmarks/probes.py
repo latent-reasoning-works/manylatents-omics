@@ -129,7 +129,9 @@ def leave_chromosome_out_probe(features, labels, chroms, *, c_grid=DEFAULT_C_GRI
     ``chosen_c_edge_gain`` (chosen AP minus its sole grid neighbour at an
     endpoint, zero for interior choices or singleton grids),
     ``n_features_used``, ``n_features_dropped``,
-    ``n_inner_folds_skipped``, ``n_inner_rows_skipped``, and ``n_chromosomes``.
+    ``n_inner_folds_skipped``, ``n_inner_rows_skipped``, ``n_chromosomes``,
+    ``standardised_weights`` (input columns, zero for counted drops) and
+    ``intercept`` per chromosome.
     Chromosome keys are normalised. ``n_jobs`` parallelises outer folds only.
 
     Raises ValueError for malformed inputs or parameters, MeasurementUnavailable
@@ -175,6 +177,7 @@ def leave_chromosome_out_probe(features, labels, chroms, *, c_grid=DEFAULT_C_GRI
     result = {key: {} for key in (
         "chosen_c", "chosen_c_on_edge", "n_features_used", "n_features_dropped",
         "n_inner_folds_skipped", "n_inner_rows_skipped", "tune_auprc", "chosen_c_edge_gain",
+        "standardised_weights", "intercept",
     )}
     for chrom, (fold_scores, details) in zip(chromosomes, folds):
         scores[chroms == chrom] = fold_scores
@@ -236,7 +239,11 @@ def _leave_chromosome_out(chrom, features, labels, chroms, grid, inner_folds, ma
         edge_gain = tuning[chosen] - tuning[neighbour]
     scaled, kept = _standardize_training(features, x)
     model = _fit_probe(scaled[train], y, chosen, max_iter)
+    weights = np.zeros(features.shape[1])
+    weights[kept] = model.coef_[0]
     return _decision_scores(model, scaled[~train]), {
+        "standardised_weights": weights.tolist(),
+        "intercept": float(model.intercept_[0]),
         "chosen_c": chosen,
         "chosen_c_on_edge": len(grid) > 1 and chosen in (grid[0], grid[-1]),
         "n_features_used": int(kept.sum()),

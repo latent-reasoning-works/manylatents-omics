@@ -225,3 +225,17 @@ def test_nested_tuning_curve_and_edge_gain(monkeypatch, values, chosen, gain):
         assert result['tune_auprc'][chrom] == dict(zip(grid, values))
         assert result['chosen_c'][chrom] == chosen
         assert result['chosen_c_edge_gain'][chrom] == pytest.approx(gain)
+
+
+def test_nested_weights_reconstruct_fold_decisions():
+    from manylatents.dogma.benchmarks.probes import leave_chromosome_out_probe, _standardize_training
+    x, y, chroms = _toy(per_chromosome=12)
+    x[:, -1] = 3
+    result = leave_chromosome_out_probe(x, y, chroms, c_grid=[.1], inner_folds=2)
+    for chrom in np.unique(chroms):
+        scaled, kept = _standardize_training(x, x[chroms != chrom])
+        weights = np.asarray(result['standardised_weights'][chrom])
+        assert weights.shape == (x.shape[1],)
+        assert weights[-1] == 0
+        predicted = scaled[chroms == chrom] @ weights[kept] + result['intercept'][chrom]
+        np.testing.assert_allclose(predicted, result['scores'][chroms == chrom])
