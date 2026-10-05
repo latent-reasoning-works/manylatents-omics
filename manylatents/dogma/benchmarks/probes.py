@@ -246,3 +246,123 @@ def _leave_chromosome_out(chrom, features, labels, chroms, grid, inner_folds, ma
         "n_inner_folds_skipped": skipped,
         "n_inner_rows_skipped": skipped_rows,
     }
+
+
+DEFAULT_TREE_GRID = ((4, 100), (4, 300), (16, 100), (16, 300))
+
+
+def leave_chromosome_out_tree_probe(features, labels, chroms, *, grid=DEFAULT_TREE_GRID,
+                                    inner_folds=3, n_jobs=1, random_state):
+    """Out-of-fold boosted-tree decision values with grouped inner tuning.
+
+    ``grid`` contains (max_leaf_nodes, max_iter) pairs. Pooled inner average
+    precision selects the configuration; ties prefer fewer leaves, then fewer
+    iterations. Fixed settings are learning_rate=.05, min_samples_leaf=20,
+    l2_regularization=1, balanced classes and no early stopping. No scaling or
+    feature selection is done. The grid has no edge-failure criterion.
+
+    Like the linear probe, single-class inner training folds are skipped and
+    counted. Returns input-order ``scores``, ``chosen_config`` and
+    ``tune_auprc`` per chromosome, feature counts, skipped-fold/row counts and
+    ``n_chromosomes``. Tuning keys name both configuration parameters.
+    Outer folds alone are parallelised. Each fit uses one native thread for
+    deterministic predictions independent of ``n_jobs``.
+
+    Raises ValueError for malformed inputs/settings and MeasurementUnavailable
+    for nonfinite data, nonbinary labels or undefined training/tuning.
+    """
+    from numbers import Integral
+    from manylatents.dogma.benchmarks.splits import normalize_chromosomes
+
+    features = np.asarray(features, dtype=np.float64)
+    labels, chroms = np.asarray(labels), np.asarray(chroms, dtype=object)
+    if (features.ndim != 2 or labels.ndim != 1 or chroms.ndim != 1
+            or not len(features) == len(labels) == len(chroms)):
+        raise ValueError("features (2-D), labels and chroms (1-D) must have the same length")
+    chroms = normalize_chromosomes(chroms)
+    if not np.isfinite(features).all():
+        raise MeasurementUnavailable("features are not all finite")
+    if not np.isin(labels, [False, True]).all():
+        raise MeasurementUnavailable("labels must be binary (0 or 1)")
+    if not features.shape[1]:
+        raise MeasurementUnavailable("no input features")
+    pairs = []
+    for config in grid:
+        if (not isinstance(config, (tuple, list)) or len(config) != 2
+                or any(isinstance(v, bool) or not isinstance(v, Integral) for v in config)
+                or config[0] < 2 or config[1] < 1):
+            raise ValueError("grid must contain integer (max_leaf_nodes >= 2, max_iter >= 1) pairs")
+        pairs.append(tuple(map(int, config)))
+    grid = sorted(set(pairs))
+    if not grid:
+        raise ValueError("grid must not be empty")
+    for name, value, minimum in (("inner_folds", inner_folds, 2), ("random_state", random_state, 0)):
+        if isinstance(value, bool) or not isinstance(value, Integral) or value < minimum:
+            raise ValueError(f"{name} must be an integer >= {minimum}")
+    if random_state > 2**32 - 1:
+        raise ValueError("random_state must be less than 2**32")
+    if isinstance(n_jobs, bool) or not isinstance(n_jobs, Integral) or n_jobs == 0:
+        raise ValueError("n_jobs must be a nonzero integer")
+    chromosomes = np.unique(chroms)
+    if len(chromosomes) < 3:
+        raise MeasurementUnavailable("nested tuning needs at least three chromosomes")
+    args = (features, labels.astype(bool), chroms, grid, inner_folds, random_state)
+    if n_jobs == 1:
+        folds = [_leave_chromosome_out_tree(c, *args) for c in chromosomes]
+    else:
+        from joblib import Parallel, delayed
+        folds = Parallel(n_jobs=n_jobs)(delayed(_leave_chromosome_out_tree)(c, *args) for c in chromosomes)
+    scores, result = np.empty(len(features)), {}
+    for chrom, (predictions, details) in zip(chromosomes, folds):
+        scores[chroms == chrom] = predictions
+        for key, value in details.items():
+            result.setdefault(key, {})[str(chrom)] = value
+    return {"scores": scores, **result, "n_chromosomes": len(chromosomes)}
+
+
+def _leave_chromosome_out_tree(chrom, features, labels, chroms, grid, inner_folds, random_state):
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    from sklearn.metrics import average_precision_score
+    from sklearn.model_selection import GroupKFold
+    from threadpoolctl import threadpool_limits
+
+    train = chroms != chrom
+    x, y, groups = features[train], labels[train], chroms[train]
+    if np.unique(y).size != 2:
+        raise MeasurementUnavailable(f"training chromosomes for {chrom} do not hold both classes")
+    splitter = GroupKFold(n_splits=min(inner_folds, len(np.unique(groups))))
+    folds, skipped, skipped_rows = [], 0, 0
+    for fit, valid in splitter.split(x, y, groups):
+        if np.unique(y[fit]).size != 2:
+            skipped += 1
+            skipped_rows += len(valid)
+        else:
+            folds.append((fit, valid))
+    if not folds:
+        raise MeasurementUnavailable(f"no usable inner folds for chromosome {chrom}")
+    pooled_labels = np.concatenate([y[valid] for _, valid in folds])
+    if not pooled_labels.any():
+        raise MeasurementUnavailable(f"inner validation for {chrom} has no positives")
+
+    def model(config):
+        return HistGradientBoostingClassifier(
+            max_leaf_nodes=config[0], max_iter=config[1], learning_rate=.05,
+            min_samples_leaf=20, l2_regularization=1., class_weight="balanced",
+            early_stopping=False, random_state=int(random_state))
+
+    tuning, best_ap, chosen = {}, -np.inf, None
+    with threadpool_limits(limits=1):
+        for config in grid:
+            predictions = [_decision_scores(model(config).fit(x[fit], y[fit]), x[valid])
+                           for fit, valid in folds]
+            ap = float(average_precision_score(pooled_labels, np.concatenate(predictions)))
+            tuning[f"max_leaf_nodes={config[0]},max_iter={config[1]}"] = ap
+            if ap > best_ap:
+                best_ap, chosen = ap, config
+        scores = _decision_scores(model(chosen).fit(x, y), features[~train])
+    return scores, {
+        "chosen_config": {"max_leaf_nodes": chosen[0], "max_iter": chosen[1]},
+        "tune_auprc": tuning,
+        "n_features_used": features.shape[1], "n_features_dropped": 0,
+        "n_inner_folds_skipped": skipped, "n_inner_rows_skipped": skipped_rows,
+    }
