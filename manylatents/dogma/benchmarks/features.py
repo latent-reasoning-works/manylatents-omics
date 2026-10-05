@@ -127,3 +127,113 @@ def category_pca(query, reference, track_scorer, n_components=30):
         raise MeasurementUnavailable("the reference does not vary in any track")
     return FeatureReduction((np.concatenate(query_parts, axis=1),
                              np.concatenate(reference_parts, axis=1), names), dropped, withheld)
+
+
+def _reduction(columns, names, dropped):
+    if not columns:
+        raise MeasurementUnavailable("no usable tracks for this reduction")
+    values = np.column_stack(columns)
+    if not np.isfinite(values).all():
+        raise MeasurementUnavailable("reduced features are not finite")
+    return FeatureReduction((values, names), dropped)
+
+
+def signed_extremes(values, track_scorer, signed_scorers):
+    """Positive maximum and negative minimum per signed scorer, zero if absent.
+
+    Scorers follow input order. Unsigned tracks are omitted and counted in
+    ``n_dropped``. Returns ``(features, names)`` as a FeatureReduction.
+    """
+    values, track_scorer = _checked(values, track_scorer)
+    signed_scorers = set(signed_scorers)
+    columns, names, dropped = [], [], {}
+    for scorer in dict.fromkeys(track_scorer.tolist()):
+        selected = track_scorer == scorer
+        dropped[scorer] = 0 if scorer in signed_scorers else int(selected.sum())
+        if scorer in signed_scorers:
+            block = values[:, selected]
+            columns.extend([np.maximum(block.max(axis=1), 0), np.minimum(block.min(axis=1), 0)])
+            names.extend([f"{scorer}_positive", f"{scorer}_negative"])
+    return _reduction(columns, names, dropped)
+
+
+def _reference_blocks(query, reference, track_scorer):
+    query, track_scorer = _checked(query, track_scorer)
+    reference, _ = _checked(reference, track_scorer)
+    if len(reference) < 2:
+        raise MeasurementUnavailable("standardisation needs at least two reference rows")
+    blocks, dropped = [], {}
+    for scorer in dict.fromkeys(track_scorer.tolist()):
+        selected = track_scorer == scorer
+        q, r = query[:, selected], reference[:, selected]
+        varying = np.any(r != r[:1], axis=0)
+        dropped[scorer] = int((~varying).sum())
+        if not varying.any():
+            continue
+        q, r = q[:, varying], r[:, varying]
+        mean, spread = r.mean(axis=0), r.std(axis=0)
+        with np.errstate(over='ignore', divide='ignore', invalid='ignore'):
+            z = (q - mean) / spread
+        if not (np.isfinite(mean).all() and np.isfinite(spread).all()
+                and (spread > 0).all() and np.isfinite(z).all()):
+            raise MeasurementUnavailable("reference standardisation is not finite")
+        blocks.append((scorer, q, r, z))
+    return blocks, dropped
+
+
+def modality_breadth(query, reference, track_scorer, quantile=0.99):
+    """Fraction above reference absolute quantiles and effective track fraction.
+
+    Each input scorer supplies two features. Reference-constant tracks are
+    dropped and counted for both features. Standardisation uses population
+    standard deviation. Effective fraction is (sum(z²))² / sum(z⁴) / track
+    count; an all-zero row gives zero. Returns a FeatureReduction.
+    """
+    if not np.isscalar(quantile) or not np.isfinite(quantile) or not 0 <= quantile <= 1:
+        raise ValueError("quantile must be finite and between zero and one")
+    blocks, dropped = _reference_blocks(query, reference, track_scorer)
+    columns, names = [], []
+    for scorer, q, r, z in blocks:
+        above = (np.abs(q) > np.quantile(np.abs(r), quantile, axis=0)).mean(axis=1)
+        # Row scaling cancels in the ratio and prevents overflowing z**4.
+        scale = np.abs(z).max(axis=1, keepdims=True)
+        bounded = np.divide(z, scale, out=np.zeros_like(z), where=scale != 0)
+        square = bounded ** 2
+        numerator, denominator = square.sum(axis=1) ** 2, (square ** 2).sum(axis=1)
+        effective = np.divide(numerator, denominator, out=np.zeros(len(q)), where=denominator != 0)
+        columns.extend([above, effective / z.shape[1]])
+        names.extend([f"{scorer}_fraction_above_background", f"{scorer}_effective_fraction"])
+    return _reduction(columns, names, dropped)
+
+
+def normalised_maxima(query, reference, track_scorer):
+    """Maximum absolute reference-standardised score per input scorer.
+
+    Reference-constant tracks are dropped and counted. Scorers with no retained
+    track supply no feature; an entirely constant reference is unavailable.
+    """
+    blocks, dropped = _reference_blocks(query, reference, track_scorer)
+    return _reduction([np.abs(z).max(axis=1) for _, _, _, z in blocks],
+                      [f"{s}_normalised_max" for s, _, _, _ in blocks], dropped)
+
+
+def group_maxima(values, track_scorer, track_group):
+    """Maximum absolute score for each present (scorer, group) combination.
+
+    Scorers and groups follow first occurrence. Names are ``scorer::group``.
+    Missing group labels are unavailable; callers must assign their explicit
+    catch-all group before reduction. No track is omitted.
+    """
+    values, track_scorer = _checked(values, track_scorer)
+    track_group = np.asarray(track_group, dtype=object)
+    if track_group.shape != track_scorer.shape:
+        raise ValueError("need one group label per track")
+    if any(not isinstance(g, str) or not g.strip() for g in track_group):
+        raise MeasurementUnavailable("track group labels must be nonempty strings")
+    columns, names = [], []
+    for scorer in dict.fromkeys(track_scorer.tolist()):
+        selected = track_scorer == scorer
+        for group in dict.fromkeys(track_group[selected].tolist()):
+            columns.append(np.abs(values[:, selected & (track_group == group)]).max(axis=1))
+            names.append(f"{scorer}::{group}")
+    return _reduction(columns, names, {s: 0 for s in dict.fromkeys(track_scorer.tolist())})
