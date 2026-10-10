@@ -20,7 +20,7 @@ References:
     - Repo: https://github.com/facebookresearch/esm
 """
 
-from typing import List, Optional
+from typing import Dict, List, Optional, Union
 
 import torch
 from torch import Tensor
@@ -63,6 +63,12 @@ class ESMEncoder(FoundationEncoder):
         model_name: Any model from the fair-esm registry. Default is the
             ESM-2 650M model (best general-purpose embeddings).
         repr_layer: Which transformer layer to extract from. None = final.
+            Ignored when ``layer_indices`` is given.
+        layer_indices: Transformer layer indices to extract per-layer
+            representations from, in one forward pass. Matches
+            ``ESM3Encoder``'s parameter of the same name. fair-esm accepts a
+            list in ``repr_layers`` natively, so N layers cost the same forward
+            as one — there is no per-layer re-run.
         device: Device for inference.
         max_length: Truncate sequences longer than this (default 1022).
 
@@ -73,12 +79,18 @@ class ESMEncoder(FoundationEncoder):
 
         # ESM-1v for variant effect prediction
         >>> encoder = ESMEncoder(model_name="esm1v_t33_650M_UR90S_1")
+
+        # Per-layer extraction, one forward pass
+        >>> multi = ESMEncoder(model_name="esm1b_t33_650M_UR50S",
+        ...                    layer_indices=[0, 20, 33])
+        >>> out = multi.encode("MKFGVRA")   # {"layer_0": (1, 1280), ...}
     """
 
     def __init__(
         self,
         model_name: str = "esm2_t33_650M_UR50D",
         repr_layer: Optional[int] = None,
+        layer_indices: Optional[List[int]] = None,
         device: str = "cuda",
         max_length: int = 1022,
         **kwargs,
@@ -92,11 +104,31 @@ class ESMEncoder(FoundationEncoder):
         super().__init__(device=device, **kwargs)
         self.model_name = model_name
         self.repr_layer = repr_layer if repr_layer is not None else num_layers
+        self._layer_indices = list(layer_indices) if layer_indices else None
+        self._multi_layer = bool(self._layer_indices)
+        if self._layer_indices:
+            bad = [i for i in self._layer_indices if not 0 <= i <= num_layers]
+            if bad:
+                raise ValueError(
+                    f"layer_indices {bad} out of range for {model_name!r}: "
+                    f"valid layers are 0..{num_layers}"
+                )
         self.max_length = max_length
         self._model = None
         self._alphabet = None
         self._batch_converter = None
         self._embedding_dim = embed_dim
+
+    @property
+    def multi_layer(self) -> bool:
+        return self._multi_layer
+
+    @property
+    def layer_indices(self) -> Optional[List[int]]:
+        return self._layer_indices
+
+    def _requested_layers(self) -> List[int]:
+        return self._layer_indices if self._multi_layer else [self.repr_layer]
 
     def _load_model(self):
         """Lazy load model via fair-esm."""
@@ -121,30 +153,36 @@ class ESMEncoder(FoundationEncoder):
         )
         self._model = self._model.to(self.device).eval()
 
-    def encode(self, sequence: str) -> Tensor:
+    def encode(self, sequence: str) -> Union[Tensor, Dict[str, Tensor]]:
         """Encode a protein sequence into embedding space.
 
         Args:
             sequence: Amino acid sequence (e.g., "MKFGVRA").
 
         Returns:
-            Embedding tensor of shape (1, embedding_dim).
+            If layer_indices was set: dict {f"layer_{i}": (1, embedding_dim)}
+            in layer_indices order. Otherwise a single (1, embedding_dim)
+            tensor from repr_layer.
         """
         self._ensure_loaded()
 
         _, _, batch_tokens = self._batch_converter([("_", sequence)])
         batch_tokens = batch_tokens.to(self.device)
 
+        layers = self._requested_layers()
         with torch.no_grad():
-            results = self._model(
-                batch_tokens, repr_layers=[self.repr_layer]
-            )
+            results = self._model(batch_tokens, repr_layers=layers)
 
-        token_repr = results["representations"][self.repr_layer]  # (1, L, D)
         # Mean-pool over residue positions, excluding BOS (0) and EOS/PAD
         seq_len = (batch_tokens != self._alphabet.padding_idx).sum(1)
-        embedding = token_repr[0, 1 : seq_len[0] - 1].mean(0, keepdim=True)
-        return embedding
+
+        def _pool(layer: int) -> Tensor:
+            token_repr = results["representations"][layer]  # (1, L, D)
+            return token_repr[0, 1 : seq_len[0] - 1].mean(0, keepdim=True)
+
+        if self._multi_layer:
+            return {f"layer_{i}": _pool(i) for i in self._layer_indices}
+        return _pool(self.repr_layer)
 
     # --- Batched inference ---
 
@@ -158,10 +196,18 @@ class ESMEncoder(FoundationEncoder):
         _, _, batch_tokens = self._batch_converter(data)
         return {"tokens": batch_tokens.to(self.device)}
 
-    def _extract_embeddings(self, batch: dict) -> Tensor:
+    def _extract_embeddings(
+        self, batch: dict
+    ) -> Union[Tensor, Dict[str, Tensor]]:
+        """Mean-pool the requested layer(s), excluding BOS/EOS/PAD.
+
+        The mask is built once and reused across layers: it depends only on the
+        tokens, so recomputing it per layer would be wasted work and, worse, an
+        opportunity for the layers to disagree about which positions are real.
+        """
         tokens = batch["tokens"]
-        results = self._model(tokens, repr_layers=[self.repr_layer])
-        token_repr = results["representations"][self.repr_layer]  # (B, L, D)
+        layers = self._requested_layers()
+        results = self._model(tokens, repr_layers=layers)
 
         # Per-sequence mean pool excluding special tokens
         mask = torch.ones_like(tokens, dtype=torch.float)
@@ -172,8 +218,15 @@ class ESMEncoder(FoundationEncoder):
             mask[i, l:] = 0  # PAD
 
         mask = mask.unsqueeze(-1)  # (B, L, 1)
-        pooled = (token_repr * mask).sum(1) / mask.sum(1).clamp(min=1)
-        return pooled  # (B, D)
+        denom = mask.sum(1).clamp(min=1)
+
+        def _pool(layer: int) -> Tensor:
+            token_repr = results["representations"][layer]  # (B, L, D)
+            return (token_repr * mask).sum(1) / denom
+
+        if self._multi_layer:
+            return {f"layer_{i}": _pool(i) for i in self._layer_indices}
+        return _pool(self.repr_layer)  # (B, D)
 
     @property
     def modality(self) -> str:
