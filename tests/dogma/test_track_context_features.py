@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 from manylatents.dogma.benchmarks.features import (
     signed_extremes, modality_breadth, normalised_maxima, group_maxima,
+    modality_mean, normalised_mean,
 )
 from manylatents.utils.exceptions import MeasurementUnavailable
 
@@ -36,7 +37,24 @@ def test_group_maxima_only_returns_present_combinations():
     assert result.n_dropped == {'A': 0, 'B': 0}
 
 
-@pytest.mark.parametrize('function', [modality_breadth, normalised_maxima])
+def test_modality_mean_averages_absolute_scores_per_scorer():
+    result = modality_mean([[1, -3, 0, 4], [0, 0, -2, -6]], ['A', 'A', 'B', 'B'])
+    assert result[1] == ['A_mean_abs', 'B_mean_abs']
+    np.testing.assert_allclose(result[0], [[2, 2], [0, 4]])
+    assert result.n_dropped == {'A': 0, 'B': 0}
+
+
+def test_normalised_mean_drops_constants_and_uses_reference_moments():
+    reference = np.array([[-1, -2, .1, 7], [1, 2, .1, 7]])
+    query = [[0, 0, 99, 8], [2, -2, 99, 8]]
+    result = normalised_mean(query, reference, ['A', 'A', 'A', 'B'])
+    # Track 3 of A and the only B track are constant in the reference.
+    assert result[1] == ['A_normalised_mean_abs']
+    np.testing.assert_allclose(result[0], [[0], [1.5]])
+    assert result.n_dropped == {'A': 1, 'B': 1}
+
+
+@pytest.mark.parametrize('function', [modality_breadth, normalised_maxima, normalised_mean])
 def test_reference_errors_are_explicit(function):
     with pytest.raises(ValueError):
         function([[1, 2]], [[1], [2]], ['A', 'A'])

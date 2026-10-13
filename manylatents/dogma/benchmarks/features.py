@@ -237,3 +237,27 @@ def group_maxima(values, track_scorer, track_group):
             columns.append(np.abs(values[:, selected & (track_group == group)]).max(axis=1))
             names.append(f"{scorer}::{group}")
     return _reduction(columns, names, {s: 0 for s in dict.fromkeys(track_scorer.tolist())})
+
+
+def modality_mean(values, track_scorer):
+    """Mean absolute score across each scorer's tracks.
+
+    Scorers follow first occurrence. Names are ``scorer_mean_abs``. No track
+    is omitted. Returns a FeatureReduction.
+    """
+    values, track_scorer = _checked(values, track_scorer)
+    scorers = list(dict.fromkeys(track_scorer.tolist()))
+    return _reduction([np.abs(values[:, track_scorer == s]).mean(axis=1) for s in scorers],
+                      [f"{s}_mean_abs" for s in scorers], {s: 0 for s in scorers})
+
+
+def normalised_mean(query, reference, track_scorer):
+    """Mean absolute reference-standardised score per input scorer.
+
+    Uses the standardisation of ``normalised_maxima``: reference-constant
+    tracks are dropped and counted, and a scorer with no retained track
+    supplies no feature.
+    """
+    blocks, dropped = _reference_blocks(query, reference, track_scorer)
+    return _reduction([np.abs(z).mean(axis=1) for _, _, _, z in blocks],
+                      [f"{s}_normalised_mean_abs" for s, _, _, _ in blocks], dropped)
