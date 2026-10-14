@@ -66,3 +66,68 @@ def distant_neighbour_distances(distance, separation, exclusion, k):
         distance = np.where(blocked, np.inf, distance)
     nearest = np.partition(distance, k - 1, axis=1)[:, :k]
     return np.sort(nearest, axis=1)
+
+
+def _position_vector(positions):
+    positions = np.asarray(positions)
+    if positions.ndim != 1 or positions.dtype.kind not in 'iuf':
+        raise ValueError("positions must be a vector of nonnegative integer coordinates")
+    if (not np.isfinite(positions).all() or (positions < 0).any()
+            or (positions != np.floor(positions)).any()
+            or (positions >= 2**63).any()):
+        raise ValueError("positions must be nonnegative integer coordinates fitting int64")
+    return positions.astype(np.int64)
+
+
+def _unprefixed_chromosomes(chroms):
+    chroms = np.asarray(chroms, dtype=object)
+    if chroms.ndim != 1:
+        raise ValueError("chromosomes must be a vector")
+    return np.asarray([str(c).removeprefix('chr') for c in chroms], dtype=str)
+
+
+def genomic_blocks(variants, size=100_000) -> np.ndarray:
+    """Chromosome/block labels ``chr1:12`` using ``pos // size`` without shifting.
+
+    ``variants`` provides ``chrom`` and ``pos`` columns. Size must be a positive
+    integer; positions must be nonnegative integer coordinates fitting int64.
+    """
+    from numbers import Integral
+
+    if isinstance(size, (bool, np.bool_)) or not isinstance(size, Integral) or size <= 0:
+        raise ValueError("size must be a positive int")
+    chroms = _unprefixed_chromosomes(variants['chrom'])
+    positions = _position_vector(variants['pos'])
+    if len(chroms) != len(positions):
+        raise ValueError("chromosomes and positions must have the same length")
+    return np.asarray([f"chr{chrom}:{int(pos) // size}" for chrom, pos in zip(chroms, positions)],
+                      dtype=str)
+
+
+def nearest_site_distance(chroms, positions, site_chroms, site_positions) -> np.ndarray:
+    """Nearest same-chromosome site distance in bp, returned as int64.
+
+    Chromosome names are compared after removing a ``chr`` prefix. Sites may be
+    unsorted or duplicated. Search is vectorised within each chromosome using
+    searchsorted, without a query-by-site distance matrix. A chromosome without
+    sites raises MeasurementUnavailable listing all such query chromosomes.
+    """
+    from manylatents.utils.exceptions import MeasurementUnavailable
+
+    chroms, site_chroms = _unprefixed_chromosomes(chroms), _unprefixed_chromosomes(site_chroms)
+    positions, site_positions = _position_vector(positions), _position_vector(site_positions)
+    if len(chroms) != len(positions) or len(site_chroms) != len(site_positions):
+        raise ValueError("chromosomes and positions must have the same length")
+    missing = sorted(set(chroms) - set(site_chroms))
+    if missing:
+        raise MeasurementUnavailable(f"no sites on query chromosomes: {missing}")
+    distances = np.empty(len(positions), dtype=np.int64)
+    for chrom in np.unique(chroms):
+        rows = chroms == chrom
+        queries = positions[rows]
+        sites = np.sort(site_positions[site_chroms == chrom])
+        insertion = np.searchsorted(sites, queries)
+        left = sites[np.maximum(insertion - 1, 0)]
+        right = sites[np.minimum(insertion, len(sites) - 1)]
+        distances[rows] = np.minimum(np.abs(queries - left), np.abs(queries - right))
+    return distances

@@ -206,6 +206,17 @@ class LocalScorerClient:
         self.sequence_length = int(sequence_length)
         self._interval = interval_factory or (
             lambda variant, width: variant.reference_interval.resize(width))
+        # Variants the model could not score for lack of device memory. They
+        # are recorded as missing like any unservable variant, and listed here
+        # so a caller can tell "no result" from "nothing to score".
+        self.resource_failures: list[tuple[str, str]] = []
+
+    @staticmethod
+    def _out_of_memory(err: BaseException) -> bool:
+        text = str(err)
+        return type(err).__name__ == "JaxRuntimeError" and (
+            "RESOURCE_EXHAUSTED" in text or "Out of memory" in text or "out of memory" in text
+        )
 
     def scorer_metadata(self) -> dict:
         return dict(self._scorers)
@@ -226,6 +237,11 @@ class LocalScorerClient:
             )
         except self._VARIANT_ERRORS as err:
             raise ValueError(f"{_id_of(variant)}: {err}") from err
+        except Exception as err:  # noqa: BLE001 - only device-memory failures are caught
+            if not self._out_of_memory(err):
+                raise
+            self.resource_failures.append((_id_of(variant), str(err).splitlines()[0][:200]))
+            raise ValueError(f"{_id_of(variant)}: out of device memory") from err
         out = {}
         for name, scored in zip(names, results, strict=True):
             obs = scored.obs.copy()
@@ -432,7 +448,10 @@ def load_atlas_matrix(
         layer: None for raw scores, or a layer name such as ``"quantiles"``.
         gene_reduce: how to collapse a gene-scoped scorer's several rows per
             variant into one. ``"maxabs"`` keeps, per track, the signed score
-            of largest magnitude across genes. None refuses such scorers.
+            of largest magnitude across the genes that have a value for that
+            track (missing values, as for a gene on the other strand, are
+            skipped); a track no gene has a value for stays missing. None
+            refuses such scorers.
 
     Raises:
         AtlasScoresMissing: some requested variants have no cached scores.
@@ -494,8 +513,13 @@ def load_atlas_matrix(
         out = np.empty((len(wanted), values.shape[1]), dtype=np.float32)
         for i, vid in enumerate(wanted):
             block = values[rows_of[vid]]
-            pick = np.abs(block).argmax(axis=0)
-            out[i] = block[pick, np.arange(block.shape[1])]
+            # A gene-scoped scorer leaves a track missing (NaN) for a gene on the
+            # other strand. Choose among the genes that have a value; a track no
+            # gene has a value for stays missing.
+            magnitude = np.where(np.isfinite(block), np.abs(block), -np.inf)
+            pick = magnitude.argmax(axis=0)
+            chosen = block[pick, np.arange(block.shape[1])]
+            out[i] = np.where(np.isfinite(magnitude).any(axis=0), chosen, np.nan)
     return AtlasMatrix(values=out, variant_ids=wanted, tracks=tracks)
 
 

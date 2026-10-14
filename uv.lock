@@ -1724,6 +1724,7 @@ dev = [
     { name = "orthrus" },
     { name = "pandas-plink" },
     { name = "pyarrow" },
+    { name = "pysam" },
     { name = "pytest" },
     { name = "python-igraph" },
     { name = "scanpy", version = "1.11.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or (extra == 'group-17-manylatents-omics-cpu' and extra == 'group-17-manylatents-omics-cuda')" },
@@ -1752,6 +1753,7 @@ noncoding = [
     { name = "anndata" },
     { name = "huggingface-hub" },
     { name = "pyarrow" },
+    { name = "pysam" },
     { name = "zarr" },
 ]
 popgen = [
@@ -1808,6 +1810,7 @@ requires-dist = [
     { name = "orthrus", marker = "extra == 'dogma'" },
     { name = "pandas-plink", marker = "extra == 'popgen'", specifier = ">=2.2.9" },
     { name = "pyarrow", marker = "extra == 'noncoding'", specifier = ">=15" },
+    { name = "pysam", marker = "extra == 'noncoding'", specifier = ">=0.22" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.2" },
     { name = "python-igraph", marker = "extra == 'singlecell'", specifier = ">=1.0.0" },
     { name = "scanpy", marker = "extra == 'singlecell'", specifier = ">=1.11.5" },
@@ -3162,6 +3165,26 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f3/91/9c6ee907786a473bf81c5f53cf703ba0957b23ab84c264080fb5a450416f/pyparsing-3.3.2.tar.gz", hash = "sha256:c777f4d763f140633dcb6d8a3eda953bf7a214dc4eff598413c070bcdc117cbc", size = 6851574, upload-time = "2026-01-21T03:57:59.36Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/10/bd/c038d7cc38edc1aa5bf91ab8068b63d4308c66c4c8bb3cbba7dfbc049f9c/pyparsing-3.3.2-py3-none-any.whl", hash = "sha256:850ba148bd908d7e2411587e247a1e4f0327839c40e2e5e6d05a007ecc69911d", size = 122781, upload-time = "2026-01-21T03:57:55.912Z" },
+]
+
+[[package]]
+name = "pysam"
+version = "0.24.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/01/d0/e9271669f97ce454d1aa97f9ce0d3e84376295f352ad6c5d2c3998e38f66/pysam-0.24.1.tar.gz", hash = "sha256:90f612afccdb454d2447ecb5229266c6e7f991093deed4ed0a791db01f7fc994", size = 5387389, upload-time = "2026-09-07T09:08:46.447Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/57/18/758af503c5f7649bccfdc39b92b83176480ad3a3ed1227a405c2bd0c0797/pysam-0.24.1-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:0f1bdd44bcd85d8562925436bec24dcf7325e4001575a9c24d58806b93de2293", size = 3225244, upload-time = "2026-09-07T09:07:36.666Z" },
+    { url = "https://files.pythonhosted.org/packages/25/c7/16baf666e72c216db86db8a6b55c11c2d7b623d2a8c78fa28225002026dd/pysam-0.24.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:0e48e4b3d341734078e97fe05a2358d60837ca88741625ec17d45ba7c629dc64", size = 2975478, upload-time = "2026-09-07T09:07:38.601Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/f9/92e07f910569cbb1d64458e6700dd852d478363da89a95e0de69f8c26db6/pysam-0.24.1-cp311-cp311-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c21dd9b801175d14c4d7b78898de921f8771edf141db5957226c9bf1ed4bf293", size = 3833671, upload-time = "2026-09-07T09:07:40.398Z" },
+    { url = "https://files.pythonhosted.org/packages/41/1c/c42de8b2f3ead1fa48067a7eee054d9b242e493261bb0c59f054c9537788/pysam-0.24.1-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:050d4c72211a961d26fad70b655694d4d500422e4b7d0ed3c7f244c49df8d16e", size = 4011379, upload-time = "2026-09-07T09:07:42.416Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/bd/fc983700175e925e4c671bdc11aa30496b4cc6674ba6bfc8d01e1dd78fd5/pysam-0.24.1-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:8696e88156edee884416fd50c15fcc61da67089232198c1ae731731f6da765d6", size = 3898180, upload-time = "2026-09-07T09:07:44.229Z" },
+    { url = "https://files.pythonhosted.org/packages/62/c2/ffa499e23512c20ce0821864dd75447cf01dd7d2a65e88ddae792f787526/pysam-0.24.1-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:f34eba531bdfd71817110a56c00443f9947d3a01e10358f341d10f614ea3bf1e", size = 4058816, upload-time = "2026-09-07T09:07:46.154Z" },
+    { url = "https://files.pythonhosted.org/packages/ac/8b/6fdeef39a463f0b9a6caef0bef94440787e8257d32c0cbf5b69f78793932/pysam-0.24.1-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:1d114ddd64b562d2fe253a31703613b762c71b4a3d856ac960a39e40269c51fa", size = 3199106, upload-time = "2026-09-07T09:07:47.955Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/e3/1f19fb881fab22d6d61a5730a02e1717e2203dd61dbc4b4a9122ac99e631/pysam-0.24.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:ceb448961fd35b5b90795d7c7c80b1b35592be7ae0127e28187e3f41c27e035b", size = 2962189, upload-time = "2026-09-07T09:07:49.782Z" },
+    { url = "https://files.pythonhosted.org/packages/28/89/d98c26790de1a9919a7cb7fa6abdd1b9a3de69b50fd218ba51731b555e08/pysam-0.24.1-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:39914c2e395be44126e120be0933aaea3ea1d664f3c421a91afc4be086b49a79", size = 3780450, upload-time = "2026-09-07T09:07:51.489Z" },
+    { url = "https://files.pythonhosted.org/packages/79/9b/311c844a72b22b87b0bab85a448580650f11da67edf98e8358138cfd9831/pysam-0.24.1-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:06eabdc8f7c3894b73d2c4365ea6197d6ba5308e203dd2887b5df635fe6e249b", size = 3977324, upload-time = "2026-09-07T09:07:53.356Z" },
+    { url = "https://files.pythonhosted.org/packages/f7/ec/ff189a7a348b6fbd3832fc57a73c5569e2ff2ef24ce087bda8b73d8bf2d8/pysam-0.24.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:2c03ca38923941e460a5edc62d9208393ee9083ecd3f57a3e5a96c1337112dc7", size = 3846948, upload-time = "2026-09-07T09:07:55.218Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/4d/cee15526047bf71db881b33b0777a6d6b262659c7529027d1fa7d8718539/pysam-0.24.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:2fbbcd9ccad9627e6b9a46bbb93e0a244c137ecaa6d7d471033f9b75bc17e6e0", size = 4023454, upload-time = "2026-09-07T09:07:56.947Z" },
 ]
 
 [[package]]

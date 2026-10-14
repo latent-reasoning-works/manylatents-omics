@@ -84,3 +84,15 @@ def test_prefilter_window_boundaries(tmp_path):
     assert dropped.reason.tolist() == ["window_off_chromosome"] * 2
     kept, _ = prefilter_variants(variants, str(fasta), 7)
     assert kept.pos.tolist() == [4, 16, 17]
+
+
+def test_parser_accepts_annotation_paths_without_loading_model():
+    from manylatents.dogma.score_tracks import parse_args
+
+    required = ['--variants', 'variants.tsv', '--out', 'cache', '--fasta', 'reference.fa']
+    names = ['gtf', 'pas', 'splice-starts', 'splice-ends']
+    args = parse_args(required + [arg for name in names
+                                 for arg in (f'--{name}-feather', f'{name}.feather')])
+    for name in names:
+        assert getattr(args, name.replace('-', '_') + '_feather') == f'{name}.feather'
+        assert getattr(parse_args(required), name.replace('-', '_') + '_feather') is None

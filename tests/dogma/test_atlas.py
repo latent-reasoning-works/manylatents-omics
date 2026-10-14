@@ -431,3 +431,53 @@ def test_load_cached_scores_nothing_and_gene_reduction(tmp_path):
         load_cached_scores([tmp_path], "absent")
     matrix = load_cached_scores([tmp_path], "S", gene_reduce="maxabs")
     np.testing.assert_array_equal(matrix.values, [[-990, -989, -988]])
+
+
+class JaxRuntimeError(RuntimeError):
+    """Stands in for jax.errors.JaxRuntimeError, which is not importable here."""
+
+
+class OutOfMemoryModel(FakeLocalModel):
+    def score_variant(self, interval, variant, variant_scorers=()):
+        if variant.position in self.unservable:
+            raise JaxRuntimeError("RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.69GiB")
+        return super().score_variant(interval, variant, variant_scorers)
+
+
+def test_local_model_out_of_memory_is_recorded_as_missing_and_listed(tmp_path):
+    variants = _variants(5)
+    client = _local_client(OutOfMemoryModel(unservable={3}))
+    _fetch(client, variants, tmp_path, requested_scorers=["DNASE"])
+    ids = with_variant_ids(variants)["variant_id"].tolist()
+    assert missing_variants(tmp_path, "DNASE") == [ids[2]]
+    assert [vid for vid, _ in client.resource_failures] == [ids[2]]
+    assert "RESOURCE_EXHAUSTED" in client.resource_failures[0][1]
+
+
+def test_other_runtime_errors_still_propagate(tmp_path):
+    class Broken(FakeLocalModel):
+        def score_variant(self, interval, variant, variant_scorers=()):
+            raise RuntimeError("device lost")
+
+    with pytest.raises(RuntimeError, match="device lost"):
+        _fetch(_local_client(Broken()), _variants(2), tmp_path, requested_scorers=["DNASE"])
+
+
+def test_maxabs_skips_missing_values_from_other_strand_genes(tmp_path):
+    class StrandedClient(FakeAtlasClient):
+        def _anndata(self, variants):
+            adata = super()._anndata(variants)
+            x = adata.X.copy()
+            x[adata.obs["gene_id"].to_numpy() == "g2", 0] = np.nan   # g2 has no value for track 0
+            x[:, 2] = np.nan                                          # no gene has a value for track 2
+            adata.X = x
+            return adata
+
+    variants = _variants(2)
+    _fetch(StrandedClient(genes=["g1", "g2"], with_quantiles=False), variants, tmp_path)
+    ids = with_variant_ids(variants)["variant_id"].tolist()
+    out = load_atlas_matrix(tmp_path, "S", ids, gene_reduce="maxabs").values
+    assert np.isfinite(out[:, 0]).all() and np.isfinite(out[:, 1]).all()
+    assert np.isnan(out[:, 2]).all()
+    # track 0: only g1 has a value, so it is g1's score (position * 10 + 0)
+    assert out[:, 0].tolist() == [10.0, 20.0]
