@@ -260,16 +260,21 @@ class LocalScorerClient:
         parts: dict[str, list] = {name: [] for name in names}
         variants = list(variants)
         last_error = None
+        n_failed, n_memory = 0, len(self.resource_failures)
         for variant in variants:
             try:
                 result = self.query_variant(
                     variant, requested_scorers=names, ontology_terms=ontology_terms)
             except ValueError as err:
-                last_error = err
+                last_error, n_failed = err, n_failed + 1
                 continue
             for name, scored in result.items():
                 parts[name].append(scored)
-        if variants and last_error is not None and not any(parts.values()):
+        # A chunk that scores nothing means a broken setup, unless every variant
+        # ran out of device memory (a region too large for the device): those
+        # are recorded in resource_failures and stay missing.
+        only_memory = n_failed == len(self.resource_failures) - n_memory
+        if variants and last_error is not None and not any(parts.values()) and not only_memory:
             raise RuntimeError(
                 f"the local model scored none of {len(variants)} variants; last error: {last_error}"
             ) from last_error

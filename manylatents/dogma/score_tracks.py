@@ -160,8 +160,11 @@ def main(argv=None) -> int:
     # Variants the model could not score for lack of device memory are missing
     # in the cache like any other; this file says which ones, so a reader does
     # not take them for variants with nothing to score.
-    pd.DataFrame(client.resource_failures, columns=["variant_id", "reason"]).to_csv(
-        out / "scoring_failed.tsv", sep="\t", index=False)
+    # A resumed run keeps the failures that earlier runs recorded.
+    failed = pd.DataFrame(client.resource_failures, columns=["variant_id", "reason"])
+    if (out / "scoring_failed.tsv").exists():
+        failed = pd.concat([pd.read_csv(out / "scoring_failed.tsv", sep="\t"), failed])
+    failed.drop_duplicates("variant_id").to_csv(out / "scoring_failed.tsv", sep="\t", index=False)
     missing = {name: sum(len(chunk["missing"].get(name, [])) for chunk in manifest["chunks"].values())
                for name in args.scorers}
     timing = {

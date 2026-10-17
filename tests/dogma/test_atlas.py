@@ -454,6 +454,28 @@ def test_local_model_out_of_memory_is_recorded_as_missing_and_listed(tmp_path):
     assert "RESOURCE_EXHAUSTED" in client.resource_failures[0][1]
 
 
+def test_chunk_that_runs_out_of_memory_everywhere_is_recorded_not_raised(tmp_path):
+    variants = _variants(6)
+    client = _local_client(OutOfMemoryModel(unservable={3, 4}))
+    _fetch(client, variants, tmp_path, requested_scorers=["DNASE"], chunk_size=2)
+    ids = with_variant_ids(variants)["variant_id"].tolist()
+    assert sorted(missing_variants(tmp_path, "DNASE")) == sorted([ids[2], ids[3]])
+    assert sorted(vid for vid, _ in client.resource_failures) == sorted([ids[2], ids[3]])
+    assert load_atlas_matrix(tmp_path, "DNASE", [ids[0], ids[5]]).values.shape == (2, 3)
+
+
+def test_chunk_with_memory_and_other_failures_still_raises(tmp_path):
+    class Mixed(OutOfMemoryModel):
+        def score_variant(self, interval, variant, variant_scorers=()):
+            if variant.position == 4:
+                raise ValueError("interval out of bounds")
+            return super().score_variant(interval, variant, variant_scorers)
+
+    with pytest.raises(RuntimeError, match="none of 2"):
+        _fetch(_local_client(Mixed(unservable={3})), _variants(4), tmp_path,
+               requested_scorers=["DNASE"], chunk_size=2)
+
+
 def test_other_runtime_errors_still_propagate(tmp_path):
     class Broken(FakeLocalModel):
         def score_variant(self, interval, variant, variant_scorers=()):
