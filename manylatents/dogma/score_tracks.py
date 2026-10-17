@@ -140,14 +140,19 @@ def main(argv=None) -> int:
     # Time the first few variants one by one (compilation, then steady state).
     from alphagenome.data import genome
 
-    seconds = []
+    seconds, result = [], {}
     for row in kept.head(6).itertuples(index=False):
         variant = genome.Variant(chromosome=row.chromosome, position=int(row.pos),
                                  reference_bases=row.ref, alternate_bases=row.alt,
                                  name=row.variant_id)
         tick = time.time()
-        result = client.query_variant(variant, requested_scorers=args.scorers)
+        try:
+            result = client.query_variant(variant, requested_scorers=args.scorers)
+        except ValueError as err:  # the fetch records it as missing
+            print(f"timing variant failed: {err}", flush=True)
+            continue
         seconds.append(time.time() - tick)
+    client.resource_failures.clear()  # the fetch tries these variants again
     shapes = {name: list(scored.shape) for name, scored in result.items()}
     example = {name: {"obs_columns": list(scored.obs.columns), "var_columns": list(scored.var.columns),
                       "layers": list(scored.layers.keys()),

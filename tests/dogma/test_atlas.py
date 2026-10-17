@@ -495,13 +495,20 @@ def test_out_of_memory_keeps_no_reference_to_the_failed_call(tmp_path):
             alive.append(weakref.ref(predictions))
             raise JaxRuntimeError("RESOURCE_EXHAUSTED: Out of memory while trying to allocate 1.50GiB")
 
+    class ScorerFails(FakeLocalModel):
+        def score_variant(self, interval, variant, variant_scorers=()):
+            predictions = Buffer()
+            alive.append(weakref.ref(predictions))
+            raise ValueError("Both junction_scores and mask_metadata must be non-empty")
+
     gc.disable()
     try:
-        client = _local_client(Holding())
-        with pytest.raises(ValueError, match="out of device memory") as caught:
-            client.query_variant(FakeVariant("chr1", 3, "A", "G", "v3"), requested_scorers=["DNASE"])
-        assert caught.value.__cause__ is None and caught.value.__context__ is None
-        assert alive[0]() is None
+        for model, message in ((Holding(), "out of device memory"), (ScorerFails(), "junction_scores")):
+            client = _local_client(model)
+            with pytest.raises(ValueError, match=message) as caught:
+                client.query_variant(FakeVariant("chr1", 3, "A", "G", "v3"), requested_scorers=["DNASE"])
+            assert caught.value.__cause__ is None and caught.value.__context__ is None
+            assert alive[-1]() is None
     finally:
         gc.enable()
 
