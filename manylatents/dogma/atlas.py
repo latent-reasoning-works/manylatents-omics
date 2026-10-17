@@ -120,6 +120,22 @@ def _write_manifest(cache_dir: Path, manifest: dict) -> None:
     tmp.replace(cache_dir / _MANIFEST)
 
 
+def forget_chunks_with(cache_dir, variant_ids) -> list[int]:
+    """Mark undone every cached chunk that lists one of ``variant_ids`` as
+    missing, so the next fetch scores the chunk again. Return the chunk indices."""
+    cache_dir = Path(cache_dir)
+    manifest = _read_manifest(cache_dir)
+    if manifest is None:
+        return []
+    wanted = set(variant_ids)
+    forgotten = sorted(int(index) for index, entry in manifest["chunks"].items()
+                       if any(wanted.intersection(ids) for ids in entry.get("missing", {}).values()))
+    for index in forgotten:
+        del manifest["chunks"][str(index)]
+    _write_manifest(cache_dir, manifest)
+    return forgotten
+
+
 def _scorer_dir(scorer: str) -> str:
     """Directory name for a scorer: the name itself when it is path-safe,
     otherwise a readable slug plus a hash of the full name."""
@@ -230,6 +246,7 @@ class LocalScorerClient:
                 "select tracks after loading"
             )
         names = list(requested_scorers)
+        memory_error = None
         try:
             results = self._model.score_variant(
                 self._interval(variant, self.sequence_length), variant,
@@ -240,8 +257,16 @@ class LocalScorerClient:
         except Exception as err:  # noqa: BLE001 - only device-memory failures are caught
             if not self._out_of_memory(err):
                 raise
-            self.resource_failures.append((_id_of(variant), str(err).splitlines()[0][:200]))
-            raise ValueError(f"{_id_of(variant)}: out of device memory") from err
+            memory_error = str(err).splitlines()[0][:200]
+        if memory_error is not None:
+            # The traceback of a device-memory failure holds the frames of the
+            # failed call, and with them the predictions on the device. Keep no
+            # reference to it, and collect, so the next variant has the memory.
+            import gc
+
+            gc.collect()
+            self.resource_failures.append((_id_of(variant), memory_error))
+            raise ValueError(f"{_id_of(variant)}: out of device memory")
         out = {}
         for name, scored in zip(names, results, strict=True):
             obs = scored.obs.copy()

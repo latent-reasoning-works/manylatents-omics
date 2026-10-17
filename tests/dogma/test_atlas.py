@@ -480,6 +480,45 @@ def test_chunk_with_memory_and_other_failures_is_recorded_and_explained(tmp_path
     assert "1 x interval out of bounds" in out and "1 x out of device memory" in out
 
 
+def test_out_of_memory_keeps_no_reference_to_the_failed_call(tmp_path):
+    import gc
+    import weakref
+
+    class Buffer:
+        pass
+
+    alive = []
+
+    class Holding(FakeLocalModel):
+        def score_variant(self, interval, variant, variant_scorers=()):
+            predictions = Buffer()
+            alive.append(weakref.ref(predictions))
+            raise JaxRuntimeError("RESOURCE_EXHAUSTED: Out of memory while trying to allocate 1.50GiB")
+
+    gc.disable()
+    try:
+        client = _local_client(Holding())
+        with pytest.raises(ValueError, match="out of device memory") as caught:
+            client.query_variant(FakeVariant("chr1", 3, "A", "G", "v3"), requested_scorers=["DNASE"])
+        assert caught.value.__cause__ is None and caught.value.__context__ is None
+        assert alive[0]() is None
+    finally:
+        gc.enable()
+
+
+def test_forget_chunks_with_marks_only_chunks_with_those_variants(tmp_path):
+    from manylatents.dogma.atlas import forget_chunks_with
+
+    variants = _variants(6)
+    _fetch(_local_client(OutOfMemoryModel(unservable={3})), variants, tmp_path,
+           requested_scorers=["DNASE"], chunk_size=2)
+    ids = with_variant_ids(variants)["variant_id"].tolist()
+    assert forget_chunks_with(tmp_path, [ids[2]]) == [1]
+    model = FakeLocalModel()
+    _fetch(_local_client(model), variants, tmp_path, requested_scorers=["DNASE"], chunk_size=2)
+    assert len(model.calls) == 2 and missing_variants(tmp_path, "DNASE") == []
+
+
 def test_other_runtime_errors_still_propagate(tmp_path):
     class Broken(FakeLocalModel):
         def score_variant(self, interval, variant, variant_scorers=()):
