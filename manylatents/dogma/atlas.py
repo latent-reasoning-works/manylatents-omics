@@ -260,21 +260,27 @@ class LocalScorerClient:
         parts: dict[str, list] = {name: [] for name in names}
         variants = list(variants)
         last_error = None
-        n_failed, n_memory = 0, len(self.resource_failures)
+        errors: dict[str, int] = {}
+        n_memory = len(self.resource_failures)
         for variant in variants:
             try:
                 result = self.query_variant(
                     variant, requested_scorers=names, ontology_terms=ontology_terms)
             except ValueError as err:
-                last_error, n_failed = err, n_failed + 1
+                last_error = err
+                reason = str(err).split(": ", 1)[-1][:120]
+                errors[reason] = errors.get(reason, 0) + 1
                 continue
             for name, scored in result.items():
                 parts[name].append(scored)
-        # A chunk that scores nothing means a broken setup, unless every variant
-        # ran out of device memory (a region too large for the device): those
-        # are recorded in resource_failures and stay missing.
-        only_memory = n_failed == len(self.resource_failures) - n_memory
-        if variants and last_error is not None and not any(parts.values()) and not only_memory:
+        if variants and last_error is not None and not any(parts.values()):
+            for reason, count in sorted(errors.items(), key=lambda item: -item[1]):
+                print(f"chunk scored nothing: {count} x {reason}", flush=True)
+        # A chunk that scores nothing means a broken setup, unless variants ran
+        # out of device memory (a region too large for the device): those are
+        # recorded in resource_failures, and all failed variants stay missing.
+        ran_out_of_memory = len(self.resource_failures) > n_memory
+        if variants and last_error is not None and not any(parts.values()) and not ran_out_of_memory:
             raise RuntimeError(
                 f"the local model scored none of {len(variants)} variants; last error: {last_error}"
             ) from last_error
