@@ -1,0 +1,19 @@
+# AlphaGenome hidden-state response at each variant's site (JAX, local weights).
+# The datamodule must provide get_variants() with chrom, pos, ref, alt.
+# output: delta -> (N, D) alt - ref at `layer`; features -> delta_norm, cosine,
+# pr3 per layer in `feature_layers` (null = all 26 trunk layers).
+# Set states_dir to read the output of
+# `python -m manylatents.dogma.alphagenome.site_states` instead of running the model.
+_target_: manylatents.dogma.alphagenome.encoder.AlphaGenomeSiteEncoder
+layer: transformer_tower
+output: delta
+feature_layers: null
+fasta: null
+states_dir: null
+sequence_length: 1048576
+model_version: fold_0
+organism: HOMO_SAPIENS
+hf_cache: null
+window: 0
+batch_size: 1
+repeat: 0
