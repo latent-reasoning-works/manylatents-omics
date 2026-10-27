@@ -152,3 +152,21 @@ def test_rows_follow_x(setup):
         enc.transform(np.array([[4.0]]))
     with pytest.raises(ValueError, match="whole-number"):
         enc.transform(np.array([[0.5]]))
+
+
+def test_policy_reaches_load_local(monkeypatch, setup):
+    fasta, _, datamodule = setup
+    seen = {}
+    model = make_model()
+
+    def load_local(**kwargs):
+        seen.update(kwargs)
+        return model
+
+    monkeypatch.setattr(model_module, "load_local", load_local)
+    enc = AlphaGenomeSiteEncoder(fasta=str(fasta), sequence_length=LENGTH,
+                                 datamodule=datamodule, policy="float32")
+    enc.transform(None)
+    assert seen["policy"] == "float32"
+    with pytest.raises(ValueError, match="policy"):
+        AlphaGenomeSiteEncoder(fasta=str(fasta), policy="fp8")

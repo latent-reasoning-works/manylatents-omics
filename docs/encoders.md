@@ -268,6 +268,11 @@ python -m manylatents.dogma.alphagenome.site_states --variants variants.tsv \
     --alleles all --shard 0 --n-shards 4
 ```
 
+The model computes in bfloat16, as `alphagenome_research` does; `--compute-dtype
+float32` (or `policy: float32` in the encoder configs, `load_local(policy=...)`)
+computes in float32 instead. Only the + strand is scored: there is no
+reverse-complement pass.
+
 Each shard writes `states` (float16), `deltas` (float32, alt - ref) and
 `features` (float32 `delta_norm`, `cosine`, `pr3`) parquet chunks, computed
 from the float32 states, and resumes finished chunks. A chunk whose states

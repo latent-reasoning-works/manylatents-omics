@@ -27,6 +27,23 @@ SUPPORTED_LENGTHS = frozenset({16_384, 131_072, 524_288, 1_048_576})
 ORGANISM_INDEX = {"HOMO_SAPIENS": 0, "MUS_MUSCULUS": 1}
 # alphagenome_research.model.dna_model.create_model
 JMP_POLICY = "params=float32,compute=bfloat16,output=bfloat16"
+# Named compute dtypes for ``policy``: the model's own bfloat16 policy, or
+# float32 throughout (slower, more device memory, no bfloat16 rounding).
+POLICIES = {"bfloat16": JMP_POLICY, "float32": "params=float32,compute=float32,output=float32"}
+
+
+def policy_string(policy=None) -> str:
+    """The jmp policy string for ``policy``: None or ``bfloat16`` (the default,
+    AlphaGenome's own policy), ``float32``, or a jmp policy string."""
+    if policy is None:
+        return JMP_POLICY
+    policy = str(policy)
+    if policy in POLICIES:
+        return POLICIES[policy]
+    if "=" in policy:
+        return policy
+    raise ValueError(f"policy must be one of {sorted(POLICIES)} or a jmp policy string, "
+                     f"got {policy!r}")
 BASES = "ACGT"
 
 
@@ -84,7 +101,8 @@ def build_forward(metadata: Mapping, policy):
 
 
 def load_local(model_version: str = "fold_0", organism: str = "HOMO_SAPIENS",
-               hf_cache: Optional[str] = None, device=None) -> LocalModel:
+               hf_cache: Optional[str] = None, device=None,
+               policy: Optional[str] = None) -> LocalModel:
     """Restore an AlphaGenome checkpoint from the local Hugging Face cache.
 
     Args:
@@ -95,6 +113,8 @@ def load_local(model_version: str = "fold_0", organism: str = "HOMO_SAPIENS",
         hf_cache: Hugging Face cache directory; the default cache if None.
         device: JAX device for the parameters; the first local device if None.
             Unlike ``alphagenome_research``, a CPU device is accepted.
+        policy: compute dtype, see :func:`policy_string`; the default is the
+            bfloat16 policy that ``alphagenome_research`` uses.
 
     The checkpoint is restored as ``alphagenome_research.model.dna_model.create``
     does: output metadata for both organisms (the heads were trained with both),
@@ -118,7 +138,7 @@ def load_local(model_version: str = "fold_0", organism: str = "HOMO_SAPIENS",
     )
     metadata = {o: metadata_lib.load(o) for o in (ag_dna_model.Organism.HOMO_SAPIENS,
                                                   ag_dna_model.Organism.MUS_MUSCULUS)}
-    policy = jmp.get_policy(JMP_POLICY)
+    policy = jmp.get_policy(policy_string(policy))
     forward = build_forward(metadata, policy)
     target = jax.eval_shape(
         forward.init, jax.random.PRNGKey(0),

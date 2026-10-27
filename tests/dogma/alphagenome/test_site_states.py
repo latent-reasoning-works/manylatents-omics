@@ -288,3 +288,15 @@ def test_run_records_float32_chunks_and_state_ranges(tmp_path, genome, variants,
     assert set(timing["max_abs_state"]) == set(LAYERS)
     states = cli.read_site_table(tmp_path / "out", "states", "transformer_tower")
     assert all(np.isfinite(v).all() for v in states["vector"])
+
+
+def test_compute_dtype_reaches_the_loader_and_the_records(tmp_path, genome, variants, fake):
+    _, calls, _ = fake
+    assert _run(tmp_path, genome, variants, "--compute-dtype", "float32") == 0
+    assert calls[-1]["policy"] == "float32"
+    shard = tmp_path / "out" / "shard_000_of_001"
+    assert json.loads((shard / "manifest.json").read_text())["compute_dtype"] == "float32"
+    assert json.loads((shard / "timing.json").read_text())["compute_dtype"] == "float32"
+    # resuming with another compute dtype is refused
+    with pytest.raises(ValueError, match="compute_dtype"):
+        _run(tmp_path, genome, variants)

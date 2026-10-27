@@ -93,3 +93,13 @@ def test_load_local_real_weights():
     seen = available_layers(model, 16_384)
     for spec in DEFAULT_TRUNK_LAYERS:
         assert spec.module in seen
+
+
+def test_policy_string():
+    from manylatents.dogma.alphagenome.model import JMP_POLICY, policy_string
+
+    assert policy_string(None) == policy_string("bfloat16") == JMP_POLICY
+    assert policy_string("float32") == "params=float32,compute=float32,output=float32"
+    assert policy_string("params=float32,compute=float16,output=float32").endswith("float32")
+    with pytest.raises(ValueError, match="policy"):
+        policy_string("fp8")

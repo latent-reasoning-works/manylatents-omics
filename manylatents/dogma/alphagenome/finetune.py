@@ -141,6 +141,8 @@ class AlphaGenomeFinetune(LatentModule):
         inference_batch_size: variants per forward without gradients (the
             HeadOnly state cache, ``transform``); each variant is two sequences.
         model: a preloaded ``LocalModel``; loaded from ``hf_cache`` if None.
+        policy: compute dtype when the model is loaded here, ``bfloat16``
+            (default) or ``float32`` (see ``model.policy_string``).
 
     ``fit(x, y)`` and ``transform(x)`` read ``x`` as row indices into the
     datamodule's ``get_variants()`` (``None``: every row) and raise
@@ -158,7 +160,8 @@ class AlphaGenomeFinetune(LatentModule):
                  hf_cache: Optional[str] = None, window: int = 0, targets_from: str = "path",
                  targets_path: Optional[str] = None, teacher_path: Optional[str] = None,
                  transform_output: str = "edited_site_state", val_fraction: float = 0.0,
-                 inference_batch_size: int = 2, model: Any = None, **kwargs):
+                 inference_batch_size: int = 2, model: Any = None, policy: str = "bfloat16",
+                 **kwargs):
         kwargs.setdefault("n_components", 0)
         super().__init__(**kwargs)
         from manylatents.dogma.alphagenome.interventions import HeadOnly, LowRankEdit
@@ -211,6 +214,10 @@ class AlphaGenomeFinetune(LatentModule):
         self.transform_output = transform_output
         self.val_fraction = float(val_fraction)
         self.inference_batch_size = int(inference_batch_size)
+        from manylatents.dogma.alphagenome.model import policy_string
+
+        policy_string(policy)
+        self.policy = policy
         self._model = model
         self._cache: dict = {}
         self.params = None
@@ -223,7 +230,7 @@ class AlphaGenomeFinetune(LatentModule):
             from manylatents.dogma.alphagenome.model import load_local
 
             self._model = load_local(model_version=self.model_version, organism=self.organism,
-                                     hf_cache=self.hf_cache)
+                                     hf_cache=self.hf_cache, policy=self.policy)
         self._model.check_length(self.sequence_length)
         return self._model
 

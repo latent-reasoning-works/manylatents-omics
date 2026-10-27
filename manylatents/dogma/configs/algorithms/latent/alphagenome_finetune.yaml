@@ -15,6 +15,7 @@ sequence_length: 131072
 model_version: fold_0
 organism: HOMO_SAPIENS
 hf_cache: null
+policy: bfloat16  # or float32
 window: 0
 targets_from: path
 targets_path: null

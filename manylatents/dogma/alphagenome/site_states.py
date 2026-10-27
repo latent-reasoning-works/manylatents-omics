@@ -428,6 +428,8 @@ def parse_args(argv=None):
     parser.add_argument("--model-version", default="fold_0")
     parser.add_argument("--organism", default="HOMO_SAPIENS")
     parser.add_argument("--hf-cache", help="Hugging Face cache folder (default: the usual one)")
+    parser.add_argument("--compute-dtype", choices=["bfloat16", "float32"], default="bfloat16",
+                        help="the model's compute dtype (default: its own bfloat16 policy)")
     parser.add_argument("--sequence-length", type=int, default=1_048_576)
     parser.add_argument("--layers", nargs="+", default=list(LAYERS), choices=list(LAYERS),
                         metavar="LAYER", help="default: all 26 trunk layers")
@@ -489,7 +491,7 @@ def main(argv=None) -> int:
         print("jax devices:", [str(d) for d in jax.devices()], flush=True)
         started = time.time()
         model = load_local(model_version=args.model_version, organism=args.organism,
-                           hf_cache=args.hf_cache)
+                           hf_cache=args.hf_cache, policy=args.compute_dtype)
         model.check_length(args.sequence_length)
         load_seconds = time.time() - started
         print(f"model {args.model_version} loaded in {load_seconds:.0f} s", flush=True)
@@ -503,7 +505,7 @@ def main(argv=None) -> int:
         request = {"sequence_length": args.sequence_length, "layers": list(args.layers),
                    "alleles": args.alleles, "repeat": args.repeat, "window": args.window,
                    "chunk_size": args.chunk_size, "model_version": args.model_version,
-                   "organism": model.organism}
+                   "organism": model.organism, "compute_dtype": args.compute_dtype}
         stats = run_chunks(model, kept, fasta, out, request, batch_size=args.batch_size,
                            retry_failed=args.retry_failed)
 
@@ -517,6 +519,7 @@ def main(argv=None) -> int:
         "shard": args.shard, "n_shards": args.n_shards,
         "sequence_length": args.sequence_length, "site_index": site_index,
         "model_version": args.model_version, "organism": model.organism,
+        "compute_dtype": args.compute_dtype,
         "layers": list(args.layers), "alleles": args.alleles, "repeat": args.repeat,
         "window": args.window, "batch_size": args.batch_size,
         "n_variants": int(len(variants)), "n_skipped": int(len(skipped)),

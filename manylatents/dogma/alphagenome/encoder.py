@@ -88,6 +88,8 @@ class AlphaGenomeSiteEncoder(LatentModule):
         sequence_length, model_version, organism, hf_cache, window, batch_size:
             as for the site_states command.
         repeat: which repeat to read from ``states_dir``.
+        policy: compute dtype of the model, ``bfloat16`` (default) or
+            ``float32`` (see ``model.policy_string``).
 
     The datamodule must provide ``get_variants()``: a table with chrom, pos,
     ref, alt. ``x`` holds row indices into that table (``[N, 1]``, as the
@@ -104,7 +106,7 @@ class AlphaGenomeSiteEncoder(LatentModule):
                  states_dir: Optional[str] = None, sequence_length: int = 1_048_576,
                  model_version: str = "fold_0", organism: str = "HOMO_SAPIENS",
                  hf_cache: Optional[str] = None, window: int = 0, batch_size: int = 1,
-                 repeat: int = 0, **kwargs):
+                 repeat: int = 0, policy: str = "bfloat16", **kwargs):
         kwargs.setdefault("n_components", 0)
         super().__init__(**kwargs)
         if output not in OUTPUTS:
@@ -130,6 +132,10 @@ class AlphaGenomeSiteEncoder(LatentModule):
         self.window = int(window)
         self.batch_size = int(batch_size)
         self.repeat = int(repeat)
+        from manylatents.dogma.alphagenome.model import policy_string
+
+        policy_string(policy)
+        self.policy = policy
         self._model = None
 
     @property
@@ -147,7 +153,7 @@ class AlphaGenomeSiteEncoder(LatentModule):
             from manylatents.dogma.alphagenome.model import load_local
 
             self._model = load_local(model_version=self.model_version, organism=self.organism,
-                                     hf_cache=self.hf_cache)
+                                     hf_cache=self.hf_cache, policy=self.policy)
             self._model.check_length(self.sequence_length)
         return self._model
 
