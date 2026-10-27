@@ -249,6 +249,98 @@ uses canonical `chromosome` names and 1-based `pos`; the CLI adds canonical
 identifiers from `chrom`, `pos`, `ref`, `alt`. FASTA access is lazy, and `--help`
 does not load the model libraries.
 
+### Hidden states at the variant site
+
+`manylatents.dogma.alphagenome` runs AlphaGenome as a plain Haiku function
+(`alphagenome-jax` extra, plus `alphagenome_research` from GitHub) and reads its
+hidden state at the variant, layer by layer. `load_local()` restores a checkpoint
+from the local Hugging Face cache only. `taps.DEFAULT_TRUNK_LAYERS` lists 26
+trunk layers in forward order (DNA embedder, six down-resolution blocks, the
+residual stream entering each of the nine attention blocks, the tower output,
+seven up-resolution blocks, and the 128 bp and 1 bp output embedders);
+`taps.site_states()` returns, for each, the bin that holds the site at that
+layer's resolution. An SNV sits at index `length // 2 - 1` (524,287 at 1 Mb),
+as for `variant.reference_interval.resize(length)`.
+
+```bash
+python -m manylatents.dogma.alphagenome.site_states --variants variants.tsv \
+    --fasta reference.fa --out site_states --sequence-length 1048576 \
+    --alleles all --shard 0 --n-shards 4
+```
+
+The model computes in bfloat16, as `alphagenome_research` does; `--compute-dtype
+float32` (or `policy: float32` in the encoder configs, `load_local(policy=...)`)
+computes in float32 instead. Only the + strand is scored: there is no
+reverse-complement pass.
+
+Each shard writes `states` (float16), `deltas` (float32, alt - ref) and
+`features` (float32 `delta_norm`, `cosine`, `pr3`) parquet chunks, computed
+from the float32 states, and resumes finished chunks. A resume must use the
+same request: layers, alleles, lengths, compute dtype, model version, the
+weights' snapshot revision, and the same FASTA (path, size and modification
+time); otherwise it is refused. A chunk whose states
+would overflow float16 keeps them as float32; `manifest.json` records which
+chunks and layers, and `timing.json` the largest |state| per layer. `--alleles all` also
+scores the two other bases, which `pr3` (the participation ratio of the three
+alternate-allele displacements, in [1, 2]) needs; `--repeat N` scores each
+variant N times for a noise floor. `latent_features` holds the numpy feature
+functions, shared with other models. `algorithms/latent=alphagenome_site`
+(`AlphaGenomeSiteEncoder`) returns the delta at one layer, or the features
+across layers, for a datamodule with `get_variants()`, from the model or from
+`states_dir`.
+
+The datamodule for these encoders is `data=variant_table`
+(`VariantTableDataModule`): a TSV, CSV or parquet table with chrom, pos, ref and
+alt, an optional label column, and a split by a split column or by test
+chromosomes. Its datasets yield each variant's row index as `x` and its label as
+`y`; the encoders map `x` back to rows of `get_variants()`. So `fit()` sees only
+the training rows, and `transform()` returns one row per index of its `x`, in
+that order.
+
+```bash
+python -m manylatents.main data=variant_table data.path=variants.tsv \
+    data.label_column=label data.test_chromosomes=[9,21] \
+    algorithms/latent=alphagenome_site algorithms.latent.fasta=reference.fa
+```
+
+### Finetuning and steering
+
+`algorithms/latent=alphagenome_finetune` (`AlphaGenomeFinetune`) trains a small
+set of parameters beside a frozen AlphaGenome and returns, per variant, the
+edited site state, the edited alt - ref delta or a head's prediction. Every
+AlphaGenome parameter stays bit-identical; a `JaxTrainer` (optax, nested in
+the algorithm config) optimises only the edit and the heads.
+
+| Intervention | What it trains |
+|---|---|
+| `LowRankEdit` | A LoReFT-style edit `h + R^T (W h + b - R h)` at one tap (`layer`), at all positions or only at the site's bins. `R` has orthonormal rows by construction (sign-fixed QR of a free matrix). At step 0 the edit is the identity. |
+| `HeadOnly` | No edit. Heads read frozen states at one or more `readout_layers`; the states are computed once and cached. |
+
+| Objective | Loss |
+|---|---|
+| `TrackHead` | A linear or one-hidden-layer head from the readout state (`source: delta`, `ref` or `alt`) to a per-variant target vector, with `mse`, `poisson` or `cosine` loss. |
+| `DiffusionOperatorMatch` | Symmetric KL between the diffusion operators (row-normalised Gaussian kernels, Coifman and Lafon 2006; bandwidth 0.25 times the median distance) of the student's and a teacher's embeddings on each minibatch. Options: `zero_diagonal`, `bandwidth_scale`, `bandwidth: knn` with `k`. With the defaults, wide inputs without cluster structure give an operator close to the identity and a loss with little signal; see the class docstring. |
+| `JacobianPenalty` | Squared Frobenius norm of the edit's Jacobian at the edit layer, by Hutchinson probes or exactly. For the affine `LowRankEdit` the Jacobian does not depend on the input, and the penalty is computed in closed form (`||W - R||_F^2` with `residual: true`). |
+| `CovarianceIsotropy` | Off-diagonal share of the batch covariance. |
+
+`Composite` sums objectives by their `weight`. `alphagenome_finetune_operator`
+and `alphagenome_head_only` are two more configs: an operator match with a
+Jacobian penalty, and a track head on frozen states.
+
+Targets (`targets_path`) and teachers (`teacher_path`) are per-variant tables
+or arrays that the caller supplies. As general good practice, do not train on
+labels that you later evaluate on. For this reason `fit()` ignores its `y`
+unless the config sets `targets_from: y`.
+
+Gradients flow back from the readout layers to the edit layer. The default
+length, 131,072 bp, is chosen so that a tower readout fits on one H100; this
+has not yet been measured on the real model. A readout in the decoder at 1 Mb
+holds 1 bp activations for backpropagation and needs an H200, or
+`trainer.remat: true`, which recomputes each block in the backward pass.
+With an edit (not `HeadOnly`), the module keeps every variant's reference window
+in host memory as uint8 base codes: one byte per base, so 1 MiB per variant at
+1 Mb (about 10 GiB for 10,000 variants) and 128 KiB at 131,072 bp.
+
 ### Track geometry evaluation
 
 `manylatents.dogma.benchmarks.track_geometry.run` evaluates a variant-by-track

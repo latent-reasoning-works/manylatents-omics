@@ -1,0 +1,60 @@
+# Steer AlphaGenome so that the diffusion operator of its alt - ref deltas at
+# the readout layer matches a teacher's (teacher_path: per-variant embeddings
+# of any width, e.g. another model's deltas), with a Jacobian penalty that
+# keeps the edit smooth. Good practice: do not build the teacher from labels
+# that you evaluate on.
+_target_: manylatents.dogma.alphagenome.finetune.AlphaGenomeFinetune
+layer: mha_block_4_input
+readout_layers: [transformer_tower]
+fasta: null
+sequence_length: 131072
+model_version: fold_0
+organism: HOMO_SAPIENS
+hf_cache: null
+policy: bfloat16  # or float32
+window: 0
+targets_from: path
+targets_path: null
+teacher_path: null
+transform_output: delta
+val_fraction: 0.1
+inference_batch_size: 2
+
+intervention:
+  _target_: manylatents.dogma.alphagenome.interventions.LowRankEdit
+  rank: 8
+  positions: all
+
+objective:
+  _target_: manylatents.dogma.alphagenome.objectives.Composite
+  objectives:
+    - _target_: manylatents.dogma.alphagenome.objectives.DiffusionOperatorMatch
+      layers: [transformer_tower]
+      source: delta
+      # The defaults define the operator. For wide, unclustered states it is
+      # close to the identity; zero_diagonal: true or bandwidth: knn change that.
+      bandwidth_scale: 0.25
+      zero_diagonal: false
+      bandwidth: median
+      k: 5
+      weight: 1.0
+    - _target_: manylatents.dogma.alphagenome.objectives.JacobianPenalty
+      mode: hutchinson
+      probes: 1
+      residual: true
+      weight: 0.01
+
+trainer:
+  _target_: manylatents.dogma.alphagenome.train.JaxTrainer
+  optimizer: adamw
+  lr: 1.0e-3
+  max_steps: 2000
+  # The operator is computed per minibatch: larger batches give a better one.
+  batch_size: 32
+  grad_clip: 1.0
+  seed: 0
+  log_every: 50
+  eval_every: 200
+  early_stop_patience: 5
+  checkpoint_dir: null
+  remat: false

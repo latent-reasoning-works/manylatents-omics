@@ -1,0 +1,24 @@
+# A table of SNVs (chrom, pos, ref, alt) for variant-level encoders such as
+# algorithms/latent=alphagenome_site or alphagenome_finetune.
+#
+# The datasets yield each variant's row index as `data` and the label as
+# `metadata`; the encoder reads the variant from get_variants() and the
+# sequence from its reference genome. fit() sees the training rows, transform()
+# the test rows.
+#
+# Usage:
+#   python -m manylatents.main data=variant_table data.path=variants.tsv \
+#     data.label_column=label data.test_chromosomes=[9,21] \
+#     algorithms/latent=alphagenome_site algorithms.latent.fasta=hg38.fa
+#
+# Split: set split_column (values in train_values / test_values) or
+# test_chromosomes, not both; with neither, train and test are every row.
+
+_target_: manylatents.dogma.data.variant_table.VariantTableDataModule
+path: ???
+label_column: null
+split_column: null
+train_values: [train]
+test_values: [test]
+test_chromosomes: null
+batch_size: 256

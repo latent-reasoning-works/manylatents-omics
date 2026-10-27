@@ -5,6 +5,7 @@ Includes:
     - SequenceDataModule: LightningDataModule for sequence encoding
     - CentralDogmaDataModule: DataModule for aligned DNA/RNA/Protein sequences
     - ClinVarDataModule: DataModule for ClinVar variant sequences
+    - VariantTableDataModule: a chrom/pos/ref/alt table whose datasets yield row indices
     - TEST_SEQUENCES: Preset test sequences for validation
 
 Future home for:
@@ -26,6 +27,7 @@ from .clinvar_dataset import (
     ClinVarDataset,
 )
 from .variant_datamodule import VariantDataModule
+from .variant_table import VariantTableDataModule
 
 __all__ = [
     "SequenceDataset",
@@ -35,5 +37,6 @@ __all__ = [
     "ClinVarDataModule",
     "ClinVarDataset",
     "VariantDataModule",
+    "VariantTableDataModule",
     "TEST_SEQUENCES",
 ]

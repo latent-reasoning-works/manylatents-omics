@@ -1,0 +1,53 @@
+# Steer AlphaGenome (JAX, local weights, all parameters frozen): a LoReFT-style
+# low-rank edit at `layer`, trained with a track head on the readout state.
+# The datamodule must provide get_variants() with chrom, pos, ref, alt, and
+# datasets that yield row indices into it as x (data=variant_table).
+# Targets come from targets_path (variant_id or chrom/pos/ref/alt plus numeric
+# columns); fit()'s y is used only with targets_from: y. Good practice: do not
+# train on labels that you evaluate on.
+# transform returns (N, d): edited_site_state | delta | head_output.
+# 131072 bp is meant to keep gradients through the tower on one H100 (not yet
+# measured); 1 Mb with a decoder readout needs an H200 or trainer.remat: true.
+_target_: manylatents.dogma.alphagenome.finetune.AlphaGenomeFinetune
+layer: mha_block_4_input
+readout_layers: [transformer_tower]
+fasta: null
+sequence_length: 131072
+model_version: fold_0
+organism: HOMO_SAPIENS
+hf_cache: null
+policy: bfloat16  # or float32
+window: 0
+targets_from: path
+targets_path: null
+teacher_path: null
+transform_output: delta
+val_fraction: 0.1
+inference_batch_size: 2
+
+intervention:
+  _target_: manylatents.dogma.alphagenome.interventions.LowRankEdit
+  rank: 8
+  positions: all
+
+objective:
+  _target_: manylatents.dogma.alphagenome.objectives.TrackHead
+  layers: [transformer_tower]
+  source: delta
+  loss: mse
+  hidden: 0
+
+trainer:
+  _target_: manylatents.dogma.alphagenome.train.JaxTrainer
+  optimizer: adamw
+  lr: 1.0e-3
+  weight_decay: 0.0
+  max_steps: 2000
+  batch_size: 8
+  grad_clip: 1.0
+  seed: 0
+  log_every: 50
+  eval_every: 200
+  early_stop_patience: 5
+  checkpoint_dir: null
+  remat: false
