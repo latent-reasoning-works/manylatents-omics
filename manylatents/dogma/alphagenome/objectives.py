@@ -141,63 +141,112 @@ def _pairwise_sq(x):
     return jnp.sum(diff * diff, axis=-1)
 
 
-def diffusion_operator(x, bandwidth_scale: float = 0.25):
-    """Row-normalised Gaussian kernel ``P = D^-1 K`` on the rows of ``x``.
+BANDWIDTHS = ("median", "knn")
 
-    ``K_ij = exp(-||x_i - x_j||^2 / (2 sigma^2))`` with ``sigma`` =
-    ``bandwidth_scale`` times the median off-diagonal pairwise distance, under
-    stop-gradient. The median bandwidth makes ``P`` invariant to a uniform
-    scaling of ``x``.
+
+def diffusion_operator(x, bandwidth_scale: float = 0.25, zero_diagonal: bool = False,
+                       bandwidth: str = "median", k: int = 5):
+    """Row-normalised Gaussian kernel ``P = D^-1 K`` on the rows of ``x``: the
+    diffusion operator of diffusion maps (Coifman and Lafon, 2006).
+
+    ``K_ij = exp(-||x_i - x_j||^2 / (2 sigma^2))``, with ``sigma`` under
+    stop-gradient equal to ``bandwidth_scale`` times
+
+    * ``median``: the median off-diagonal pairwise distance (the default);
+    * ``knn``: the median over rows of the distance to the ``k``-th nearest
+      other row.
+
+    Both make ``P`` invariant to a uniform scaling of ``x``. The defaults
+    (diagonal kept, ``bandwidth_scale=0.25``, median) define the operator; with
+    ``zero_diagonal`` the self-loops ``K_ii`` are set to 0 before normalising.
     """
     import jax
     import jax.numpy as jnp
 
+    if bandwidth not in BANDWIDTHS:
+        raise ValueError(f"bandwidth must be one of {BANDWIDTHS}, got {bandwidth!r}")
     x = jnp.asarray(x, jnp.float32)
     sq = _pairwise_sq(x)
     n = x.shape[0]
-    upper = jnp.triu_indices(n, 1)
-    median = jnp.median(jnp.sqrt(jax.lax.stop_gradient(sq)[upper]))
-    sigma = jax.lax.stop_gradient(bandwidth_scale * median)
+    dist = jnp.sqrt(jax.lax.stop_gradient(sq))
+    if bandwidth == "median":
+        scale = jnp.median(dist[jnp.triu_indices(n, 1)])
+    else:
+        if not 1 <= int(k) < n:
+            raise ValueError(f"knn bandwidth needs 1 <= k < batch size ({n}), got k={k}")
+        # column 0 of each sorted row is the row itself (distance 0)
+        scale = jnp.median(jnp.sort(dist, axis=1)[:, int(k)])
+    sigma = jax.lax.stop_gradient(bandwidth_scale * scale)
     sigma = jnp.maximum(sigma, 1e-12)
-    k = jnp.exp(-sq / (2 * sigma ** 2))
-    return k / jnp.sum(k, axis=1, keepdims=True)
+    kernel = jnp.exp(-sq / (2 * sigma ** 2))
+    if zero_diagonal:
+        kernel = kernel * (1.0 - jnp.eye(n, dtype=kernel.dtype))
+    return kernel / jnp.sum(kernel, axis=1, keepdims=True)
 
 
 class DiffusionOperatorMatch(Objective):
     """Match the student's diffusion operator to a teacher's on each minibatch.
 
-    From César's diffusion-operator distillation paper. With ``P_S`` and
-    ``P_T`` from :func:`diffusion_operator` on the student embeddings (the
-    ``source`` states at ``layers``) and the teacher embeddings
-    (``batch[teacher_key]``, precomputed, any width), the loss is the mean over
-    rows ``i`` of ``(KL(P_T[i] || P_S[i]) + KL(P_S[i] || P_T[i])) / 2``, with
-    ``eps`` added inside the logarithms. It is 0 when the operators agree, and
-    invariant to rotations and uniform scalings of either embedding. The
-    teacher must not be built from evaluation labels (see the module docstring).
+    With ``P_S`` and ``P_T`` from :func:`diffusion_operator` (Coifman and
+    Lafon, 2006) on the student embeddings (the ``source`` states at
+    ``layers``) and the teacher embeddings (``batch[teacher_key]``,
+    precomputed, any width), the loss is the mean over rows ``i`` of
+    ``(KL(P_T[i] || P_S[i]) + KL(P_S[i] || P_T[i])) / 2``, with ``eps`` added
+    inside the logarithms. It is 0 when the operators agree, and invariant to
+    rotations and uniform scalings of either embedding. The teacher must not
+    be built from labels that evaluate the model (see the module docstring).
     Needs a batch of at least 3 variants.
+
+    The defaults (diagonal kept, ``bandwidth_scale=0.25``, median bandwidth)
+    define the objective. For high-dimensional inputs without cluster
+    structure, pairwise distances concentrate near their median, so every
+    off-diagonal kernel entry is about ``exp(-8)`` and ``P`` is close to the
+    identity: the loss is then small for any pair of embeddings and carries
+    little signal. On 32 rows of standard normal noise, the mean diagonal of
+    ``P`` is 0.92 at width 16 and 0.99 at width 1536, and the loss against an
+    unrelated 64-wide teacher falls from 0.16 to 0.012 (0.73 at width 1536
+    with ``zero_diagonal``). ``zero_diagonal`` removes the self-loop that
+    dominates. ``bandwidth_scale`` moves ``P`` between near-identity (small)
+    and near-uniform (large; at 1.0 the same loss is 0.003), and
+    ``bandwidth='knn'`` ties ``sigma`` to local neighbourhoods instead. Check
+    the diagonal of ``P`` on real batches before relying on the default.
+
+    Args:
+        bandwidth_scale, zero_diagonal, bandwidth, k: passed to
+            :func:`diffusion_operator`, the same for student and teacher.
     """
 
     name = "diffusion_operator_match"
 
     def __init__(self, layers: Union[str, Sequence[str]] = "transformer_tower",
                  source: str = "delta",
-                 teacher_key: str = "teacher", bandwidth_scale: float = 0.25, eps: float = 1e-8,
-                 weight: float = 1.0, name: Optional[str] = None):
+                 teacher_key: str = "teacher", bandwidth_scale: float = 0.25,
+                 zero_diagonal: bool = False, bandwidth: str = "median", k: int = 5,
+                 eps: float = 1e-8, weight: float = 1.0, name: Optional[str] = None):
         super().__init__(weight, name)
         if source not in SOURCES:
             raise ValueError(f"source must be one of {SOURCES}, got {source!r}")
+        if bandwidth not in BANDWIDTHS:
+            raise ValueError(f"bandwidth must be one of {BANDWIDTHS}, got {bandwidth!r}")
         self.layers = _as_list(layers)
         self.source = source
         self.teacher_key = teacher_key
         self.bandwidth_scale = float(bandwidth_scale)
+        self.zero_diagonal = bool(zero_diagonal)
+        self.bandwidth = bandwidth
+        self.k = int(k)
         self.eps = float(eps)
         self.batch_keys = (teacher_key,)
+
+    def operator(self, x):
+        return diffusion_operator(x, self.bandwidth_scale, self.zero_diagonal, self.bandwidth,
+                                  self.k)
 
     def loss(self, student, teacher):
         import jax.numpy as jnp
 
-        p_s = diffusion_operator(student, self.bandwidth_scale)
-        p_t = diffusion_operator(teacher, self.bandwidth_scale)
+        p_s = self.operator(student)
+        p_t = self.operator(teacher)
         log_s, log_t = jnp.log(p_s + self.eps), jnp.log(p_t + self.eps)
         kl_ts = jnp.sum(p_t * (log_t - log_s), axis=1)
         kl_st = jnp.sum(p_s * (log_s - log_t), axis=1)

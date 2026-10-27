@@ -29,6 +29,54 @@ def test_diffusion_operator_is_row_stochastic():
     assert (np.asarray(p) > 0).all()
 
 
+def _reference_operator(x, scale=0.25):
+    """The default operator in numpy: diagonal kept, sigma = scale * median distance."""
+    x = np.asarray(x, np.float64)
+    sq = ((x[:, None] - x[None]) ** 2).sum(-1)
+    sigma = scale * np.median(np.sqrt(sq[np.triu_indices(len(x), 1)]))
+    k = np.exp(-sq / (2 * sigma ** 2))
+    return k / k.sum(1, keepdims=True)
+
+
+def test_default_operator_is_unchanged():
+    x = _random((12, 5))
+    np.testing.assert_allclose(np.asarray(diffusion_operator(x)), _reference_operator(x),
+                               rtol=1e-4, atol=1e-7)
+    match = DiffusionOperatorMatch()
+    assert (match.bandwidth_scale, match.zero_diagonal, match.bandwidth) == (0.25, False,
+                                                                             "median")
+    np.testing.assert_allclose(np.asarray(match.operator(x)), _reference_operator(x),
+                               rtol=1e-4, atol=1e-7)
+
+
+def test_operator_options():
+    x = _random((12, 5))
+    zero = np.asarray(diffusion_operator(x, zero_diagonal=True))
+    np.testing.assert_array_equal(np.diagonal(zero), 0)
+    np.testing.assert_allclose(zero.sum(1), 1, rtol=1e-6)
+    wide = np.asarray(diffusion_operator(x, bandwidth_scale=1.0))
+    np.testing.assert_allclose(wide, _reference_operator(x, 1.0), rtol=1e-4, atol=1e-7)
+    knn = np.asarray(diffusion_operator(x, bandwidth="knn", k=3))
+    np.testing.assert_allclose(knn.sum(1), 1, rtol=1e-6)
+    np.testing.assert_allclose(np.asarray(diffusion_operator(x * 9.0, bandwidth="knn", k=3)),
+                               knn, rtol=1e-4, atol=1e-7)
+    with pytest.raises(ValueError, match="bandwidth"):
+        DiffusionOperatorMatch(bandwidth="mean")
+    with pytest.raises(ValueError, match="k="):
+        diffusion_operator(x, bandwidth="knn", k=12)
+
+
+def test_default_operator_is_near_identity_for_wide_noise():
+    """The documented limitation: at width 1536 the default operator is ~ the identity
+    and the loss barely separates an unrelated teacher; zero_diagonal restores it."""
+    rng = np.random.default_rng(0)
+    x = jnp.asarray(rng.standard_normal((32, 1536)), jnp.float32)
+    teacher = jnp.asarray(rng.standard_normal((32, 64)), jnp.float32)
+    assert np.diagonal(np.asarray(diffusion_operator(x))).mean() > 0.98
+    assert float(DiffusionOperatorMatch().loss(x, teacher)) < 0.05
+    assert float(DiffusionOperatorMatch(zero_diagonal=True).loss(x, teacher)) > 0.1
+
+
 def test_diffusion_operator_match_properties():
     match = DiffusionOperatorMatch()
     s, t = _random((16, 6)), _random((16, 9), seed=1)

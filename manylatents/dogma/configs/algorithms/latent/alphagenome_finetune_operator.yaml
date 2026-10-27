@@ -29,7 +29,12 @@ objective:
     - _target_: manylatents.dogma.alphagenome.objectives.DiffusionOperatorMatch
       layers: [transformer_tower]
       source: delta
+      # The defaults define the operator. For wide, unclustered states it is
+      # close to the identity; zero_diagonal: true or bandwidth: knn change that.
       bandwidth_scale: 0.25
+      zero_diagonal: false
+      bandwidth: median
+      k: 5
       weight: 1.0
     - _target_: manylatents.dogma.alphagenome.objectives.JacobianPenalty
       mode: hutchinson

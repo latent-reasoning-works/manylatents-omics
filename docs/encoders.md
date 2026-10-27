@@ -309,7 +309,7 @@ the algorithm config) optimises only the edit and the heads.
 | Objective | Loss |
 |---|---|
 | `TrackHead` | A linear or one-hidden-layer head from the readout state (`source: delta`, `ref` or `alt`) to a per-variant target vector, with `mse`, `poisson` or `cosine` loss. |
-| `DiffusionOperatorMatch` | Symmetric KL between the row-normalised Gaussian kernels (bandwidth 0.25 times the median distance) of the student's and a teacher's embeddings on each minibatch. |
+| `DiffusionOperatorMatch` | Symmetric KL between the diffusion operators (row-normalised Gaussian kernels, Coifman and Lafon 2006; bandwidth 0.25 times the median distance) of the student's and a teacher's embeddings on each minibatch. Options: `zero_diagonal`, `bandwidth_scale`, `bandwidth: knn` with `k`. With the defaults, wide inputs without cluster structure give an operator close to the identity and a loss with little signal; see the class docstring. |
 | `JacobianPenalty` | Squared Frobenius norm of the edit's Jacobian at the edit layer, by Hutchinson probes or exactly. |
 | `CovarianceIsotropy` | Off-diagonal share of the batch covariance. |
 
