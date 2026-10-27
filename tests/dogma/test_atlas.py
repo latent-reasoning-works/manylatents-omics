@@ -454,6 +454,78 @@ def test_local_model_out_of_memory_is_recorded_as_missing_and_listed(tmp_path):
     assert "RESOURCE_EXHAUSTED" in client.resource_failures[0][1]
 
 
+def test_chunk_that_runs_out_of_memory_everywhere_is_recorded_not_raised(tmp_path):
+    variants = _variants(6)
+    client = _local_client(OutOfMemoryModel(unservable={3, 4}))
+    _fetch(client, variants, tmp_path, requested_scorers=["DNASE"], chunk_size=2)
+    ids = with_variant_ids(variants)["variant_id"].tolist()
+    assert sorted(missing_variants(tmp_path, "DNASE")) == sorted([ids[2], ids[3]])
+    assert sorted(vid for vid, _ in client.resource_failures) == sorted([ids[2], ids[3]])
+    assert load_atlas_matrix(tmp_path, "DNASE", [ids[0], ids[5]]).values.shape == (2, 3)
+
+
+def test_chunk_with_memory_and_other_failures_is_recorded_and_explained(tmp_path, capsys):
+    class Mixed(OutOfMemoryModel):
+        def score_variant(self, interval, variant, variant_scorers=()):
+            if variant.position == 4:
+                raise ValueError("interval out of bounds")
+            return super().score_variant(interval, variant, variant_scorers)
+
+    client = _local_client(Mixed(unservable={3}))
+    _fetch(client, _variants(4), tmp_path, requested_scorers=["DNASE"], chunk_size=2)
+    ids = with_variant_ids(_variants(4))["variant_id"].tolist()
+    assert sorted(missing_variants(tmp_path, "DNASE")) == sorted(ids[2:])
+    assert [vid for vid, _ in client.resource_failures] == [ids[2]]
+    out = capsys.readouterr().out
+    assert "1 x interval out of bounds" in out and "1 x out of device memory" in out
+
+
+def test_out_of_memory_keeps_no_reference_to_the_failed_call(tmp_path):
+    import gc
+    import weakref
+
+    class Buffer:
+        pass
+
+    alive = []
+
+    class Holding(FakeLocalModel):
+        def score_variant(self, interval, variant, variant_scorers=()):
+            predictions = Buffer()
+            alive.append(weakref.ref(predictions))
+            raise JaxRuntimeError("RESOURCE_EXHAUSTED: Out of memory while trying to allocate 1.50GiB")
+
+    class ScorerFails(FakeLocalModel):
+        def score_variant(self, interval, variant, variant_scorers=()):
+            predictions = Buffer()
+            alive.append(weakref.ref(predictions))
+            raise ValueError("Both junction_scores and mask_metadata must be non-empty")
+
+    gc.disable()
+    try:
+        for model, message in ((Holding(), "out of device memory"), (ScorerFails(), "junction_scores")):
+            client = _local_client(model)
+            with pytest.raises(ValueError, match=message) as caught:
+                client.query_variant(FakeVariant("chr1", 3, "A", "G", "v3"), requested_scorers=["DNASE"])
+            assert caught.value.__cause__ is None and caught.value.__context__ is None
+            assert alive[-1]() is None
+    finally:
+        gc.enable()
+
+
+def test_forget_chunks_with_marks_only_chunks_with_those_variants(tmp_path):
+    from manylatents.dogma.atlas import forget_chunks_with
+
+    variants = _variants(6)
+    _fetch(_local_client(OutOfMemoryModel(unservable={3})), variants, tmp_path,
+           requested_scorers=["DNASE"], chunk_size=2)
+    ids = with_variant_ids(variants)["variant_id"].tolist()
+    assert forget_chunks_with(tmp_path, [ids[2]]) == [1]
+    model = FakeLocalModel()
+    _fetch(_local_client(model), variants, tmp_path, requested_scorers=["DNASE"], chunk_size=2)
+    assert len(model.calls) == 2 and missing_variants(tmp_path, "DNASE") == []
+
+
 def test_other_runtime_errors_still_propagate(tmp_path):
     class Broken(FakeLocalModel):
         def score_variant(self, interval, variant, variant_scorers=()):

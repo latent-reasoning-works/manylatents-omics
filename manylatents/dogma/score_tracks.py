@@ -69,6 +69,8 @@ def parse_args(argv=None):
     parser.add_argument("--chunk-size", type=int, default=256)
     parser.add_argument("--shard", type=int, default=0)
     parser.add_argument("--n-shards", type=int, default=1)
+    parser.add_argument("--retry-resource-failures", action="store_true",
+                        help="score again the chunks that hold variants listed in scoring_failed.tsv")
     parser.add_argument("--limit", type=int, default=0, help="first N variants of the shard (smoke test)")
     parser.add_argument("--gtf-feather", help="gene annotation (feather)")
     parser.add_argument("--pas-feather", help="polyadenylation site annotation (feather)")
@@ -138,14 +140,19 @@ def main(argv=None) -> int:
     # Time the first few variants one by one (compilation, then steady state).
     from alphagenome.data import genome
 
-    seconds = []
+    seconds, result = [], {}
     for row in kept.head(6).itertuples(index=False):
         variant = genome.Variant(chromosome=row.chromosome, position=int(row.pos),
                                  reference_bases=row.ref, alternate_bases=row.alt,
                                  name=row.variant_id)
         tick = time.time()
-        result = client.query_variant(variant, requested_scorers=args.scorers)
+        try:
+            result = client.query_variant(variant, requested_scorers=args.scorers)
+        except ValueError as err:  # the fetch records it as missing
+            print(f"timing variant failed: {err}", flush=True)
+            continue
         seconds.append(time.time() - tick)
+    client.resource_failures.clear()  # the fetch tries these variants again
     shapes = {name: list(scored.shape) for name, scored in result.items()}
     example = {name: {"obs_columns": list(scored.obs.columns), "var_columns": list(scored.var.columns),
                       "layers": list(scored.layers.keys()),
@@ -154,14 +161,26 @@ def main(argv=None) -> int:
     print(f"per-variant seconds (first six): {[round(s, 2) for s in seconds]}", flush=True)
     print(f"shapes: {shapes}", flush=True)
 
+    if args.retry_resource_failures and (out / "scoring_failed.tsv").exists():
+        from manylatents.dogma.atlas import forget_chunks_with
+
+        earlier = pd.read_csv(out / "scoring_failed.tsv", sep="\t")
+        chunks = forget_chunks_with(out, earlier["variant_id"].astype(str))
+        # The retried variants are listed again only if they fail again.
+        earlier.iloc[:0].to_csv(out / "scoring_failed.tsv", sep="\t", index=False)
+        print(f"retrying {len(earlier)} resource failures in chunks {chunks}", flush=True)
+
     started = time.time()
     manifest = fetch_atlas_scores(client, kept, args.scorers, out, chunk_size=args.chunk_size)
     fetch_seconds = time.time() - started
     # Variants the model could not score for lack of device memory are missing
     # in the cache like any other; this file says which ones, so a reader does
     # not take them for variants with nothing to score.
-    pd.DataFrame(client.resource_failures, columns=["variant_id", "reason"]).to_csv(
-        out / "scoring_failed.tsv", sep="\t", index=False)
+    # A resumed run keeps the failures that earlier runs recorded.
+    failed = pd.DataFrame(client.resource_failures, columns=["variant_id", "reason"])
+    if (out / "scoring_failed.tsv").exists():
+        failed = pd.concat([pd.read_csv(out / "scoring_failed.tsv", sep="\t"), failed])
+    failed.drop_duplicates("variant_id").to_csv(out / "scoring_failed.tsv", sep="\t", index=False)
     missing = {name: sum(len(chunk["missing"].get(name, [])) for chunk in manifest["chunks"].values())
                for name in args.scorers}
     timing = {

@@ -120,6 +120,22 @@ def _write_manifest(cache_dir: Path, manifest: dict) -> None:
     tmp.replace(cache_dir / _MANIFEST)
 
 
+def forget_chunks_with(cache_dir, variant_ids) -> list[int]:
+    """Mark undone every cached chunk that lists one of ``variant_ids`` as
+    missing, so the next fetch scores the chunk again. Return the chunk indices."""
+    cache_dir = Path(cache_dir)
+    manifest = _read_manifest(cache_dir)
+    if manifest is None:
+        return []
+    wanted = set(variant_ids)
+    forgotten = sorted(int(index) for index, entry in manifest["chunks"].items()
+                       if any(wanted.intersection(ids) for ids in entry.get("missing", {}).values()))
+    for index in forgotten:
+        del manifest["chunks"][str(index)]
+    _write_manifest(cache_dir, manifest)
+    return forgotten
+
+
 def _scorer_dir(scorer: str) -> str:
     """Directory name for a scorer: the name itself when it is path-safe,
     otherwise a readable slug plus a hash of the full name."""
@@ -230,18 +246,31 @@ class LocalScorerClient:
                 "select tracks after loading"
             )
         names = list(requested_scorers)
+        variant_error = memory_error = None
         try:
             results = self._model.score_variant(
                 self._interval(variant, self.sequence_length), variant,
                 variant_scorers=[self._scorers[name] for name in names],
             )
         except self._VARIANT_ERRORS as err:
-            raise ValueError(f"{_id_of(variant)}: {err}") from err
+            variant_error = str(err)
         except Exception as err:  # noqa: BLE001 - only device-memory failures are caught
             if not self._out_of_memory(err):
                 raise
-            self.resource_failures.append((_id_of(variant), str(err).splitlines()[0][:200]))
-            raise ValueError(f"{_id_of(variant)}: out of device memory") from err
+            memory_error = str(err).splitlines()[0][:200]
+        if variant_error is not None or memory_error is not None:
+            # The traceback of a failed call holds its frames, and with them the
+            # 1 Mb predictions on the device (a scorer can fail after all
+            # predictions are made, e.g. SPLICE_JUNCTIONS with no junction).
+            # Keep only the message, and collect, so the next variant has the
+            # memory.
+            import gc
+
+            gc.collect()
+            if memory_error is not None:
+                self.resource_failures.append((_id_of(variant), memory_error))
+                raise ValueError(f"{_id_of(variant)}: out of device memory")
+            raise ValueError(f"{_id_of(variant)}: {variant_error}")
         out = {}
         for name, scored in zip(names, results, strict=True):
             obs = scored.obs.copy()
@@ -260,16 +289,27 @@ class LocalScorerClient:
         parts: dict[str, list] = {name: [] for name in names}
         variants = list(variants)
         last_error = None
+        errors: dict[str, int] = {}
+        n_memory = len(self.resource_failures)
         for variant in variants:
             try:
                 result = self.query_variant(
                     variant, requested_scorers=names, ontology_terms=ontology_terms)
             except ValueError as err:
                 last_error = err
+                reason = str(err).split(": ", 1)[-1][:120]
+                errors[reason] = errors.get(reason, 0) + 1
                 continue
             for name, scored in result.items():
                 parts[name].append(scored)
         if variants and last_error is not None and not any(parts.values()):
+            for reason, count in sorted(errors.items(), key=lambda item: -item[1]):
+                print(f"chunk scored nothing: {count} x {reason}", flush=True)
+        # A chunk that scores nothing means a broken setup, unless variants ran
+        # out of device memory (a region too large for the device): those are
+        # recorded in resource_failures, and all failed variants stay missing.
+        ran_out_of_memory = len(self.resource_failures) > n_memory
+        if variants and last_error is not None and not any(parts.values()) and not ran_out_of_memory:
             raise RuntimeError(
                 f"the local model scored none of {len(variants)} variants; last error: {last_error}"
             ) from last_error
