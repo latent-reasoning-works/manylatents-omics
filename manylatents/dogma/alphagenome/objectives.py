@@ -16,9 +16,9 @@ minibatch of variants:
 and ``batch`` holds per-variant arrays the caller supplies (``target``,
 ``teacher``).
 
-Targets and teachers must not come from the benchmark labels used for
-evaluation: training on them would make the evaluation circular (the project
-pre-registers this). The caller supplies targets; no objective reads labels.
+The caller supplies targets and teachers; no objective reads labels. As
+general good practice, do not train on labels that you later evaluate on:
+that evaluation would be circular.
 """
 from __future__ import annotations
 
@@ -285,9 +285,10 @@ def jacobian_frobenius(fn, x, rng=None, probes: int = 1, mode: str = "hutchinson
 
 
 class JacobianPenalty(Objective):
-    """``||J||_F^2`` of the edit at the edit layer ("Measure before you look",
-    UniReps 2025): the Jacobian of the edited site vector with respect to the
-    unedited one, at ``outputs['edit_input']``.
+    """``||J||_F^2`` of the edit at the edit layer: the Jacobian of the edited
+    site vector with respect to the unedited one, at ``outputs['edit_input']``
+    (see "Measure before you look: grounding embeddings through manifold
+    metrics", UniReps workshop at NeurIPS 2025).
 
     Args:
         mode: ``hutchinson`` (``probes`` random probes through ``jax.jvp``) or

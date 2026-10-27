@@ -328,9 +328,9 @@ and `alphagenome_head_only` are two more configs: an operator match with a
 Jacobian penalty, and a track head on frozen states.
 
 Targets (`targets_path`) and teachers (`teacher_path`) are per-variant tables
-or arrays that the caller supplies. They must not come from the labels of a
-benchmark used for evaluation. For this reason `fit()` ignores its `y` unless
-the config sets `targets_from: y`.
+or arrays that the caller supplies. As general good practice, do not train on
+labels that you later evaluate on. For this reason `fit()` ignores its `y`
+unless the config sets `targets_from: y`.
 
 Gradients flow back from the readout layers to the edit layer. The default
 length, 131,072 bp, is chosen so that a tower readout fits on one H100; this

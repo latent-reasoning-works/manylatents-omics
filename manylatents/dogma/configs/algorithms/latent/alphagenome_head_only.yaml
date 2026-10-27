@@ -1,7 +1,8 @@
 # Heads on frozen AlphaGenome site states: no edit, a track head reads the
 # states at several readout layers (concatenated). The states are computed once
 # and cached, so training costs one forward per variant and allele.
-# Targets come from targets_path, never from benchmark labels.
+# Targets come from targets_path. Good practice: do not train on labels that
+# you evaluate on.
 _target_: manylatents.dogma.alphagenome.finetune.AlphaGenomeFinetune
 layer: transformer_tower
 readout_layers: [mha_block_4_input, transformer_tower]

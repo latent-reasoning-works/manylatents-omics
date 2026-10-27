@@ -309,8 +309,8 @@ class AlphaGenomeFinetune(LatentModule):
             elif self.targets_path is None:
                 raise ValueError(
                     "the objective needs targets: set targets_path. fit()'s y is not used "
-                    "unless targets_from='y', because benchmark labels must not train the "
-                    "model they evaluate")
+                    "unless targets_from='y', so that labels used to evaluate the model do "
+                    "not also train it")
             else:
                 out["target"] = load_rows(self.targets_path, variants, "targets", rows, n_rows)
         if "teacher" in needed:

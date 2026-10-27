@@ -1,7 +1,8 @@
 # Steer AlphaGenome so that the diffusion operator of its alt - ref deltas at
 # the readout layer matches a teacher's (teacher_path: per-variant embeddings
 # of any width, e.g. another model's deltas), with a Jacobian penalty that
-# keeps the edit smooth. The teacher must not be built from benchmark labels.
+# keeps the edit smooth. Good practice: do not build the teacher from labels
+# that you evaluate on.
 _target_: manylatents.dogma.alphagenome.finetune.AlphaGenomeFinetune
 layer: mha_block_4_input
 readout_layers: [transformer_tower]

@@ -3,8 +3,9 @@
 # The datamodule must provide get_variants() with chrom, pos, ref, alt, and
 # datasets that yield row indices into it as x (data=variant_table).
 # Targets come from targets_path (variant_id or chrom/pos/ref/alt plus numeric
-# columns), never from benchmark labels: fit()'s y is used only with
-# targets_from: y. transform returns (N, d): edited_site_state | delta | head_output.
+# columns); fit()'s y is used only with targets_from: y. Good practice: do not
+# train on labels that you evaluate on.
+# transform returns (N, d): edited_site_state | delta | head_output.
 # 131072 bp is meant to keep gradients through the tower on one H100 (not yet
 # measured); 1 Mb with a decoder readout needs an H200 or trainer.remat: true.
 _target_: manylatents.dogma.alphagenome.finetune.AlphaGenomeFinetune
