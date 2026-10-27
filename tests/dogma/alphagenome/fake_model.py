@@ -3,8 +3,9 @@
 The structure follows alphagenome_research.model.model (0.2.0): a sequence
 encoder (DNA embedder, then six named down-resolution blocks each followed by
 a 2x pool), the organism embedding added to the trunk, a nine-block
-transformer tower at 128 bp, a seven-block decoder back to 1 bp, and two output
-embedders (128 bp, then 1 bp). Widths are tiny; ``LENGTH`` stands in for a
+transformer tower at 128 bp (the real tower's residual loop: pair update every
+second block, attention bias, ``x += mha(x)``, ``x += mlp(x)``), a seven-block
+decoder back to 1 bp, and two output embedders (128 bp, then 1 bp). Widths are tiny; ``LENGTH`` stands in for a
 trained input length.
 """
 import haiku as hk
@@ -47,10 +48,24 @@ class SequenceEncoder(hk.Module):
         return x, intermediates
 
 
+class PairUpdateBlock(hk.Module):
+    """Reads the residual stream, as the real block does: here a [B, 1, 4] summary."""
+
+    def __call__(self, x, pair_x, *, is_training):
+        summary = jnp.mean(hk.Linear(4)(x), axis=1, keepdims=True)
+        return summary if pair_x is None else pair_x + summary
+
+
+class AttentionBiasBlock(hk.Module):
+    def __call__(self, pair_x, *, is_training):
+        return hk.Linear(1)(pair_x)
+
+
 class MHABlock(hk.Module):
     def __call__(self, x, attention_bias, *, is_training):
         h = hk.Linear(x.shape[-1])(x)
-        weights = jax.nn.softmax(h @ jnp.swapaxes(x, 1, 2) / x.shape[-1], axis=-1)
+        logits = h @ jnp.swapaxes(x, 1, 2) / x.shape[-1] + attention_bias
+        weights = jax.nn.softmax(logits, axis=-1)
         return weights @ hk.Linear(x.shape[-1])(x)
 
 
@@ -60,11 +75,18 @@ class MLPBlock(hk.Module):
 
 
 class TransformerTower(hk.Module):
+    """The loop of the real tower: the residual ``x`` feeds the pair update (every
+    second block), the attention block and the MLP block, and each adds to ``x``."""
+
     def __call__(self, x, *, is_training):
-        for _ in range(9):
-            x += MHABlock()(x, None, is_training=is_training)
+        pair_x = None
+        for i in range(9):
+            if i % 2 == 0:
+                pair_x = PairUpdateBlock()(x, pair_x, is_training=is_training)
+            mha_bias = AttentionBiasBlock()(pair_x, is_training=is_training)
+            x += MHABlock()(x, mha_bias, is_training=is_training)
             x += MLPBlock()(x, is_training=is_training)
-        return x, None
+        return x, pair_x
 
 
 class UpResBlock(hk.Module):

@@ -143,7 +143,7 @@ def test_head_only_on_cached_states(setup, tmp_path, model):
     layers = ["mha_block_4_input", "transformer_tower"]
     module = _module(model, fasta, datamodule, intervention=HeadOnly(), readout_layers=layers,
                      objective=TrackHead(layers=layers, source="delta"),
-                     trainer=JaxTrainer(lr=0.05, max_steps=200, batch_size=8, log_every=50),
+                     trainer=JaxTrainer(lr=0.05, max_steps=600, batch_size=8, log_every=50),
                      targets_path=str(targets), transform_output="head_output")
     out = module.fit_transform(None)
     assert out.shape == target.shape

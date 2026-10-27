@@ -153,3 +153,41 @@ def test_wrong_module_name_raises():
     with pytest.raises(KeyError, match="not reached"):
         _run(model, edit, edit.init(jax.random.PRNGKey(0), 16), bad, ["transformer_tower"],
              _onehot(1))
+
+
+class _Zero:
+    """Sets the tapped activation to zero."""
+
+    positions = "all"
+
+    def apply(self, params, h):
+        return jnp.zeros_like(h)
+
+
+@pytest.mark.parametrize("block", [0, 4])
+def test_input_edit_replaces_the_residual_stream(block):
+    """Zeroing the residual entering block i removes all sequence dependence after it;
+    an edit of the attention block's argument alone would leave the skip path intact."""
+    model = make_model(policy=F32)
+    tap = f"mha_block_{block}_input"
+    readouts = [tap, f"mha_block_{block + 1}_input", "transformer_tower"]
+    a, edit_input_a = _run(model, _Zero(), {}, tap, readouts, _onehot(1, seed=0))
+    b, edit_input_b = _run(model, _Zero(), {}, tap, readouts, _onehot(1, seed=1))
+    assert float(jnp.abs(a[tap]).max()) == 0.0
+    for name in readouts[1:]:
+        np.testing.assert_array_equal(np.asarray(a[name]), np.asarray(b[name]))
+    # the edit's input is the unedited residual, which does depend on the sequence
+    assert not np.allclose(np.asarray(edit_input_a), np.asarray(edit_input_b))
+    _close(edit_input_a, site_states(model, _onehot(1, seed=0), SITE, [tap])[tap])
+
+
+def test_edit_point_of_tower_inputs():
+    from manylatents.dogma.alphagenome.interventions import edit_point
+    from manylatents.dogma.alphagenome.taps import LAYERS
+
+    assert edit_point(LAYERS["mha_block_0_input"]) == ("alphagenome/transformer_tower", "input")
+    assert edit_point(LAYERS["mha_block_1_input"]) == (
+        "alphagenome/transformer_tower/mlp_block", "residual")
+    assert edit_point(LAYERS["mha_block_8_input"]) == (
+        "alphagenome/transformer_tower/mlp_block_7", "residual")
+    assert edit_point(LAYERS["downres_block_3"]) == (LAYERS["downres_block_3"].module, "output")

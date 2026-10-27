@@ -15,7 +15,9 @@ from __future__ import annotations
 import re
 from typing import Optional, Sequence, Union
 
-from manylatents.dogma.alphagenome.taps import LayerSpec, resolve_layers, site_bin
+from manylatents.dogma.alphagenome.taps import (
+    _TOWER, LayerSpec, _numbered, resolve_layers, site_bin,
+)
 
 POSITIONS = ("all", "site")
 # Modules rematerialised when remat=True: the blocks of the encoder, tower and
@@ -122,6 +124,38 @@ def _site_slice(spec: LayerSpec, length: int, site_index: int, window: int):
     return max(0, centre - window), min(n, centre + window + 1)
 
 
+_TOWER_MHA = re.compile(re.escape(_TOWER) + r"/mha_block(?:_(\d+))?$")
+
+
+def edit_point(spec: LayerSpec) -> tuple[str, str]:
+    """``(module, how)``: where :func:`make_forward` applies an edit at ``spec``.
+
+    The tower's loop is ``x += MHABlock()(x, bias); x += MLPBlock()(x)``, with
+    the pair update of every second block also reading ``x``. Editing the
+    first argument of ``mha_block_i`` would change only what that attention
+    block sees, while the residual ``x`` went on unedited. An edit at
+    ``mha_block_{i}_input`` therefore edits the residual stream entering block
+    ``i``, so that every later reader sees it:
+
+    * ``i = 0``: the input of ``transformer_tower`` (``how='input'``);
+    * ``i > 0``: the output of the previous block's ``mlp_block``, which is
+      added last before block ``i``: that module returns
+      ``edit(x + out) - x`` for the residual ``x`` it received
+      (``how='residual'``), so the tower's ``x + ...`` gives ``edit(x + out)``.
+
+    Any other tap is edited where it is read: the module's output
+    (``how='output'``), or its first positional argument (``how='input'``,
+    which changes only what that one module sees).
+    """
+    match = _TOWER_MHA.match(spec.module) if spec.tap == "input" else None
+    if match is None:
+        return spec.module, spec.tap
+    i = int(match.group(1) or 0)
+    if i == 0:
+        return _TOWER, "input"
+    return f"{_TOWER}/{_numbered('mlp_block', i - 1)}", "residual"
+
+
 def _remat_call(next_f, args, kwargs):
     """``next_f(*args, **kwargs)`` under ``hk.remat``; only array leaves are
     checkpoint inputs, everything else (flags, None, ints) is closed over."""
@@ -152,10 +186,15 @@ def make_forward(model, intervention, edit_layer: Optional[Union[str, LayerSpec]
     activation at the edit layer's site bin before the edit (``None`` without
     an edit layer), which :class:`~.objectives.JacobianPenalty` evaluates at.
 
-    The edit is applied to the module's output for ``tap='output'`` and to its
-    first positional argument for ``tap='input'``. A readout at the same tap
-    as the edit sees the edited activation. Not jitted: the trainer jits the
-    whole step. With ``remat``, every encoder, tower and decoder block
+    Where the edit goes is :func:`edit_point`: a module's output for
+    ``tap='output'``; for ``mha_block_{i}_input`` the residual stream entering
+    tower block ``i`` (so the pair update, the attention block, the MLP block
+    and the skip connection all see the edited stream); and the first
+    positional argument of the module for any other ``tap='input'``. A readout
+    at the edited tap sees the edited activation. Under a bfloat16 policy the
+    residual edit is exact up to one bfloat16 rounding (the tower adds
+    ``edit(r) - x`` back to ``x``). Not jitted: the trainer jits the whole
+    step. With ``remat``, every encoder, tower and decoder block
     (:data:`REMAT_PATTERN`) is rematerialised in the backward pass.
     """
     import haiku as hk
@@ -165,6 +204,7 @@ def make_forward(model, intervention, edit_layer: Optional[Union[str, LayerSpec]
 
     readouts = resolve_layers(readout_layers)
     edit_spec = resolve_layers([edit_layer])[0] if edit_layer is not None else None
+    edit_module, edit_how = edit_point(edit_spec) if edit_spec is not None else (None, None)
     by_module: dict[str, list[LayerSpec]] = {}
     for spec in readouts:
         by_module.setdefault(spec.module, []).append(spec)
@@ -187,8 +227,8 @@ def make_forward(model, intervention, edit_layer: Optional[Union[str, LayerSpec]
                 return next_f(*args, **kwargs)
             name = context.module.module_name
             wanted = by_module.get(name, ())
-            editing = edit_spec is not None and edit_spec.module == name
-            if editing and edit_spec.tap == "input":
+            editing = edit_module == name
+            if editing and edit_how == "input":
                 args = (edit(args[0]), *args[1:])
             for spec in wanted:
                 if spec.tap == "input":
@@ -197,8 +237,13 @@ def make_forward(model, intervention, edit_layer: Optional[Union[str, LayerSpec]
                 out = _remat_call(next_f, args, kwargs)
             else:
                 out = next_f(*args, **kwargs)
-            if editing and edit_spec.tap == "output":
+            if editing and edit_how == "output":
                 out = _replace_first(out, edit(_first(out)))
+            elif editing and edit_how == "residual":
+                residual = args[0]
+                added = _first(out)
+                edited = edit(residual + added)
+                out = _replace_first(out, (edited - residual).astype(added.dtype))
             for spec in wanted:
                 if spec.tap == "output":
                     caught[spec.name] = _reduce_to_site(_first(out), spec, length, site_index,
@@ -209,7 +254,7 @@ def make_forward(model, intervention, edit_layer: Optional[Union[str, LayerSpec]
             model.forward.apply(params, state, None, dna_sequence, organism_index)
         missing = [spec.module for spec in readouts if spec.name not in caught]
         if edit_spec is not None and "__edit_input__" not in caught:
-            missing.append(edit_spec.module)
+            missing.append(edit_module)
         if missing:
             raise KeyError(f"modules not reached during the forward pass: {missing}; "
                            "see taps.available_layers()")
