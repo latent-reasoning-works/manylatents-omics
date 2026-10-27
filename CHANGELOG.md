@@ -7,6 +7,7 @@
 - `manylatents.dogma.latent_features`: `delta_norm`, `cosine` and `pr3` (participation ratio of the three alternate-allele displacements).
 - `AlphaGenomeSiteEncoder` LatentModule and `algorithms/latent=alphagenome_site` config: per-variant site deltas or features, live or from stored site states.
 - `AlphaGenomeFinetune` LatentModule and `algorithms/latent=alphagenome_finetune` (plus `alphagenome_finetune_operator`, `alphagenome_head_only`): light finetuning or steering of AlphaGenome site states with all model parameters frozen; targets never come from `fit()`'s labels unless `targets_from: y`.
+- `VariantTableDataModule` and `data=variant_table`: a chrom/pos/ref/alt table whose datasets yield row indices and labels, split by a column or by test chromosomes; `AlphaGenomeSiteEncoder` and `AlphaGenomeFinetune` map `x` to these rows, so `fit` reads only training rows and `transform` follows `x`.
 - `alphagenome.interventions`: `LowRankEdit` (LoReFT-style, identity at initialisation, orthonormal `R` by QR) and `HeadOnly`, applied inside the Haiku forward at any tap, optionally rematerialised.
 - `alphagenome.objectives`: `TrackHead` (mse, poisson, cosine), `DiffusionOperatorMatch`, `JacobianPenalty` (Hutchinson or exact), `CovarianceIsotropy` and weighted `Composite`.
 - `alphagenome.train.JaxTrainer`: optax loop over trainable parameters beside a frozen pytree, with evaluation, early stop, `.npz` checkpoints and a logging callback.

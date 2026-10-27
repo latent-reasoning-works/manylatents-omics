@@ -1,16 +1,20 @@
 """Light finetuning or steering of AlphaGenome's representations, as a LatentModule.
 
 ``fit`` trains an intervention (:mod:`.interventions`) and the objectives'
-heads (:mod:`.objectives`) on the datamodule's variants with a
+heads (:mod:`.objectives`) on the variants that ``x`` indexes with a
 :class:`~.train.JaxTrainer`, every AlphaGenome parameter frozen; ``transform``
-returns one row per variant from the edited model. The JAX trainer is a nested
+returns one row per index of its ``x`` from the edited model. ``x`` holds row
+indices into the datamodule's ``get_variants()`` (as the datasets of
+:class:`~manylatents.dogma.data.VariantTableDataModule` yield), so ``fit``
+sees only the training rows. The JAX trainer is a nested
 Hydra object of this module's config: ``manylatents.main`` builds its own
 Lightning trainer, which a LatentModule does not use.
 
-Targets never come from ``fit``'s ``y`` unless ``targets_from='y'``: ``y`` is
-the datamodule's labels, which the benchmarks evaluate on, and training on them
-would make that evaluation circular. Supply targets (MPRA or caQTL effects,
-AlphaGenome track deltas) through ``targets_path``.
+Targets never come from ``fit``'s ``y`` unless ``targets_from='y'``. ``y`` is
+the datamodule's labels; a label that also evaluates the model should not
+train it, or the evaluation is circular. Supply targets (MPRA or caQTL
+effects, AlphaGenome track deltas) through ``targets_path``, or use
+``targets_from='y'`` with labels that no evaluation reads.
 """
 from __future__ import annotations
 
@@ -22,7 +26,7 @@ from typing import Any, Optional, Sequence
 import numpy as np
 
 from manylatents.algorithms.latent.latent_module_base import LatentModule
-from manylatents.dogma.alphagenome.encoder import datamodule_variants
+from manylatents.dogma.alphagenome.encoder import variants_at
 from manylatents.dogma.alphagenome.taps import LAYERS
 
 logger = logging.getLogger(__name__)
@@ -54,13 +58,15 @@ def _instantiate(obj):
     return obj
 
 
-def load_rows(path, variants, what: str = "targets") -> np.ndarray:
+def load_rows(path, variants, what: str = "targets", rows=None,
+              n_rows: Optional[int] = None) -> np.ndarray:
     """``[N, T]`` float32 rows for ``variants`` (in their order) from ``path``.
 
-    ``.npy``: already in the datamodule's row order. ``.npz``: arrays
-    ``variant_id`` and ``values``. ``.parquet``/``.tsv``/``.csv``: a
-    ``variant_id`` column, or chrom, pos, ref and alt; every other numeric
-    column is a value.
+    ``.npy``: one row per variant of the datamodule's ``get_variants()``, in
+    its order; ``rows`` (positions in that table, ``n_rows`` long) selects
+    those of ``variants``. ``.npz``: arrays ``variant_id`` and ``values``.
+    ``.parquet``/``.tsv``/``.csv``: a ``variant_id`` column, or chrom, pos,
+    ref and alt; every other numeric column is a value.
 
     Raises:
         KeyError: a variant has no row.
@@ -72,9 +78,11 @@ def load_rows(path, variants, what: str = "targets") -> np.ndarray:
     n = len(variants)
     if path.suffix == ".npy":
         values = np.load(path)
-        if len(values) != n:
-            raise ValueError(f"{what} {path} has {len(values)} rows for {n} variants")
-        return np.asarray(values, np.float32).reshape(n, -1)
+        expected = n if rows is None else n_rows
+        if len(values) != expected:
+            raise ValueError(f"{what} {path} has {len(values)} rows for {expected} variants")
+        values = np.asarray(values, np.float32).reshape(len(values), -1)
+        return values if rows is None else values[np.asarray(rows)]
     if path.suffix == ".npz":
         with np.load(path, allow_pickle=False) as data:
             table = pd.DataFrame(np.asarray(data["values"], np.float32).reshape(
@@ -134,8 +142,11 @@ class AlphaGenomeFinetune(LatentModule):
             HeadOnly state cache, ``transform``); each variant is two sequences.
         model: a preloaded ``LocalModel``; loaded from ``hf_cache`` if None.
 
-    Rows of ``transform`` follow the datamodule's ``get_variants()``; a
-    variant that cannot be scored raises. With HeadOnly the site states are
+    ``fit(x, y)`` and ``transform(x)`` read ``x`` as row indices into the
+    datamodule's ``get_variants()`` (``None``: every row) and raise
+    ValueError for anything else; rows of ``transform`` follow ``x``. With
+    ``targets_from='y'``, row ``i`` of ``y`` is the target of index ``i`` of
+    ``x``. A variant that cannot be scored raises. With HeadOnly the site states are
     computed once and cached; otherwise every step runs the model on the
     minibatch's ref and alt sequences.
     """
@@ -266,7 +277,7 @@ class AlphaGenomeFinetune(LatentModule):
         self._cache = {key: inputs}  # one set of variants at a time
         return inputs
 
-    def _supervision(self, variants, y) -> dict:
+    def _supervision(self, variants, y, rows=None, n_rows=None) -> dict:
         """``target`` and ``teacher`` rows the objectives need."""
         needed = set(self.objective.batch_keys)
         unknown = needed - {"target", "teacher"}
@@ -281,6 +292,8 @@ class AlphaGenomeFinetune(LatentModule):
                 logger.warning("training targets come from fit()'s y; these must not be "
                                "labels that any evaluation of this model uses")
                 y = y.detach().cpu().numpy() if hasattr(y, "detach") else np.asarray(y)
+                if len(y) != len(variants):
+                    raise ValueError(f"y has {len(y)} rows for {len(variants)} rows of x")
                 out["target"] = np.asarray(y, np.float32).reshape(len(variants), -1)
             elif self.targets_path is None:
                 raise ValueError(
@@ -288,11 +301,12 @@ class AlphaGenomeFinetune(LatentModule):
                     "unless targets_from='y', because benchmark labels must not train the "
                     "model they evaluate")
             else:
-                out["target"] = load_rows(self.targets_path, variants, "targets")
+                out["target"] = load_rows(self.targets_path, variants, "targets", rows, n_rows)
         if "teacher" in needed:
             if self.teacher_path is None:
                 raise ValueError("the objective needs a teacher: set teacher_path")
-            out["teacher"] = load_rows(self.teacher_path, variants, "teacher embeddings")
+            out["teacher"] = load_rows(self.teacher_path, variants, "teacher embeddings", rows,
+                                       n_rows)
         return out
 
     # -- forward ----------------------------------------------------------------------------
@@ -391,11 +405,11 @@ class AlphaGenomeFinetune(LatentModule):
         return lambda record: wandb.log({f"finetune/{k}": v for k, v in record.items()})
 
     def fit(self, x=None, y=None) -> None:
-        """Train on the datamodule's variants; ``x`` is not read (see the class docstring)."""
-        variants = datamodule_variants(self)
+        """Train on the variants that ``x`` indexes (see the class docstring)."""
+        variants, rows = variants_at(self, x)
         if variants.empty:
-            raise ValueError("the datamodule has no variants to train on")
-        supervision = self._supervision(variants, y)
+            raise ValueError("no variants to train on")
+        supervision = self._supervision(variants, y, rows, len(self.datamodule.get_variants()))
         data = {**self._inputs(variants), **supervision}
         trainable = self._init_params(data, supervision)
         eval_data = None
@@ -429,10 +443,10 @@ class AlphaGenomeFinetune(LatentModule):
         return jax.jit(embed)
 
     def transform(self, x=None) -> np.ndarray:
-        """``(N, d)`` float32 for the datamodule's N variants (see ``transform_output``)."""
+        """``(N, d)`` float32, one row per row index in ``x`` (see ``transform_output``)."""
         if self.params is None:
             raise RuntimeError("call fit() before transform()")
-        variants = datamodule_variants(self)
+        variants, _ = variants_at(self, x)
         if variants.empty:
             return np.zeros((0, 0), dtype=np.float32)
         inputs = self._inputs(variants)

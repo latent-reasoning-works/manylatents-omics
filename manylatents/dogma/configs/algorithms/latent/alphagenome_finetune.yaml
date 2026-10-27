@@ -1,6 +1,7 @@
 # Steer AlphaGenome (JAX, local weights, all parameters frozen): a LoReFT-style
 # low-rank edit at `layer`, trained with a track head on the readout state.
-# The datamodule must provide get_variants() with chrom, pos, ref, alt.
+# The datamodule must provide get_variants() with chrom, pos, ref, alt, and
+# datasets that yield row indices into it as x (data=variant_table).
 # Targets come from targets_path (variant_id or chrom/pos/ref/alt plus numeric
 # columns), never from benchmark labels: fit()'s y is used only with
 # targets_from: y. transform returns (N, d): edited_site_state | delta | head_output.

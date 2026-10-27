@@ -279,6 +279,20 @@ functions, shared with other models. `algorithms/latent=alphagenome_site`
 across layers, for a datamodule with `get_variants()`, from the model or from
 `states_dir`.
 
+The datamodule for these encoders is `data=variant_table`
+(`VariantTableDataModule`): a TSV, CSV or parquet table with chrom, pos, ref and
+alt, an optional label column, and a split by a split column or by test
+chromosomes. Its datasets yield each variant's row index as `x` and its label as
+`y`; the encoders map `x` back to rows of `get_variants()`. So `fit()` sees only
+the training rows, and `transform()` returns one row per index of its `x`, in
+that order.
+
+```bash
+python -m manylatents.main data=variant_table data.path=variants.tsv \
+    data.label_column=label data.test_chromosomes=[9,21] \
+    algorithms/latent=alphagenome_site algorithms.latent.fasta=reference.fa
+```
+
 ### Finetuning and steering
 
 `algorithms/latent=alphagenome_finetune` (`AlphaGenomeFinetune`) trains a small

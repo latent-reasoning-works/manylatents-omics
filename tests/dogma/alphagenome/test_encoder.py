@@ -67,8 +67,8 @@ def test_delta_from_the_model(setup):
     fasta, table, datamodule = setup
     enc = AlphaGenomeSiteEncoder(layer="mha_block_3_input", fasta=str(fasta),
                                  sequence_length=LENGTH, datamodule=datamodule, batch_size=2)
-    assert enc.fit(np.zeros((4, 1))) is None
-    out = enc.fit_transform(np.zeros((4, 1)))
+    assert enc.fit(np.arange(4.0)[:, None]) is None
+    out = enc.fit_transform(np.arange(4.0)[:, None])
     assert out.shape == (4, 16) and out.dtype == np.float32
     assert np.isfinite(out).all() and np.abs(out).sum() > 0
 
@@ -136,3 +136,19 @@ def test_hydra_config_instantiates():
     enc = instantiate(cfg)
     assert isinstance(enc, AlphaGenomeSiteEncoder)
     assert enc.layers == ["transformer_tower"] and enc.sequence_length == 1_048_576
+
+
+def test_rows_follow_x(setup):
+    fasta, _, datamodule = setup
+    enc = AlphaGenomeSiteEncoder(layer="transformer_tower", fasta=str(fasta),
+                                 sequence_length=LENGTH, datamodule=datamodule)
+    every = enc.transform(None)
+    x = np.array([[3.0], [1.0]], np.float32)
+    np.testing.assert_allclose(enc.transform(x), every[[3, 1]], rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(enc.transform(x[::-1]), every[[1, 3]], rtol=1e-5, atol=1e-6)
+    with pytest.raises(ValueError, match="row indices"):
+        enc.transform(np.zeros((4, 3)))
+    with pytest.raises(ValueError, match=r"\[0, 4\)"):
+        enc.transform(np.array([[4.0]]))
+    with pytest.raises(ValueError, match="whole-number"):
+        enc.transform(np.array([[0.5]]))

@@ -36,6 +36,42 @@ def datamodule_variants(module):
     return with_variant_ids(table[[c for c in VARIANT_COLUMNS if c in table.columns]])
 
 
+def row_indices(x, n_rows: int) -> np.ndarray:
+    """``x`` (``[N, 1]`` or ``[N]``, numpy or torch) as int64 row indices.
+
+    Raises:
+        ValueError: ``x`` is not one column of whole numbers in ``[0, n_rows)``.
+    """
+    if hasattr(x, "detach"):
+        x = x.detach().cpu().numpy()
+    x = np.asarray(x)
+    if x.ndim == 2 and x.shape[1] == 1:
+        x = x[:, 0]
+    if x.ndim != 1:
+        raise ValueError(
+            f"x must be a column of row indices into the datamodule's get_variants() "
+            f"(shape [N, 1]), got shape {x.shape}; use a datamodule whose datasets yield "
+            "row indices, such as VariantTableDataModule")
+    if not np.issubdtype(x.dtype, np.number) or (
+            len(x) and not np.all(np.isfinite(x) & (x == np.round(x)))):
+        raise ValueError("x must hold whole-number row indices into get_variants()")
+    index = x.astype(np.int64)
+    if len(index) and (index.min() < 0 or index.max() >= n_rows):
+        raise ValueError(f"row indices of x must be in [0, {n_rows}), got "
+                         f"[{index.min()}, {index.max()}]")
+    return index
+
+
+def variants_at(module, x):
+    """``(variants, index)``: the rows of ``get_variants()`` that ``x`` indexes,
+    in the order of ``x`` (all rows, in order, when ``x`` is None)."""
+    variants = datamodule_variants(module)
+    if x is None:
+        return variants, np.arange(len(variants))
+    index = row_indices(x, len(variants))
+    return variants.iloc[index].reset_index(drop=True), index
+
+
 class AlphaGenomeSiteEncoder(LatentModule):
     """Per-variant AlphaGenome hidden-state responses at the variant's site.
 
@@ -54,9 +90,13 @@ class AlphaGenomeSiteEncoder(LatentModule):
         repeat: which repeat to read from ``states_dir``.
 
     The datamodule must provide ``get_variants()``: a table with chrom, pos,
-    ref, alt. Rows of the result follow it; a variant that cannot be scored
-    (not an SNV, reference mismatch, window off the chromosome) raises rather
-    than being dropped, so rows stay aligned with the datamodule's labels.
+    ref, alt. ``x`` holds row indices into that table (``[N, 1]``, as the
+    datasets of :class:`~manylatents.dogma.data.VariantTableDataModule`
+    yield); ``transform(x)`` returns one row per index, in the order of
+    ``x``, and ``transform(None)`` one row per variant of the table. A variant
+    that cannot be scored (not an SNV, reference mismatch, window off the
+    chromosome) raises rather than being dropped, so rows stay aligned with
+    the datamodule's labels.
     """
 
     def __init__(self, layer: str = "transformer_tower", output: str = "delta",
@@ -115,9 +155,6 @@ class AlphaGenomeSiteEncoder(LatentModule):
         """Nothing to fit: the model is pretrained."""
         self._is_fitted = True
 
-    def _variants(self):
-        return datamodule_variants(self)
-
     def _from_states_dir(self, variants) -> np.ndarray:
         from manylatents.dogma.alphagenome.site_states import delta_matrix, read_site_table
 
@@ -170,8 +207,8 @@ class AlphaGenomeSiteEncoder(LatentModule):
         return np.stack(rows).astype(np.float32)
 
     def transform(self, x=None) -> np.ndarray:
-        """``(N, D)`` float32 for the datamodule's N variants (see the class docstring)."""
-        variants = self._variants()
+        """``(N, D)`` float32, one row per row index in ``x`` (see the class docstring)."""
+        variants, _ = variants_at(self, x)
         if variants.empty:
             return np.zeros((0, 0), dtype=np.float32)
         if self.states_dir is not None:

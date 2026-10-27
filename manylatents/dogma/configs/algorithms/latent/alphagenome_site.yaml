@@ -1,5 +1,6 @@
 # AlphaGenome hidden-state response at each variant's site (JAX, local weights).
-# The datamodule must provide get_variants() with chrom, pos, ref, alt.
+# The datamodule must provide get_variants() with chrom, pos, ref, alt, and
+# datasets that yield row indices into it as x (data=variant_table).
 # output: delta -> (N, D) alt - ref at `layer`; features -> delta_norm, cosine,
 # pr3 per layer in `feature_layers` (null = all 26 trunk layers).
 # Set states_dir to read the output of
