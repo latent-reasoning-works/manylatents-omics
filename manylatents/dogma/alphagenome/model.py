@@ -16,6 +16,7 @@ reference allele with the centre rounded up, so an SNV lands at index
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Mapping, Optional
 
 import numpy as np
@@ -65,6 +66,8 @@ class LocalModel:
     metadata: Any = None
     policy: Any = None
     supported_lengths: frozenset = SUPPORTED_LENGTHS
+    # Which weights: ``<repository>@<snapshot revision>`` for load_local.
+    weights_id: Optional[str] = None
 
     @property
     def organism_index(self) -> int:
@@ -132,9 +135,9 @@ def load_local(model_version: str = "fold_0", organism: str = "HOMO_SAPIENS",
     from alphagenome_research.model.metadata import metadata as metadata_lib
 
     organism = _organism_name(organism)
+    repo_id = f"google/alphagenome-{model_version.replace('_', '-').lower()}"
     checkpoint = huggingface_hub.snapshot_download(
-        repo_id=f"google/alphagenome-{model_version.replace('_', '-').lower()}",
-        cache_dir=hf_cache, local_files_only=True,
+        repo_id=repo_id, cache_dir=hf_cache, local_files_only=True,
     )
     metadata = {o: metadata_lib.load(o) for o in (ag_dna_model.Organism.HOMO_SAPIENS,
                                                   ag_dna_model.Organism.MUS_MUSCULUS)}
@@ -151,6 +154,7 @@ def load_local(model_version: str = "fold_0", organism: str = "HOMO_SAPIENS",
         params=jax.device_put(params, device), state=jax.device_put(state, device),
         forward=forward, organism=organism, model_version=model_version,
         metadata=metadata, policy=policy,
+        weights_id=f"{repo_id}@{Path(checkpoint).name}",
     )
 
 

@@ -247,6 +247,14 @@ def chunk_tables(states: dict, bases: dict, layer_names, alleles: str, repeat: i
             "features": table(feature_cols)}
 
 
+def fasta_identity(path) -> dict:
+    """Absolute path, size and modification time of a FASTA: a resumed run
+    must read the same file."""
+    path = Path(path).resolve()
+    stat = path.stat()
+    return {"path": str(path), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+
+
 def _sha(variant_ids) -> str:
     return hashlib.sha256("\n".join(variant_ids).encode()).hexdigest()
 
@@ -284,20 +292,23 @@ def run_chunks(model, kept: pd.DataFrame, fasta, shard_dir, request: dict, *,
 
     ``request`` holds sequence_length, layers, alleles, repeat, window and
     chunk_size, plus anything else that must match on resume (model_version,
-    organism). Returns run statistics.
+    organism, weights, compute_dtype, the FASTA's identity). Returns run
+    statistics.
 
     Raises:
-        ValueError: ``shard_dir`` holds a run with a different request.
+        ValueError: ``shard_dir`` holds a run whose request differs in any key
+            that either of them has.
     """
     shard_dir = Path(shard_dir)
     shard_dir.mkdir(parents=True, exist_ok=True)
     manifest = _read_manifest(shard_dir)
     if manifest is None:
         manifest = {**request, "chunks": {}}
-    for key, value in request.items():
-        if manifest.get(key) != value:
+    request = json.loads(json.dumps(request))  # compare as the manifest stores it
+    for key in sorted((set(request) | set(manifest)) - {"chunks"}):
+        if manifest.get(key) != request.get(key):
             raise ValueError(f"{shard_dir} holds a run with {key}={manifest.get(key)!r}; "
-                             f"this call has {key}={value!r}. Use a different --out.")
+                             f"this call has {key}={request.get(key)!r}. Use a different --out.")
     chunk_size = request["chunk_size"]
     hashes = {str(index): _sha(kept.iloc[start:start + chunk_size]["variant_id"].tolist())
               for index, start in enumerate(range(0, len(kept), chunk_size))}
@@ -505,7 +516,9 @@ def main(argv=None) -> int:
         request = {"sequence_length": args.sequence_length, "layers": list(args.layers),
                    "alleles": args.alleles, "repeat": args.repeat, "window": args.window,
                    "chunk_size": args.chunk_size, "model_version": args.model_version,
-                   "organism": model.organism, "compute_dtype": args.compute_dtype}
+                   "organism": model.organism, "compute_dtype": args.compute_dtype,
+                   "weights": getattr(model, "weights_id", None),
+                   "fasta": fasta_identity(args.fasta)}
         stats = run_chunks(model, kept, fasta, out, request, batch_size=args.batch_size,
                            retry_failed=args.retry_failed)
 

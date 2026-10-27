@@ -300,3 +300,41 @@ def test_compute_dtype_reaches_the_loader_and_the_records(tmp_path, genome, vari
     # resuming with another compute dtype is refused
     with pytest.raises(ValueError, match="compute_dtype"):
         _run(tmp_path, genome, variants)
+
+
+def test_resume_refuses_another_fasta_weights_or_request_keys(tmp_path, genome, variants, fake,
+                                                              monkeypatch):
+    import dataclasses
+    import os
+
+    model, _, _ = fake
+    fasta, _ = genome
+    assert _run(tmp_path, genome, variants) == 0
+    shard = tmp_path / "out" / "shard_000_of_001"
+    manifest = json.loads((shard / "manifest.json").read_text())
+    assert manifest["fasta"]["path"] == str(fasta.resolve())
+    assert manifest["fasta"]["size"] == fasta.stat().st_size
+    assert "weights" in manifest
+    assert _run(tmp_path, genome, variants) == 0  # same inputs: resumes
+
+    # other weights
+    other = dataclasses.replace(model, weights_id="google/alphagenome-fold-0@other")
+    monkeypatch.setattr(cli, "load_local", lambda **kwargs: other)
+    with pytest.raises(ValueError, match="weights"):
+        _run(tmp_path, genome, variants)
+    monkeypatch.setattr(cli, "load_local", lambda **kwargs: model)
+
+    # the FASTA was rewritten
+    stat = fasta.stat()
+    os.utime(fasta, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10 ** 9))
+    with pytest.raises(ValueError, match="fasta"):
+        _run(tmp_path, genome, variants)
+    os.utime(fasta, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    assert _run(tmp_path, genome, variants) == 0
+
+    # a key that only the stored run has also counts
+    manifest = json.loads((shard / "manifest.json").read_text())
+    manifest["strand"] = "+"
+    (shard / "manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="strand"):
+        _run(tmp_path, genome, variants)

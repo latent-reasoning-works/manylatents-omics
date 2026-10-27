@@ -275,7 +275,10 @@ reverse-complement pass.
 
 Each shard writes `states` (float16), `deltas` (float32, alt - ref) and
 `features` (float32 `delta_norm`, `cosine`, `pr3`) parquet chunks, computed
-from the float32 states, and resumes finished chunks. A chunk whose states
+from the float32 states, and resumes finished chunks. A resume must use the
+same request: layers, alleles, lengths, compute dtype, model version, the
+weights' snapshot revision, and the same FASTA (path, size and modification
+time); otherwise it is refused. A chunk whose states
 would overflow float16 keeps them as float32; `manifest.json` records which
 chunks and layers, and `timing.json` the largest |state| per layer. `--alleles all` also
 scores the two other bases, which `pr3` (the participation ratio of the three
