@@ -249,6 +249,36 @@ uses canonical `chromosome` names and 1-based `pos`; the CLI adds canonical
 identifiers from `chrom`, `pos`, `ref`, `alt`. FASTA access is lazy, and `--help`
 does not load the model libraries.
 
+### Hidden states at the variant site
+
+`manylatents.dogma.alphagenome` runs AlphaGenome as a plain Haiku function
+(`alphagenome-jax` extra, plus `alphagenome_research` from GitHub) and reads its
+hidden state at the variant, layer by layer. `load_local()` restores a checkpoint
+from the local Hugging Face cache only. `taps.DEFAULT_TRUNK_LAYERS` lists 26
+trunk layers in forward order (DNA embedder, six down-resolution blocks, the
+residual stream entering each of the nine attention blocks, the tower output,
+seven up-resolution blocks, and the 128 bp and 1 bp output embedders);
+`taps.site_states()` returns, for each, the bin that holds the site at that
+layer's resolution. An SNV sits at index `length // 2 - 1` (524,287 at 1 Mb),
+as for `variant.reference_interval.resize(length)`.
+
+```bash
+python -m manylatents.dogma.alphagenome.site_states --variants variants.tsv \
+    --fasta reference.fa --out site_states --sequence-length 1048576 \
+    --alleles all --shard 0 --n-shards 4
+```
+
+Each shard writes `states` (float16), `deltas` (float32, alt - ref) and
+`features` (float32 `delta_norm`, `cosine`, `pr3`) parquet chunks, computed
+from the float32 states, and resumes finished chunks. `--alleles all` also
+scores the two other bases, which `pr3` (the participation ratio of the three
+alternate-allele displacements, in [1, 2]) needs; `--repeat N` scores each
+variant N times for a noise floor. `latent_features` holds the numpy feature
+functions, shared with other models. `algorithms/latent=alphagenome_site`
+(`AlphaGenomeSiteEncoder`) returns the delta at one layer, or the features
+across layers, for a datamodule with `get_variants()`, from the model or from
+`states_dir`.
+
 ### Track geometry evaluation
 
 `manylatents.dogma.benchmarks.track_geometry.run` evaluates a variant-by-track
