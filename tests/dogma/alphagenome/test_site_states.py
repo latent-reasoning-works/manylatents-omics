@@ -241,3 +241,50 @@ else:
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert "--repeat REPEAT" in result.stdout
+
+
+def test_states_that_overflow_float16_are_stored_as_float32():
+    vid = "chr1:1:A>C"
+    big = {("ref", 0): {"L": np.full(4, 7e4, np.float32), "M": np.ones(4, np.float32)},
+           ("alt", 0): {"L": np.full(4, 7.1e4, np.float32), "M": np.ones(4, np.float32)}}
+    info = {}
+    tables = cli.chunk_tables({vid: big}, {vid: {"ref": "A", "alt": "C"}}, ["L", "M"],
+                              "ref_alt", 1, info=info)
+    vectors = tables["states"].column("vector").to_pylist()
+    assert np.isfinite(vectors).all()
+    assert vectors[0][0] == pytest.approx(7e4)
+    assert info["states_dtype"] == "float32" and info["float32_layers"] == ["L"]
+    assert info["max_abs"] == {"L": pytest.approx(7.1e4), "M": 1.0}
+    small = {k: {"L": v["M"], "M": v["M"]} for k, v in big.items()}
+    info = {}
+    tables = cli.chunk_tables({vid: small}, {vid: {"ref": "A", "alt": "C"}}, ["L", "M"],
+                              "ref_alt", 1, info=info)
+    assert tables["states"].column("vector").type.value_type == "halffloat"
+    assert info["states_dtype"] == "float16" and info["float32_layers"] == []
+
+
+def test_run_records_float32_chunks_and_state_ranges(tmp_path, genome, variants, fake,
+                                                     monkeypatch):
+    real = cli.score_variants
+
+    def huge_first_chunk(model, chunk, *args, **kwargs):
+        states, failed = real(model, chunk, *args, **kwargs)
+        first = chunk["variant_id"].iloc[0]
+        if ":300:" in first:  # the first chunk
+            for h in states[first].values():
+                h["transformer_tower"] = h["transformer_tower"] + 7e4
+        return states, failed
+
+    monkeypatch.setattr(cli, "score_variants", huge_first_chunk)
+    assert _run(tmp_path, genome, variants) == 0
+    shard = tmp_path / "out" / "shard_000_of_001"
+    manifest = json.loads((shard / "manifest.json").read_text())
+    assert manifest["chunks"]["0"]["states_dtype"] == "float32"
+    assert manifest["chunks"]["0"]["float32_layers"] == ["transformer_tower"]
+    assert manifest["chunks"]["1"]["states_dtype"] == "float16"
+    timing = json.loads((shard / "timing.json").read_text())
+    assert timing["float32_state_chunks"] == {"0": ["transformer_tower"]}
+    assert timing["max_abs_state"]["transformer_tower"] > 7e4
+    assert set(timing["max_abs_state"]) == set(LAYERS)
+    states = cli.read_site_table(tmp_path / "out", "states", "transformer_tower")
+    assert all(np.isfinite(v).all() for v in states["vector"])

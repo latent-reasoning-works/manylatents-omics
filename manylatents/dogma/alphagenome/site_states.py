@@ -3,13 +3,17 @@
 Run with ``python -m manylatents.dogma.alphagenome.site_states --help``. Each
 shard folder beneath --out holds, per chunk of variants:
 
-    states/chunk_NNNNN.parquet    variant_id, layer, allele, base, repeat, vector (float16)
+    states/chunk_NNNNN.parquet    variant_id, layer, allele, base, repeat, vector (float16*)
     deltas/chunk_NNNNN.parquet    variant_id, layer, repeat, vector (float32, alt - ref)
     features/chunk_NNNNN.parquet  variant_id, layer, repeat, delta_norm, cosine, pr3 (float32)
 
 and skipped.tsv (variants not scored, with the reason), scoring_failed.tsv
 (variants that ran out of device memory), manifest.json and timing.json.
 Deltas and features come from the float32 states, before the cast to float16.
+*A chunk whose states would overflow float16 (a finite float32 value beyond
++-65504) stores its states as float32 instead; the manifest records, per chunk,
+the states dtype, the layers that overflowed and each layer's max |state|, and
+timing.json the max |state| per layer over the whole shard.
 Checkpoints must already be in the local Hugging Face cache. Only the chrom,
 pos, ref and alt columns of --variants are read.
 """
@@ -164,13 +168,41 @@ def _vector_column(vectors, dtype):
     return pa.ListArray.from_arrays(pa.array(offsets), pa.array(flat))
 
 
-def chunk_tables(states: dict, bases: dict, layer_names, alleles: str, repeat: int) -> dict:
+def state_ranges(states: dict, layer_names) -> tuple[dict, list]:
+    """``(max_abs, overflow)``: max |state| per layer over every variant, allele
+    and repeat, and the layers where casting to float16 makes a finite value
+    infinite."""
+    max_abs, overflow = {}, []
+    for layer in layer_names:
+        values = [h[layer] for by_allele in states.values() for h in by_allele.values()]
+        if not values:
+            continue
+        flat = np.concatenate([np.ravel(v) for v in values]).astype(np.float32)
+        finite = np.isfinite(flat)
+        max_abs[layer] = float(np.max(np.abs(flat[finite]))) if finite.any() else float("nan")
+        with np.errstate(over="ignore"):
+            if np.any(finite & ~np.isfinite(flat.astype(np.float16))):
+                overflow.append(layer)
+    return max_abs, overflow
+
+
+def chunk_tables(states: dict, bases: dict, layer_names, alleles: str, repeat: int,
+                 info: Optional[dict] = None) -> dict:
     """The three tables of one chunk (see the module docstring) as pyarrow tables.
 
     ``bases[variant_id]`` maps allele name -> base. Features and deltas use the
-    float32 states; only the states table is cast to float16.
+    float32 states. The states table is cast to float16 unless that would turn
+    a finite value infinite, in which case it stays float32. ``info``, if
+    given, receives ``states_dtype``, ``float32_layers`` (the layers that
+    overflowed float16) and ``max_abs`` (layer -> max |state|).
     """
     import pyarrow as pa
+
+    max_abs, overflow = state_ranges(states, layer_names)
+    state_dtype = np.float32 if overflow else np.float16
+    if info is not None:
+        info.update(states_dtype=np.dtype(state_dtype).name, float32_layers=overflow,
+                    max_abs=max_abs)
 
     names = list(allele_bases("A", "C", alleles))
     states_cols = {"variant_id": [], "layer": [], "allele": [], "base": [], "repeat": []}
@@ -210,7 +242,7 @@ def chunk_tables(states: dict, bases: dict, layer_names, alleles: str, repeat: i
             arrays["vector"] = _vector_column(vectors, dtype)
         return pa.table(arrays)
 
-    return {"states": table(states_cols, state_vectors, np.float16),
+    return {"states": table(states_cols, state_vectors, state_dtype),
             "deltas": table(delta_cols, delta_vectors, np.float32),
             "features": table(feature_cols)}
 
@@ -300,21 +332,40 @@ def run_chunks(model, kept: pd.DataFrame, fasta, shard_dir, request: dict, *,
         stats["score_seconds"] += time.time() - tick
         bases = {row.variant_id: allele_bases(row.ref, row.alt, request["alleles"])
                  for row in chunk.itertuples(index=False)}
+        info: dict = {}
         if states:
             tables = chunk_tables(states, bases, request["layers"], request["alleles"],
-                                  request["repeat"])
+                                  request["repeat"], info=info)
             for kind in KINDS:
                 _write_table(tables[kind], _chunk_path(shard_dir, kind, index))
+            if info["float32_layers"]:
+                log(f"chunk {index}: states of {info['float32_layers']} exceed float16; "
+                    "stored as float32", flush=True)
         if failed:
             log(f"chunk {index}: {len(failed)} variants out of device memory", flush=True)
         manifest["chunks"][str(index)] = {"sha": hashes[str(index)], "status": "done",
                                           "n_scored": len(states),
-                                          "failed": [vid for vid, _ in failed]}
+                                          "failed": [vid for vid, _ in failed], **info}
         _write_manifest(shard_dir, manifest)
         stats["chunks_scored"] += 1
         stats["n_scored"] += len(states)
         stats["failed"].extend(failed)
     return stats
+
+
+def state_summary(shard_dir) -> dict:
+    """Over the finished chunks of a shard: ``max_abs_state`` (layer -> max
+    |state|) and ``float32_state_chunks`` (chunk index -> layers that overflowed
+    float16)."""
+    manifest = _read_manifest(Path(shard_dir)) or {"chunks": {}}
+    max_abs: dict = {}
+    float32_chunks = {}
+    for index, entry in sorted(manifest["chunks"].items(), key=lambda item: int(item[0])):
+        for layer, value in entry.get("max_abs", {}).items():
+            max_abs[layer] = max(max_abs.get(layer, value), value)
+        if entry.get("float32_layers"):
+            float32_chunks[index] = entry["float32_layers"]
+    return {"max_abs_state": max_abs, "float32_state_chunks": float32_chunks}
 
 
 def _done_files(shard_dir: Path, kind: str) -> list[Path]:
@@ -477,6 +528,7 @@ def main(argv=None) -> int:
         "first_batch_seconds": [round(s, 3) for s in stats["batch_seconds"]],
         "score_seconds": round(stats["score_seconds"], 1),
         "seconds_per_variant": round(stats["score_seconds"] / max(stats["n_scored"], 1), 4),
+        **state_summary(out),
         "finished": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
     (out / "timing.json").write_text(json.dumps(timing, indent=2) + "\n")
