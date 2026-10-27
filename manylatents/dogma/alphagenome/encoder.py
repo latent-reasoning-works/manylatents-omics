@@ -20,6 +20,22 @@ from manylatents.dogma.latent_features import cosine, delta_norm, pr3
 OUTPUTS = ("delta", "features")
 
 
+def datamodule_variants(module):
+    """chrom, pos, ref, alt (with ``chromosome`` and ``variant_id``) from
+    ``module.datamodule.get_variants()``; no other column is read."""
+    name = type(module).__name__
+    if module.datamodule is None:
+        raise ValueError(f"{name} requires datamodule with get_variants(). "
+                         "Pass datamodule= when instantiating the encoder.")
+    if not hasattr(module.datamodule, "get_variants"):
+        raise ValueError(f"Datamodule {type(module.datamodule).__name__} has no get_variants() "
+                         "method returning chrom, pos, ref, alt.")
+    from manylatents.dogma.variants import VARIANT_COLUMNS, with_variant_ids
+
+    table = module.datamodule.get_variants()
+    return with_variant_ids(table[[c for c in VARIANT_COLUMNS if c in table.columns]])
+
+
 class AlphaGenomeSiteEncoder(LatentModule):
     """Per-variant AlphaGenome hidden-state responses at the variant's site.
 
@@ -100,16 +116,7 @@ class AlphaGenomeSiteEncoder(LatentModule):
         self._is_fitted = True
 
     def _variants(self):
-        if self.datamodule is None:
-            raise ValueError("AlphaGenomeSiteEncoder requires datamodule with get_variants(). "
-                             "Pass datamodule= when instantiating the encoder.")
-        if not hasattr(self.datamodule, "get_variants"):
-            raise ValueError(f"Datamodule {type(self.datamodule).__name__} has no get_variants() "
-                             "method returning chrom, pos, ref, alt.")
-        from manylatents.dogma.variants import VARIANT_COLUMNS, with_variant_ids
-
-        table = self.datamodule.get_variants()
-        return with_variant_ids(table[[c for c in VARIANT_COLUMNS if c in table.columns]])
+        return datamodule_variants(self)
 
     def _from_states_dir(self, variants) -> np.ndarray:
         from manylatents.dogma.alphagenome.site_states import delta_matrix, read_site_table
