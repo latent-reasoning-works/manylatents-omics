@@ -279,6 +279,41 @@ functions, shared with other models. `algorithms/latent=alphagenome_site`
 across layers, for a datamodule with `get_variants()`, from the model or from
 `states_dir`.
 
+### Finetuning and steering
+
+`algorithms/latent=alphagenome_finetune` (`AlphaGenomeFinetune`) trains a small
+set of parameters beside a frozen AlphaGenome and returns, per variant, the
+edited site state, the edited alt - ref delta or a head's prediction. Every
+AlphaGenome parameter stays bit-identical; a `JaxTrainer` (optax, nested in
+the algorithm config) optimises only the edit and the heads.
+
+| Intervention | What it trains |
+|---|---|
+| `LowRankEdit` | A LoReFT-style edit `h + R^T (W h + b - R h)` at one tap (`layer`), at all positions or only at the site's bins. `R` has orthonormal rows by construction (sign-fixed QR of a free matrix). At step 0 the edit is the identity. |
+| `HeadOnly` | No edit. Heads read frozen states at one or more `readout_layers`; the states are computed once and cached. |
+
+| Objective | Loss |
+|---|---|
+| `TrackHead` | A linear or one-hidden-layer head from the readout state (`source: delta`, `ref` or `alt`) to a per-variant target vector, with `mse`, `poisson` or `cosine` loss. |
+| `DiffusionOperatorMatch` | Symmetric KL between the row-normalised Gaussian kernels (bandwidth 0.25 times the median distance) of the student's and a teacher's embeddings on each minibatch. |
+| `JacobianPenalty` | Squared Frobenius norm of the edit's Jacobian at the edit layer, by Hutchinson probes or exactly. |
+| `CovarianceIsotropy` | Off-diagonal share of the batch covariance. |
+
+`Composite` sums objectives by their `weight`. `alphagenome_finetune_operator`
+and `alphagenome_head_only` are two more configs: an operator match with a
+Jacobian penalty, and a track head on frozen states.
+
+Targets (`targets_path`) and teachers (`teacher_path`) are per-variant tables
+or arrays that the caller supplies. They must not come from the labels of a
+benchmark used for evaluation. For this reason `fit()` ignores its `y` unless
+the config sets `targets_from: y`.
+
+Gradients flow back from the readout layers to the edit layer. The default
+length, 131,072 bp, is chosen so that a tower readout fits on one H100; this
+has not yet been measured on the real model. A readout in the decoder at 1 Mb
+holds 1 bp activations for backpropagation and needs an H200, or
+`trainer.remat: true`, which recomputes each block in the backward pass.
+
 ### Track geometry evaluation
 
 `manylatents.dogma.benchmarks.track_geometry.run` evaluates a variant-by-track
