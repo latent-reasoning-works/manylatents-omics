@@ -10,6 +10,7 @@ minibatch of variants:
         [B, D] float32 site states (after the edit) and alt - ref
     outputs["edit_input"]   [2B, D] the edit layer's site activation before the edit
     outputs["edit_fn"]      h -> edited h, with the current edit parameters
+    outputs["edit"], outputs["edit_params"]   the intervention and its parameters
     outputs["rng"]          a PRNG key for this step
 
 and ``batch`` holds per-variant arrays the caller supplies (``target``,
@@ -294,6 +295,16 @@ class JacobianPenalty(Objective):
         residual: penalise the Jacobian of the edit alone, ``h' - h``, instead
             of ``h'``: 0 at initialisation, and free of the constant ``d``
             that ``||I||_F^2`` adds.
+        closed_form: when the edit provides ``jacobian_sq_norm(params,
+            residual)`` (as :class:`~.interventions.LowRankEdit` does) and
+            ``outputs`` carries ``edit`` and ``edit_params``, use that exact
+            value instead of ``mode``.
+
+    For an affine edit such as :class:`~.interventions.LowRankEdit` the
+    Jacobian is the same at every input, so the penalty does not depend on the
+    data: it equals the closed form ``||W - R||_F^2`` (``residual``), or
+    ``d + 2 tr(R^T (W - R)) + ||W - R||_F^2``, and is a plain weight penalty on
+    the edit. Only for a non-linear edit does ``edit_input`` matter.
 
     Only the edit's own map is differentiated, not AlphaGenome. With
     :class:`~.interventions.HeadOnly` it is a constant.
@@ -302,21 +313,25 @@ class JacobianPenalty(Objective):
     name = "jacobian_penalty"
 
     def __init__(self, mode: str = "hutchinson", probes: int = 1, residual: bool = False,
-                 weight: float = 1.0, name: Optional[str] = None):
+                 closed_form: bool = True, weight: float = 1.0, name: Optional[str] = None):
         super().__init__(weight, name)
         if mode not in ("hutchinson", "exact"):
             raise ValueError(f"mode must be 'exact' or 'hutchinson', got {mode!r}")
         self.mode = mode
         self.probes = int(probes)
         self.residual = bool(residual)
+        self.closed_form = bool(closed_form)
 
     def __call__(self, outputs, batch, params=None):
         import jax
 
+        edit = outputs.get("edit")
+        if self.closed_form and hasattr(edit, "jacobian_sq_norm") and "edit_params" in outputs:
+            return edit.jacobian_sq_norm(outputs["edit_params"], self.residual)
         fn = outputs["edit_fn"]
         if self.residual:
-            edit = fn
-            fn = lambda h: edit(h) - h  # noqa: E731
+            edit_fn = fn
+            fn = lambda h: edit_fn(h) - h  # noqa: E731
         rng = jax.random.fold_in(outputs["rng"], 1) if "rng" in outputs else None
         return jacobian_frobenius(fn, outputs["edit_input"], rng, self.probes, self.mode)
 

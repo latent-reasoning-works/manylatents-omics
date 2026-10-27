@@ -83,6 +83,23 @@ class LowRankEdit:
         edit = (x @ params["W"].T + params["b"] - x @ r.T) @ r
         return (x + edit).astype(h.dtype)
 
+    def jacobian_sq_norm(self, params, residual: bool = False):
+        """``||J||_F^2`` of the edit, in closed form; the same at every input.
+
+        The edit is affine, ``h' = h + R^T (W - R) h + R^T b``, so ``J = I +
+        R^T M`` with ``M = W - R``, and since ``R R^T = I_r``:
+        ``||R^T M||_F^2 = ||M||_F^2`` (``residual``: the Jacobian of ``h' - h``)
+        and ``||I + R^T M||_F^2 = d + 2 tr(R^T M) + ||M||_F^2``.
+        """
+        import jax.numpy as jnp
+
+        r = self.rotation(params)
+        m = params["W"] - r
+        value = jnp.sum(m ** 2)
+        if residual:
+            return value
+        return r.shape[1] + 2 * jnp.sum(r * m) + value
+
     def __repr__(self):
         return f"LowRankEdit(rank={self.rank}, positions={self.positions!r})"
 

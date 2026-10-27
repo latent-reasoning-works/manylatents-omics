@@ -342,7 +342,8 @@ class AlphaGenomeFinetune(LatentModule):
         edit_params = trainable["intervention"]
         outputs = {"ref": ref, "alt": alt,
                    "delta": {k: alt[k] - ref[k] for k in ref},
-                   "edit_fn": lambda h: self.intervention.apply(edit_params, h)}
+                   "edit_fn": lambda h: self.intervention.apply(edit_params, h),
+                   "edit": self.intervention, "edit_params": edit_params}
         if edit_input is not None:
             outputs["edit_input"] = edit_input
         if rng is not None:

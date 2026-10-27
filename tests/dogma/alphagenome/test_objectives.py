@@ -147,6 +147,34 @@ def test_jacobian_penalty_on_the_edit():
     assert float(JacobianPenalty(probes=4)(outputs, {})) == pytest.approx(8.0, rel=1e-5)
 
 
+@pytest.mark.parametrize("residual", [True, False])
+def test_jacobian_penalty_closed_form_for_the_low_rank_edit(residual):
+    edit = LowRankEdit(rank=3)
+    params = edit.init(jax.random.PRNGKey(0), 8)
+    keys = jax.random.split(jax.random.PRNGKey(5), 3)
+    params = {k: v + jax.random.normal(kk, v.shape) for (k, v), kk in zip(params.items(), keys)}
+    outputs = {"edit_fn": lambda h: edit.apply(params, h), "rng": jax.random.PRNGKey(2),
+               "edit_input": _random((4, 8)), "edit": edit, "edit_params": params}
+    exact = float(JacobianPenalty(mode="exact", residual=residual, closed_form=False)(
+        outputs, {}))
+    closed = float(JacobianPenalty(residual=residual)(outputs, {}))
+    assert closed == pytest.approx(exact, rel=1e-4)
+    # the Jacobian of an affine edit does not depend on where it is evaluated
+    elsewhere = {**outputs, "edit_input": 100 * _random((4, 8), seed=9)}
+    assert float(JacobianPenalty(mode="exact", residual=residual, closed_form=False)(
+        elsewhere, {})) == pytest.approx(exact, rel=1e-4)
+    # and its gradient matches the exact one
+    def penalty(p, closed_form):
+        out = {**outputs, "edit_fn": lambda h: edit.apply(p, h), "edit_params": p}
+        return JacobianPenalty(mode="exact", residual=residual, closed_form=closed_form)(out, {})
+
+    g_closed = jax.grad(lambda p: penalty(p, True))(params)
+    g_exact = jax.grad(lambda p: penalty(p, False))(params)
+    for key in params:
+        np.testing.assert_allclose(np.asarray(g_closed[key]), np.asarray(g_exact[key]),
+                                   rtol=1e-3, atol=1e-4)
+
+
 @pytest.mark.parametrize("loss", ["mse", "poisson", "cosine"])
 @pytest.mark.parametrize("hidden", [0, 5])
 def test_track_head(loss, hidden):

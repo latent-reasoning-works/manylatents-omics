@@ -312,7 +312,7 @@ the algorithm config) optimises only the edit and the heads.
 |---|---|
 | `TrackHead` | A linear or one-hidden-layer head from the readout state (`source: delta`, `ref` or `alt`) to a per-variant target vector, with `mse`, `poisson` or `cosine` loss. |
 | `DiffusionOperatorMatch` | Symmetric KL between the diffusion operators (row-normalised Gaussian kernels, Coifman and Lafon 2006; bandwidth 0.25 times the median distance) of the student's and a teacher's embeddings on each minibatch. Options: `zero_diagonal`, `bandwidth_scale`, `bandwidth: knn` with `k`. With the defaults, wide inputs without cluster structure give an operator close to the identity and a loss with little signal; see the class docstring. |
-| `JacobianPenalty` | Squared Frobenius norm of the edit's Jacobian at the edit layer, by Hutchinson probes or exactly. |
+| `JacobianPenalty` | Squared Frobenius norm of the edit's Jacobian at the edit layer, by Hutchinson probes or exactly. For the affine `LowRankEdit` the Jacobian does not depend on the input, and the penalty is computed in closed form (`||W - R||_F^2` with `residual: true`). |
 | `CovarianceIsotropy` | Off-diagonal share of the batch covariance. |
 
 `Composite` sums objectives by their `weight`. `alphagenome_finetune_operator`
