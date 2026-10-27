@@ -80,9 +80,10 @@ class JaxTrainer:
         early_stop_patience: stop after this many evaluations without a lower
             eval loss (0: never). Without ``eval_data`` the training loss of
             the evaluation step is used.
-        checkpoint_dir: if set, the trainable parameters go to
-            ``trainable.npz`` there at the end (and ``trainable_best.npz`` at
-            each improvement when evaluating), with ``history.json``.
+        checkpoint_dir: if set, the parameters that ``fit`` returns go to
+            ``trainable.npz`` there at the end, the last step's to
+            ``trainable_last.npz``, those of each improvement to
+            ``trainable_best.npz`` when evaluating, and ``history.json``.
         remat: rematerialise the model's blocks in the backward pass. Read by
             the forward builder (:func:`~.interventions.make_forward`); trades
             compute for activation memory on long inputs.
@@ -117,6 +118,7 @@ class JaxTrainer:
         self.checkpoint_dir = checkpoint_dir
         self.remat = bool(remat)
         self.callback = callback
+        self.best_step: Optional[int] = None
 
     def make_optimizer(self):
         import optax
@@ -144,15 +146,21 @@ class JaxTrainer:
         return sizes.pop()
 
     def evaluate(self, eval_step, trainable, frozen, data: dict, rng) -> dict:
-        """Mean loss and metrics over full batches of ``data`` (the remainder is
-        a last, padded batch weighted by its real size)."""
+        """Mean loss and metrics over batches of ``data``, weighted by example.
+
+        Every batch holds ``batch_size`` distinct examples, so one shape is
+        compiled and no example is repeated inside a batch (a padded duplicate
+        would change batch-level objectives such as
+        :class:`~.objectives.DiffusionOperatorMatch`). The remainder is
+        evaluated as the last ``batch_size`` examples, and weighted only by
+        the examples that no earlier batch counted.
+        """
         n = self._n(data)
         bs = min(self.batch_size, n)
         totals: dict = {}
         for begin in range(0, n, bs):
-            index = np.arange(begin, begin + bs)
-            real = int(np.sum(index < n))
-            index = np.minimum(index, n - 1)
+            real = min(bs, n - begin)
+            index = np.arange(n - bs, n) if real < bs else np.arange(begin, begin + bs)
             batch = {k: v[index] for k, v in data.items()}
             loss, metrics = eval_step(trainable, frozen, batch, rng)
             for k, v in {"loss": loss, **metrics}.items():
@@ -167,6 +175,10 @@ class JaxTrainer:
         dimension (examples); each step slices a minibatch of every array.
         ``history`` is a list of dicts: ``step``, ``loss``, the metrics,
         ``seconds``, and ``eval/...`` entries at evaluation steps.
+
+        With ``eval_data`` and ``eval_every``, the returned parameters are the
+        ones with the lowest evaluation loss (``best_step`` records the step);
+        otherwise they are the last step's.
         """
         import jax
         import jax.numpy as jnp
@@ -195,6 +207,7 @@ class JaxTrainer:
         history: list[dict] = []
         order, cursor = shuffle.permutation(n), 0
         best, best_step, stale = np.inf, -1, 0
+        best_trainable = None
         tick = time.time()
         for i in range(1, self.max_steps + 1):
             if cursor + bs > n:
@@ -220,6 +233,7 @@ class JaxTrainer:
                 record.update({f"eval/{k}": v for k, v in evaluated.items()})
                 if evaluated["loss"] < best:
                     best, best_step, stale = evaluated["loss"], i, 0
+                    best_trainable = trainable
                     if self.checkpoint_dir:
                         save_params(Path(self.checkpoint_dir) / "trainable_best.npz", trainable)
                 else:
@@ -231,8 +245,16 @@ class JaxTrainer:
                 logger.info("early stop at step %d (best eval loss %.5g at step %d)",
                             i, best, best_step)
                 break
+        last = trainable
+        if eval_data is not None and best_trainable is not None:
+            trainable = best_trainable
+            self.best_step = best_step
+            logger.info("returning the parameters of step %d (eval loss %.5g)", best_step, best)
+        else:
+            self.best_step = None
         if self.checkpoint_dir:
             save_params(Path(self.checkpoint_dir) / "trainable.npz", trainable)
+            save_params(Path(self.checkpoint_dir) / "trainable_last.npz", last)
             (Path(self.checkpoint_dir) / "history.json").write_text(json.dumps(history, indent=1))
         return trainable, history
 

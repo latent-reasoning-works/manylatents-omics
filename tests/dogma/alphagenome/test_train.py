@@ -100,3 +100,40 @@ def test_bad_options():
         JaxTrainer(optimizer="lamb")
     with pytest.raises(ValueError):
         JaxTrainer(max_steps=0)
+
+
+def test_fit_returns_the_best_parameters_by_eval_loss(tmp_path):
+    loss_fn, trainable, frozen, data = _problem()
+    eval_data = {k: v[:16] for k, v in data.items()}
+    # sgd with a learning rate this large diverges after the first steps
+    trainer = JaxTrainer(optimizer="sgd", lr=0.6, grad_clip=None, max_steps=16, batch_size=16,
+                         eval_every=2, log_every=1000, checkpoint_dir=str(tmp_path))
+    trained, history = trainer.fit(loss_fn, trainable, frozen, data, eval_data)
+    losses = {r["step"]: r["eval/loss"] for r in history if "eval/loss" in r}
+    best_step = min(losses, key=losses.get)
+    assert trainer.best_step == best_step and best_step < max(losses)
+    assert losses[max(losses)] > losses[best_step]
+    recomputed = trainer.evaluate(jax.jit(loss_fn), trained, frozen, eval_data, None)["loss"]
+    assert recomputed == pytest.approx(losses[best_step], rel=1e-5)
+    np.testing.assert_array_equal(load_params(tmp_path / "trainable.npz")["head"]["w"],
+                                  np.asarray(trained["head"]["w"]))
+    last = load_params(tmp_path / "trainable_last.npz")["head"]["w"]
+    assert not np.allclose(last, np.asarray(trained["head"]["w"]))
+
+
+def test_evaluate_never_repeats_an_example_in_a_batch():
+    seen = []
+
+    def eval_step(trainable, frozen, batch, rng):
+        ids = np.asarray(batch["id"])
+        seen.append(ids)
+        # a batch-level value: the number of distinct examples
+        return float(len(np.unique(ids))), {"mean_id": float(ids.mean())}
+
+    data = {"id": np.arange(10)}
+    out = JaxTrainer(batch_size=4).evaluate(eval_step, {}, {}, data, None)
+    assert all(len(np.unique(ids)) == len(ids) == 4 for ids in seen)
+    np.testing.assert_array_equal(seen[-1], [6, 7, 8, 9])
+    assert out["loss"] == pytest.approx(4.0)
+    # weights 4, 4, 2: the last batch counts only examples 8 and 9
+    assert out["mean_id"] == pytest.approx((4 * 1.5 + 4 * 5.5 + 2 * 7.5) / 10)
