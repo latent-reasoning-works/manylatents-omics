@@ -337,6 +337,9 @@ length, 131,072 bp, is chosen so that a tower readout fits on one H100; this
 has not yet been measured on the real model. A readout in the decoder at 1 Mb
 holds 1 bp activations for backpropagation and needs an H200, or
 `trainer.remat: true`, which recomputes each block in the backward pass.
+With an edit (not `HeadOnly`), the module keeps every variant's reference window
+in host memory as uint8 base codes: one byte per base, so 1 MiB per variant at
+1 Mb (about 10 GiB for 10,000 variants) and 128 KiB at 131,072 bp.
 
 ### Track geometry evaluation
 

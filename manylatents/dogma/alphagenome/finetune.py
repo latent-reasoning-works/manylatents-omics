@@ -124,8 +124,12 @@ class AlphaGenomeFinetune(LatentModule):
             A readout after ``layer`` backpropagates through the frozen layers
             in between.
         fasta: reference genome.
-        sequence_length: input length. 131,072 lets gradients through the
-            tower fit on one H100; 1,048,576 is allowed (see docs).
+        sequence_length: input length. 131,072 is meant to let gradients
+            through the tower fit on one H100; 1,048,576 is allowed (see docs).
+            Without HeadOnly, every variant's reference window is kept in host
+            memory as uint8 codes, ``sequence_length`` bytes per variant: 1 MiB
+            per variant at 1 Mb (10 GiB for 10,000 variants), 128 KiB at
+            131,072.
         model_version, organism, hf_cache: as for ``load_local``.
         window: bins on each side of the site's bin to average (and, with
             ``positions='site'``, to edit).
