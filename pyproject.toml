@@ -14,7 +14,7 @@ keywords = [
     "foundation-models",
     "central-dogma",
 ]
-license = "MIT"
+license = "Apache-2.0"
 
 dependencies = [
     "manylatents>=0.1.8",

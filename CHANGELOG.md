@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Relicensed from MIT to Apache-2.0. Releases up to and including 0.1.3 stay under MIT; NOTICE keeps the MIT notice.
+
+
 ### Added
 - `lookup_tabix_scores`: per-variant values from tabix-indexed score tables, with header/value-count validation.
 - `leave_chromosome_out_probe`: nested chromosome-group tuning, out-of-fold decisions, parallel outer fits and explicit skipped-fold/row counts.

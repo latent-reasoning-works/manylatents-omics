@@ -199,5 +199,5 @@ Offline clusters (Tamia, Narval) need pre-cached model weights — no HuggingFac
 | **Project** | manylatents-omics |
 | **Version** | 0.1.1 |
 | **Repository** | github.com/latent-reasoning-works/manylatents-omics |
-| **License** | MIT |
+| **License** | Apache-2.0 |
 | **Last updated** | 2026-04-01 |
