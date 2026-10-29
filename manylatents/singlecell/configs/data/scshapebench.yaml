@@ -1,0 +1,18 @@
+defaults:
+  - default
+
+# scShapeBench (arXiv:2605.12662): one real dataset per run. X is log1p-normalised;
+# X_pca, leiden and the kNN graph are stored too. Shape labels are per dataset, not
+# per cell: read them with manylatents.singlecell.data.scshapebench.load_shape_labels.
+# The default is in data/sample, which both download subsets include. Pick another with
+# data.adata_path=${omics_data:}/scshapebench/data/scRNAseq/SCD-XXXX.h5ad (subset `all`).
+# Download with: python -m scripts.download_scshapebench
+_target_: manylatents.singlecell.data.anndata.AnnDataModule
+adata_path: ${omics_data:}/scshapebench/data/sample/SCD-0010.h5ad
+label_key: leiden
+layer: null
+use_raw: false
+mode: full
+batch_size: 128
+test_split: 0.2
+shuffle_traindata: false
