@@ -11,7 +11,7 @@
         from sequence to manifold
 </pre>
 
-[![license](https://img.shields.io/badge/license-MIT-FDA4AF.svg)](LICENSE)
+[![license](https://img.shields.io/badge/license-Apache--2.0-FDA4AF.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.11+-FDA4AF.svg)](https://www.python.org)
 [![uv](https://img.shields.io/badge/pkg-uv-FDA4AF.svg)](https://docs.astral.sh/uv/)
 [![PyPI](https://img.shields.io/badge/PyPI-manylatents--omics-FDA4AF.svg)](https://pypi.org/project/manylatents-omics/)
@@ -131,7 +131,7 @@ If manylatents-omics was useful in your research, a citation goes a long way:
   author    = {{Latent Reasoning Works}},
   year      = {2026},
   url       = {https://github.com/latent-reasoning-works/manylatents-omics},
-  license   = {MIT}
+  license   = {Apache-2.0}
 }
 ```
 
@@ -139,6 +139,6 @@ If manylatents-omics was useful in your research, a citation goes a long way:
 
 <div align="center">
 
-MIT License · Latent Reasoning Works
+Apache-2.0 License · Latent Reasoning Works
 
 </div>
