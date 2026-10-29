@@ -117,3 +117,10 @@ def test_download_subsets_are_patterns(monkeypatch, tmp_path):
     assert "labels/*" in calls["allow_patterns"]
     with pytest.raises(ValueError, match="unknown subset"):
         dl.download("everything", tmp_path)
+
+
+def test_listing_a_missing_folder_raises(tmp_path):
+    with pytest.raises(FileNotFoundError, match="no synthetic samples"):
+        sb.list_synthetic(root=tmp_path)
+    with pytest.raises(FileNotFoundError, match="no real datasets"):
+        sb.list_real(root=tmp_path)

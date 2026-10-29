@@ -50,6 +50,8 @@ def real_path(dataset_id: str, root: Optional[Path] = None) -> Path:
 def list_real(root: Optional[Path] = None) -> list[str]:
     """Dataset ids of the real h5ad files present locally."""
     data = scshapebench_root(root) / "data"
+    if not any((data / folder).is_dir() for folder in REAL_DIRS):
+        raise FileNotFoundError(f"no real datasets under {data}; run scripts.download_scshapebench")
     return sorted({p.stem for folder in REAL_DIRS for p in (data / folder).glob("*.h5ad")})
 
 
@@ -84,6 +86,9 @@ def load_shape_labels(aggregation: str = "high_support", root: Optional[Path] = 
 def list_synthetic(root: Optional[Path] = None) -> list[int]:
     """Sample ids of the synthetic samples present locally."""
     folder = scshapebench_root(root) / "data" / "synthetic"
+    if not folder.is_dir():
+        # An empty list here would let a caller build an empty table without noticing.
+        raise FileNotFoundError(f"no synthetic samples at {folder}; run scripts.download_scshapebench")
     return sorted(int(p.stem.removeprefix("sample_")) for p in folder.glob("sample_*.npz"))
 
 
