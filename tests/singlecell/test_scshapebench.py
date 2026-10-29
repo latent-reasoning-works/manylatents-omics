@@ -77,6 +77,7 @@ def test_load_synthetic_returns_points_graph_and_metadata(tmp_path):
     assert sample["points"].shape == (5, 2)
     assert (sample["points"] == 2.0).all()  # noisy points, not clean
     assert sample["graph"]["edges"] == [[0, 1], [1, 2]]
+    assert sorted(sample["graph"]["node_positions"]) == ["0", "1", "2"]
     assert sample["meta"]["num_components"] == 1
     assert sb.list_synthetic(root=tmp_path) == [7]
 

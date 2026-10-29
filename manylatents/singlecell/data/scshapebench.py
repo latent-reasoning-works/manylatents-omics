@@ -90,8 +90,8 @@ def list_synthetic(root: Optional[Path] = None) -> list[int]:
 def load_synthetic(sample_id: int, root: Optional[Path] = None) -> dict:
     """One synthetic sample: noisy ``points``, the true ``graph`` and ``meta``.
 
-    ``graph`` uses the scShapeBench payload keys (``nodes``, ``edges``,
-    ``node_positions``) so it can be scored by its evaluator unchanged.
+    ``graph`` matches the evaluator's truth payload (``nodes``, ``edges``,
+    ``node_positions`` keyed by ``str(node)``) so it can be scored unchanged.
     """
     stem = scshapebench_root(root) / "data" / "synthetic" / f"sample_{sample_id:05d}"
     with np.load(f"{stem}.npz", allow_pickle=False) as arrays:
@@ -99,7 +99,9 @@ def load_synthetic(sample_id: int, root: Optional[Path] = None) -> dict:
         graph = {
             "nodes": nodes,
             "edges": arrays["edges"].tolist(),
-            "node_positions": dict(zip(nodes, arrays["positions"].tolist())),
+            "node_positions": {
+                str(n): pos for n, pos in zip(nodes, arrays["positions"].tolist())
+            },
         }
         return {
             "points": arrays["noisy_points"],
