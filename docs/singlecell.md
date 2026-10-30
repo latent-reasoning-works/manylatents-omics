@@ -22,6 +22,9 @@ Preconfigured Hydra configs are provided for common benchmark datasets:
 | PBMC 10k | ~10,000 | varies | `data=pbmc_10k` |
 | PBMC 68k | ~68,000 | varies | `data=pbmc_68k` |
 | Embryoid Body | varies | varies | `data=embryoid_body` |
+| LARRY in vitro (Weinreb et al. 2020) | ~130,000 with a clone | 2,000 HVGs (+50 PCs) | `data=larry` |
+
+LARRY is built on first use: `LarryDataModule` (or `manylatents.singlecell.data.larry.load_larry()`) downloads the public in-vitro files from the paper website (about 2.1 GB) into the omics data root and writes `single_cell/larry.h5ad`. The module docstring documents how each column maps to the source. `manylatents.singlecell.sampling.clone_subsample(adata.obs, n)` subsamples whole clones: clones with a day-2 cell and at least three day-4/6 descendants, in seeded random order, up to `n` cells.
 
 ---
 

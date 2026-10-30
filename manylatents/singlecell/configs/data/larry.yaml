@@ -1,0 +1,19 @@
+defaults:
+  - default
+
+# LARRY lineage-traced haematopoiesis, in-vitro experiment (Weinreb et al. 2020, Science,
+# doi:10.1126/science.aaw3381). Built on first use from the public files
+# https://kleintools.hms.harvard.edu/paper_websites/state_fate2020/stateFate_inVitro_*
+# (about 2.1 GB to download). Cells with a clone at days 2, 4 and 6; X is log1p of the
+# published normalised counts on 2,000 HVGs; obsm["X_pca"] holds 50 PCs.
+# obs: "Time point", "clone", "Cell type annotation", "fate" (neutrophil, monocyte, undiff, other).
+# See manylatents.singlecell.data.larry for the full mapping.
+_target_: manylatents.singlecell.data.larry.LarryDataModule
+adata_path: ${omics_data:}/single_cell/larry.h5ad
+label_key: fate
+layer: null
+use_raw: false
+mode: full
+batch_size: 128
+test_split: 0.2
+shuffle_traindata: false

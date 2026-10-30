@@ -6,6 +6,8 @@
 
 
 ### Added
+- LARRY lineage-tracing dataset (Weinreb et al. 2020, doi:10.1126/science.aaw3381): `data=larry` config and `manylatents.singlecell.data.larry` (`LarryDataModule`, `fetch_larry`, `load_larry`), which download the public in-vitro files on first use and build `single_cell/larry.h5ad` with `Time point`, `clone`, `fate` and a 50-component PCA.
+- `manylatents.singlecell.sampling.clone_subsample`: seeded whole-clone subsampling of lineage-traced cells up to a cell budget, keeping clones with an early cell and enough late descendants.
 - `lookup_tabix_scores`: per-variant values from tabix-indexed score tables, with header/value-count validation.
 - `leave_chromosome_out_probe`: nested chromosome-group tuning, out-of-fold decisions, parallel outer fits and explicit skipped-fold/row counts.
 - `clustered_average_precision_difference`: paired, class-stratified cluster bootstrap intervals for pooled average precision differences.
