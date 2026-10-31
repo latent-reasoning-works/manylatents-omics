@@ -22,8 +22,8 @@ dependencies = [
 
 [project.optional-dependencies]
 # Domain data modules
-# kinds (LabeledArray/SparseGraph) live in the standalone `manykinds` package,
-# which brings xarray/zarr/sparse. xarray + sparse stay listed too — the adapters
+# kinds (LabeledArray/SparseGraph) live in the standalone `manykinds` package; its
+# `arrays` extra brings xarray/zarr/sparse (manykinds 0.1.2 keeps its core light). xarray + sparse stay listed too — the adapters
 # import them directly to build the DataArray before wrapping it in a kind.
 # `scikit-image` and `scikit-misc` are NOT optional polish for `preprocessing`: scanpy raises
 # on both. `sc.pp.scrublet` with no explicit threshold needs scikit-image to pick one
@@ -50,7 +50,7 @@ dependencies = [
 # needs scipy>=1.12. Asking for anndata>=0.12 therefore rolls archetypes back to 0.6.2 — a
 # core algorithm dependency traded away to move a storage backend. Lift this cap when those
 # SciPy bounds allow anndata 0.12 without that trade, not before.
-singlecell = ["anndata>=0.11.3", "zarr<3", "geosketch>=1.3", "leidenalg>=0.10", "python-igraph>=1.0.0", "scanpy>=1.11.5", "scikit-image>=0.22", "scikit-misc>=0.3", "xarray>=2024.0", "sparse>=0.15", "manykinds>=0.1"]
+singlecell = ["anndata>=0.11.3", "zarr<3", "geosketch>=1.3", "leidenalg>=0.10", "python-igraph>=1.0.0", "scanpy>=1.11.5", "scikit-image>=0.22", "scikit-misc>=0.3", "xarray>=2024.0", "sparse>=0.15", "manykinds[arrays]>=0.1.2"]
 popgen = ["pandas-plink>=2.2.9"]
 # Non-coding variant benchmarks: AlphaGenome Atlas client + TraitGym tables.
 # `zarr<3` for the same reason as in `singlecell` above.
