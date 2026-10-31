@@ -1647,18 +1647,20 @@ sdist = { url = "https://files.pythonhosted.org/packages/b6/0c/9373a469ff7a33bdd
 
 [[package]]
 name = "manykinds"
-version = "0.1.1"
+version = "0.1.2"
 source = { registry = "https://pypi.org/simple" }
-dependencies = [
+sdist = { url = "https://files.pythonhosted.org/packages/97/04/093ccf5bff1beb186fc80f7fb9ce22e8dbb87e2adf2cf7806ff4880aadbb/manykinds-0.1.2.tar.gz", hash = "sha256:869f0bd0a744979cdcf517103c92903f4a34a2fb0b94901d4239137cdb9e5b61", size = 41745, upload-time = "2026-10-31T07:13:48.137Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4d/15/ad961f9d1903feda9752216c474f9e1795f5f839c04e6c811c53c42a1ad5/manykinds-0.1.2-py3-none-any.whl", hash = "sha256:e621d9caa3ed3a711effb6aafc1ac091ad6555a71e763fe1494cb78a1d4f7d76", size = 28224, upload-time = "2026-10-31T07:13:46.592Z" },
+]
+
+[package.optional-dependencies]
+arrays = [
     { name = "numba" },
     { name = "numpy" },
     { name = "sparse" },
     { name = "xarray" },
     { name = "zarr" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/74/85/8cd4d08c6a31f9c1c08ce80e78f62950709c52bceaf4d1f40f3fbf92f77d/manykinds-0.1.1.tar.gz", hash = "sha256:154e0f9a3bf008b01a3ba5b161e423d678f493d5cb582532ffe9527c18bb0de5", size = 16458, upload-time = "2026-07-15T19:02:19.001Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b8/e8/f6f1660e6dda86db23fcd4d060680b2f71b9a7bcbd942f9e17ac7a853158/manykinds-0.1.1-py3-none-any.whl", hash = "sha256:5efbb8874b86857dbcee5d06706c73dfdfee3285d0acb5dc68261c151eb20742", size = 15094, upload-time = "2026-07-15T19:02:17.773Z" },
 ]
 
 [[package]]
@@ -1720,7 +1722,7 @@ dev = [
     { name = "huggingface-hub" },
     { name = "leidenalg" },
     { name = "mamba-ssm" },
-    { name = "manykinds" },
+    { name = "manykinds", extra = ["arrays"] },
     { name = "orthrus" },
     { name = "pandas-plink" },
     { name = "pyarrow" },
@@ -1763,7 +1765,7 @@ singlecell = [
     { name = "anndata" },
     { name = "geosketch" },
     { name = "leidenalg" },
-    { name = "manykinds" },
+    { name = "manykinds", extra = ["arrays"] },
     { name = "python-igraph" },
     { name = "scanpy", version = "1.11.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or (extra == 'group-17-manylatents-omics-cpu' and extra == 'group-17-manylatents-omics-cuda')" },
     { name = "scanpy", version = "1.12.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' or (extra == 'group-17-manylatents-omics-cpu' and extra == 'group-17-manylatents-omics-cuda')" },
@@ -1802,7 +1804,7 @@ requires-dist = [
     { name = "huggingface-hub", marker = "extra == 'noncoding'", specifier = ">=0.23" },
     { name = "leidenalg", marker = "extra == 'singlecell'", specifier = ">=0.10" },
     { name = "mamba-ssm", marker = "extra == 'dogma'", specifier = "==2.2.6.post3" },
-    { name = "manykinds", marker = "extra == 'singlecell'", specifier = ">=0.1" },
+    { name = "manykinds", extras = ["arrays"], marker = "extra == 'singlecell'", specifier = ">=0.1.2" },
     { name = "manylatents", specifier = ">=0.1.8" },
     { name = "manylatents-omics", extras = ["dogma", "singlecell", "popgen", "noncoding"], marker = "extra == 'dev'" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
