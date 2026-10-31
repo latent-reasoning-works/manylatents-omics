@@ -1,0 +1,629 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://latent-reasoning-works.github.io/manylatents-omics/m-v0-oracle-contract/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Oracle integration contract (Signal Manifold v0, row #29) - manylatents-omics</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#oracle-integration-contract-signal-manifold-v0-row-29" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="manylatents-omics" class="md-header__button md-logo" aria-label="manylatents-omics" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            manylatents-omics
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Oracle integration contract (Signal Manifold v0, row #29)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="manylatents-omics" class="md-nav__button md-logo" aria-label="manylatents-omics" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    manylatents-omics
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../encoders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Encoders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../clinvar_pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ClinVar Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../popgen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PopGen
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../singlecell/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single-Cell
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The contract
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The contract">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-this-is-the-minimal-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this is the minimal surface
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#manylatentsapipy-touchpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        manylatents/api.py touchpoint
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="manylatents/api.py touchpoint">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fusion-seam" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fusion seam
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-oracle-shortlist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next-oracle shortlist
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="oracle-integration-contract-signal-manifold-v0-row-29">Oracle integration contract (Signal Manifold v0, row #29)</h1>
+<p>Status: DRAFT for review. Defines the minimal seam any oracle / tiny-expert
+implements to (a) emit <code>SignalRecord</code>s and (b) plug into the fusion seam +
+<code>manylatents</code> core API. This is what lets oracle #2 (ChromBPNet / Borzoi) and
+later RNA-processing experts drop in behind one interface.</p>
+<p>Owner of the shared record schema (<code>SignalRecord</code>, <code>Variant</code>, layer enum): the
+signal-schema milestone (#26). This contract references those types
+structurally only (<code>TYPE_CHECKING</code>) so it can land without waiting on them.</p>
+<h2 id="the-contract">The contract</h2>
+<p><code>manylatents/dogma/oracles/__init__.py</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nd">@runtime_checkable</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SignalOracle</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">oracle_id</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>        <span class="c1"># stable id -&gt; provenance + registry key</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">layers</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span> <span class="o">...</span>       <span class="c1"># subset of SIGNAL_LAYERS</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">cell_types</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span> <span class="o">...</span>    <span class="c1"># may be empty (cell-type-agnostic)</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">track_ids</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span> <span class="o">...</span>     <span class="c1"># join key for cross-oracle fusion</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">score_variant</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">variant</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">layers</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">SignalRecord</span><span class="p">]:</span> <span class="o">...</span>
+</code></pre></div>
+<p>Plus a decorator registry: <code>register_oracle(name)</code>, <code>get_oracle(name)</code>,
+<code>list_oracles()</code>.</p>
+<h3 id="why-this-is-the-minimal-surface">Why this is the minimal surface</h3>
+<p>Derived from what the existing encoders already share, not invented:</p>
+<table>
+<thead>
+<tr>
+<th>Contract member</th>
+<th>Generalizes (existing encoder surface)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>score_variant() -&gt; records</code></td>
+<td><code>AlphaGenomeEncoder.predict(sequence, output_types=...)</code> -&gt; per-track tensors. The <strong>only</strong> encoder that already emits tracks (the signal); the rest emit dense embeddings. <code>layers=</code> mirrors <code>output_types=</code>.</td>
+</tr>
+<tr>
+<td><code>oracle_id</code></td>
+<td>encoder <code>model_name</code> (stable id, used for weights + config keys)</td>
+</tr>
+<tr>
+<td><code>layers</code></td>
+<td>encoder <code>modality</code> property (single-value introspection generalized to the set of layers an oracle covers)</td>
+</tr>
+<tr>
+<td><code>track_ids</code></td>
+<td>AlphaGenome's <code>OutputType</code> track names -&gt; stable column identity</td>
+</tr>
+<tr>
+<td><code>cell_types</code></td>
+<td>AlphaGenome's <code>ontology_terms</code> argument</td>
+</tr>
+<tr>
+<td>registry (<code>register_oracle</code>/<code>get_oracle</code>/<code>list_oracles</code>)</td>
+<td><code>metrics/registry.py</code> decorator pattern + <code>algorithms/latent</code> <code>get_algorithm</code>/<code>list_algorithms</code></td>
+</tr>
+</tbody>
+</table>
+<p>Deliberately <strong>excluded</strong> (encoder surface an oracle does <em>not</em> need):
+<code>encode()</code> / dense embeddings, <code>embedding_dim</code>, <code>encode_batch()</code> +
+<code>_tokenize_batch</code>/<code>_extract_embeddings</code> GPU batching, <code>_load_model</code>/<code>device</code>
+lifecycle. An oracle emits <em>signal</em>, it is not an embedding backbone; forcing
+it to carry that surface would be abstraction we do not need at v0.</p>
+<p><code>Protocol</code> (structural), not an ABC, on purpose: an oracle may <strong>wrap</strong> an
+existing <code>FoundationEncoder</code> (an AlphaGenome adapter that calls <code>.predict()</code>
+and buckets tracks into <code>SignalRecord</code>s), wrap a fresh model
+(ChromBPNet/Borzoi), or be pure Python (a splicing rule-set) -- none should be
+forced to subclass a shared base. <code>@runtime_checkable</code> lets the registry
+sanity-check registrations.</p>
+<h2 id="manylatentsapipy-touchpoint"><code>manylatents/api.py</code> touchpoint</h2>
+<p>Core <code>api.run(...)</code> is Hydra-free: it resolves string names via Python
+registries and instantiates <code>_target_</code> dicts via <code>importlib</code> (<code>_instantiate_target</code>).
+The oracle path hooks in the same way, no core change required at v0:</p>
+<ul>
+<li>An oracle is a normal object. A fusion algorithm (the consumer) takes an
+  oracle <strong>config dict</strong> (<code>{"_target_": "...OracleClass"}</code>) exactly as
+  <code>CentralDogmaFusion</code> already takes <code>evo2_config</code> / <code>esm3_config</code>, and
+  instantiates it lazily (Hydra <code>instantiate</code> in-pipeline, or
+  <code>api._instantiate_target</code> on the API path).</li>
+<li><code>get_oracle(name)</code> mirrors <code>get_algorithm(name)</code> for string-name resolution,
+  so an experiment can say <code>oracle="alphagenome"</code> the way it says
+  <code>algorithm="pca"</code>.</li>
+</ul>
+<p>Design note (not for this row): if/when we want <code>api.run(..., oracle="...")</code>
+as a first-class kwarg, the core change is a ~5-line <code>_resolve_oracle</code> helper
+next to <code>_resolve_algorithm</code>. Deferred -- v0 rides the existing fusion-config
+path and does not touch core.</p>
+<h3 id="fusion-seam">Fusion seam</h3>
+<p><code>algorithms/fusion.py::CentralDogmaFusion</code> concatenates per-modality
+embeddings. The signal manifold consumes <code>SignalRecord</code>s instead: an oracle
+emits records per (variant, track); the fusion/aggregation step pivots them
+into a per-variant feature row keyed by <code>(layer, cell_type, track_id)</code>. The
+three introspection properties (<code>layers</code> / <code>cell_types</code> / <code>track_ids</code>) exist so
+that pivot can build <strong>stable, aligned columns across oracles without running
+the models</strong> -- the join key is <code>track_id</code>.</p>
+<h2 id="next-oracle-shortlist">Next-oracle shortlist</h2>
+<p>v0 is one oracle (AlphaGenome, "roll with ours"). The contract's job is to make</p>
+<h1 id="2-cheap-priority-order-and-rationale">2 cheap. Priority order and rationale:</h1>
+<ol>
+<li><strong>ChromBPNet</strong> -- 1 bp-resolution TF-motif / accessibility corroboration.
+   Emits <code>accessibility</code> + <code>tf</code> layers; smallest model, fastest to stand up,
+   and gives an independent read on the exact layers AlphaGenome is weakest on
+   at base-pair precision. Best first cross-check: same layers, different
+   inductive bias -&gt; a real agreement signal.</li>
+<li><strong>Borzoi</strong> -- RNA-seq / CAGE cross-check. Emits <code>rna</code> + <code>cage</code> (+ some
+   accessibility/histone). Overlaps AlphaGenome's regulatory tracks with a
+   different architecture and training set; the natural cross-oracle agreement
+   test for the expression layers.</li>
+<li><strong>First RNA-processing expert</strong> (splicing / polyA / stability) -- starts
+   filling the RNA gap the current DNA-centric stack leaves. Candidates:
+   SpliceAI / Pangolin (splice), APARENT2 (polyA). Likely <code>cell_types = ()</code>
+   (cell-type-agnostic) -- which is exactly why the contract makes
+   <code>cell_types</code> allowed-empty rather than required.</li>
+</ol>
+<p>Sequencing: (1) proves cross-oracle agreement on shared layers with minimal
+cost; (2) extends it to expression; (3) opens the RNA-processing axis the
+manifold currently cannot see.</p>
+<h2 id="files">Files</h2>
+<ul>
+<li><code>manylatents/dogma/oracles/__init__.py</code> -- contract + registry</li>
+<li><code>tests/dogma/test_oracle_contract.py</code> -- model-free smoke test</li>
+<li><code>manylatents/dogma/__init__.py</code> -- <code>oracles</code> added to lazy <code>__all__</code></li>
+</ul>
+<h2 id="open-questions-for-26-cesar">Open questions for #26 / César</h2>
+<ul>
+<li>Confirm <code>SignalRecord</code> / <code>Variant</code> import path (assumed
+  <code>manylatents.dogma.signal</code>) so the <code>TYPE_CHECKING</code> import resolves.</li>
+<li><code>SIGNAL_LAYERS</code> is mirrored here as a plain tuple; should the canonical layer
+  enum live in #26's schema and be re-exported, or stay duplicated with a
+  sync note? (Kept minimal for now; no runtime dependency either way.)</li>
+<li>Is per-variant <code>score_variant</code> the right granularity, or should the contract
+  also expose a batched <code>score_variants(iterable)</code> up front? Left out as
+  premature -- the encoder <code>encode_batch</code> pattern shows batching can be added
+  as an optional method later without changing the core contract.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
