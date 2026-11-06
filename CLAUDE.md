@@ -2,6 +2,16 @@
 
 Biological extensions for manylatents: popgen, single-cell, and foundation model encoders.
 
+> **⚠️ `CherimoyaEncoder` needs an explicit checkpoint.** Cherimoya is *trained per
+> experiment*, so with no `checkpoint` it builds a FRESH UNTRAINED model (meaningless outputs —
+> plumbing only), and that path logs a loud warning.
+>
+> Canonical real-ENCODE weights **do** exist: [CATv1](https://huggingface.co/programmable-genomics/CATv1)
+> (`programmable-genomics/CATv1`, CC-BY-4.0) — per-experiment DNase/ATAC accessibility models
+> covering 1,518 ENCODE experiments. They load through `Cherimoya.load` unchanged. Requires
+> `cherimoya>=0.2.0` (0.0.1 has a width-19 first conv and no `load`, so it size-mismatches).
+> Train from scratch only for tracks CATv1 does not cover.
+
 **See [ARCHITECTURE.md](ARCHITECTURE.md) for the codebase map, data flow, and entrypoint alignment issues.**
 
 **Inherits from**: `manylatents/CLAUDE.md` (core contracts, safety rules)

@@ -5,6 +5,8 @@ Provides encoders for the three levels of the central dogma:
     - OrthrusEncoder: RNA sequences (uses mamba-ssm 2.x)
     - ESM3Encoder: Protein sequences (amino acids)
     - AlphaGenomeEncoder: DNA sequences with regulatory predictions (JAX-based)
+    - CherimoyaEncoder: DNA regulatory tracks; tiny (~610K params, ChromBPNet
+      successor), trained per experiment — the small regulatory expert
 
 Note: These are direct imports. The encoders themselves do lazy model loading
 in their _load_model() methods, so importing the class is lightweight - only
@@ -17,5 +19,6 @@ from .orthrus_native import OrthrusNativeEncoder as OrthrusEncoder
 from .esm3 import ESM3Encoder
 from .esm import ESMEncoder
 from .alphagenome import AlphaGenomeEncoder
+from .cherimoya import CherimoyaEncoder
 
-__all__ = ["FoundationEncoder", "Evo2Encoder", "OrthrusEncoder", "ESM3Encoder", "ESMEncoder", "AlphaGenomeEncoder"]
+__all__ = ["FoundationEncoder", "Evo2Encoder", "OrthrusEncoder", "ESM3Encoder", "ESMEncoder", "AlphaGenomeEncoder", "CherimoyaEncoder"]
