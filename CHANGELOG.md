@@ -6,6 +6,7 @@
 
 
 ### Added
+- `manylatents.singlecell.dataset_features`: 27 descriptive features of a dataset (`dataset_features/1`) and the `counts_like/1` classifier. Reads only; AnnData or a 2-D array.
 - LARRY lineage-tracing dataset (Weinreb et al. 2020, doi:10.1126/science.aaw3381): `data=larry` config and `manylatents.singlecell.data.larry` (`LarryDataModule`, `fetch_larry`, `load_larry`), which download the public in-vitro files on first use and build `single_cell/larry.h5ad` with `Time point`, `clone`, `fate` and a 50-component PCA.
 - `manylatents.singlecell.sampling.clone_subsample`: seeded whole-clone subsampling of lineage-traced cells up to a cell budget, keeping clones with an early cell and enough late descendants.
 - `lookup_tabix_scores`: per-variant values from tabix-indexed score tables, with header/value-count validation.

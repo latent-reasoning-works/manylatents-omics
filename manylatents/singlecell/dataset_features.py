@@ -75,8 +75,6 @@ KEYS = (
     ("has_spliced_unspliced_layers", "bool"),
 )
 _TYPES = dict(KEYS)
-_METADATA_KEYS = ("modality", "technology", "species", "spatial_resolution")
-_ROLE_KEYS = tuple(key for key, _ in KEYS[9:24])
 
 
 def _row(key, value=None, *, status="ok", reason=None, source="data"):
@@ -88,7 +86,8 @@ def _row(key, value=None, *, status="ok", reason=None, source="data"):
 
 def _data_rows(data, matrix, layer):
     n_cells, n_columns = matrix.shape
-    nonzero = matrix != 0
+    # Sparse comparisons may consolidate duplicate entries in place.
+    nonzero = (matrix.copy() if sparse.issparse(matrix) else matrix) != 0
     size = n_cells * n_columns
     classification = counts_like(matrix)
     rows = [
@@ -143,8 +142,7 @@ def dataset_features(data, roles, *, layer=None, overrides=None) -> list[dict]:
     if not (isinstance(matrix, np.ndarray) or sparse.issparse(matrix)) or matrix.ndim != 2:
         raise TypeError("The selected matrix must be a 2-D ndarray or SciPy sparse object")
     rows = _data_rows(annotated, matrix, layer)
-    rows.extend(_row(key, status="not_supplied", reason="No role supplied", source="role")
-                for key in _ROLE_KEYS)
+    rows.extend(_role_rows(annotated, roles))
     rows.extend(_metadata_rows(annotated, overrides or {}))
     by_key = {row["key"]: row for row in rows}
     return [by_key[key] for key, _ in KEYS]
@@ -225,3 +223,89 @@ def _metadata_rows(data, overrides):
             platform = re.sub(r"[ _-]", "", platform.lower()) if isinstance(platform, str) else ""
             rows.append(_row(key, PLATFORM_RESOLUTION.get(platform, "unknown"), source="metadata"))
     return rows
+
+
+_ROLE_REQUIREMENTS = {
+    "technical_batch_column": ("batch",), "n_technical_batches": ("batch",),
+    "sample_column": ("sample",), "n_samples": ("sample",),
+    "has_batch_column": ("batch",), "has_condition_column": ("condition",),
+    "n_condition_levels": ("condition",), "samples_per_condition_min": ("sample", "condition"),
+    "has_replicates": ("sample", "condition"), "has_time_column": ("time",),
+    "n_timepoints": ("time",), "samples_per_timepoint_min": ("sample", "time"),
+    "has_cell_labels": ("labels",), "batch_condition_confounded": ("batch", "condition"),
+    "batch_time_confounded": ("batch", "time"),
+}
+_ABSENT_VALUES = {
+    "batch": {"technical_batch_column": None, "n_technical_batches": 1,
+              "has_batch_column": False, "batch_condition_confounded": False,
+              "batch_time_confounded": False},
+    "sample": {"sample_column": None, "n_samples": 1, "samples_per_condition_min": 0,
+               "samples_per_timepoint_min": 0, "has_replicates": False},
+    "condition": {"has_condition_column": False, "n_condition_levels": 0},
+    "time": {"has_time_column": False, "n_timepoints": 0},
+    "labels": {"has_cell_labels": False},
+}
+_CLUSTER_COLUMN = re.compile(r"cluster|leiden|louvain", re.I)
+
+
+def _role_rows(data, roles):
+    return [_role_row(data, roles, key, needs) for key, needs in _ROLE_REQUIREMENTS.items()]
+
+
+def _role_row(data, roles, key, needs):
+    import pandas as pd
+
+    columns = {role: roles.get(role) for role in needs}
+    missing = [role for role, column in columns.items()
+               if column not in (None, ABSENT) and (data is None or column not in data.obs)]
+    if missing:
+        return _row(key, status="not_in_input", source="role",
+                    reason=f"Missing column for role: {', '.join(missing)}")
+    unspecified = [role for role, column in columns.items() if column is None]
+    if unspecified:
+        return _row(key, status="not_supplied", source="role",
+                    reason=f"Role not supplied: {', '.join(unspecified)}")
+    absent = [role for role, column in columns.items() if column == ABSENT]
+    if absent:
+        for role in absent:
+            if key in _ABSENT_VALUES[role]:
+                return _row(key, _ABSENT_VALUES[role][key], source="role")
+        return _row(key, status="undefined", source="role",
+                    reason=f"Required role is absent: {', '.join(absent)}")
+    if key in ("technical_batch_column", "sample_column"):
+        return _row(key, str(columns[needs[0]]), source="role")
+
+    # Role names remain distinct even when two roles use the same obs column.
+    frame = pd.DataFrame({role: data.obs[column] for role, column in columns.items()})
+    if len(needs) == 1:
+        column = frame[needs[0]]
+        levels = int(column.nunique(dropna=True))
+        if key in ("n_technical_batches", "n_samples", "n_condition_levels"):
+            if column.isna().any():
+                return _row(key, status="undefined", source="role", reason="Role column contains missing values")
+            value = levels
+        elif key == "n_timepoints":
+            value = levels
+        elif key == "has_time_column":
+            numeric = pd.api.types.is_numeric_dtype(column.dtype)
+            ordered = isinstance(column.dtype, pd.CategoricalDtype) and column.cat.ordered
+            value = bool(levels >= 2 and (numeric or ordered))
+        elif key == "has_cell_labels":
+            value = levels >= 2 and _CLUSTER_COLUMN.search(columns["labels"]) is None
+        else:
+            value = levels >= 2
+        return _row(key, value, source="role")
+
+    if frame.isna().any().any():
+        return _row(key, status="undefined", source="role", reason="Role columns contain missing values")
+    if frame.empty:
+        return _row(key, status="undefined", source="role", reason="No observed levels")
+    level_role = needs[1]
+    if needs[0] == "sample":
+        minimum = int(frame.groupby(level_role, observed=True)["sample"].nunique().min())
+        value = minimum >= 2 if key == "has_replicates" else minimum
+    else:
+        if frame[level_role].nunique() < 2:
+            return _row(key, status="undefined", source="role", reason="Fewer than two observed levels")
+        value = bool((frame.groupby("batch", observed=True)[level_role].nunique() == 1).all())
+    return _row(key, value, source="role")

@@ -396,3 +396,267 @@ def test_spatial_resolution_requires_whole_platform_match(platform):
 def test_bad_override_raises(overrides):
     with pytest.raises(ValueError, match="override"):
         _rows(_adata(), overrides=overrides)
+
+
+ROLE_COLUMNS = dict(sample="donor", batch="batch", condition="condition", time="day", labels="cell_type")
+ROLE_DEPENDENCIES = {
+    "technical_batch_column": ("batch",), "n_technical_batches": ("batch",),
+    "sample_column": ("sample",), "n_samples": ("sample",),
+    "has_batch_column": ("batch",), "has_condition_column": ("condition",),
+    "n_condition_levels": ("condition",), "samples_per_condition_min": ("sample", "condition"),
+    "has_replicates": ("sample", "condition"), "has_time_column": ("time",),
+    "n_timepoints": ("time",), "samples_per_timepoint_min": ("sample", "time"),
+    "has_cell_labels": ("labels",), "batch_condition_confounded": ("batch", "condition"),
+    "batch_time_confounded": ("batch", "time"),
+}
+ABSENT_CASES = [
+    ("batch", "technical_batch_column", None), ("batch", "n_technical_batches", 1),
+    ("batch", "has_batch_column", False), ("batch", "batch_condition_confounded", False),
+    ("batch", "batch_time_confounded", False), ("sample", "sample_column", None),
+    ("sample", "n_samples", 1), ("sample", "samples_per_condition_min", 0),
+    ("sample", "samples_per_timepoint_min", 0), ("sample", "has_replicates", False),
+    ("condition", "has_condition_column", False), ("condition", "n_condition_levels", 0),
+    ("time", "has_time_column", False), ("time", "n_timepoints", 0),
+    ("labels", "has_cell_labels", False),
+]
+
+
+def _roles_adata():
+    import pandas as pd
+    from anndata import AnnData
+
+    data = AnnData(sp.csr_matrix(_counts(120, 20)))
+    donor = np.repeat(np.arange(6), 20)
+    data.obs["donor"] = [f"sample{v}" for v in donor]
+    data.obs["batch"] = [f"batch{v % 3}" for v in donor]
+    data.obs["condition"] = np.where(donor < 3, "control", "treated")
+    data.obs["day"] = donor % 3
+    data.obs["cell_type"] = [f"type{v % 4}" for v in range(120)]
+    data.obs["leiden"] = [str(v % 5) for v in range(120)]
+    data.obs["with_nan"] = data.obs["batch"].copy()
+    data.obs.loc[data.obs.index[0], "with_nan"] = None
+    data.obs["cat_unused"] = pd.Categorical(data.obs["condition"], categories=["control", "treated", "unused"])
+    return data
+
+
+@pytest.mark.parametrize("role", ROLE_COLUMNS)
+def test_role_not_supplied_gives_not_supplied(role):
+    rows = _rows(_roles_adata(), {**ROLE_COLUMNS, role: None})
+    for key, needs in ROLE_DEPENDENCIES.items():
+        if role in needs:
+            assert rows[key]["status"] == "not_supplied"
+
+
+@pytest.mark.parametrize("role,key,value", ABSENT_CASES)
+def test_role_absent_gives_the_documented_values(role, key, value):
+    row = _rows(_roles_adata(), {**ROLE_COLUMNS, role: "absent"})[key]
+    assert row["status"] == "ok"
+    assert row["value"] == value
+    assert type(row["value"]) is type(value)
+    assert row["source"] == "role"
+    assert row["reason"] is None
+
+
+@pytest.mark.parametrize("first,second,key", [("sample", "condition", "samples_per_condition_min"),
+                                             ("sample", "condition", "has_replicates"),
+                                             ("sample", "time", "samples_per_timepoint_min"),
+                                             ("batch", "condition", "batch_condition_confounded"),
+                                             ("batch", "time", "batch_time_confounded")])
+def test_two_role_key_is_not_supplied_while_the_other_role_is_none(first, second, key):
+    rows = _rows(_roles_adata(), {**ROLE_COLUMNS, first: "absent", second: None})
+    assert rows[key]["status"] == "not_supplied"
+
+
+@pytest.mark.parametrize("role,key", [("condition", "samples_per_condition_min"),
+                                      ("condition", "has_replicates"),
+                                      ("time", "samples_per_timepoint_min"),
+                                      ("condition", "batch_condition_confounded"),
+                                      ("time", "batch_time_confounded")])
+def test_two_role_absence_without_a_defined_value_is_undefined(role, key):
+    row = _rows(_roles_adata(), {**ROLE_COLUMNS, role: "absent"})[key]
+    assert row["status"] == "undefined"
+    assert row["value"] is None
+    assert row["reason"]
+
+
+@pytest.mark.parametrize("role", ROLE_COLUMNS)
+def test_role_naming_a_missing_column_is_not_in_input(role):
+    rows = _rows(_roles_adata(), {**ROLE_COLUMNS, role: "missing"})
+    for key, needs in ROLE_DEPENDENCIES.items():
+        if role in needs:
+            assert rows[key]["status"] == "not_in_input"
+            assert rows[key]["reason"]
+
+
+@pytest.mark.parametrize("other", [None, "absent"])
+@pytest.mark.parametrize("missing_role,other_role,key", [
+    ("sample", "condition", "samples_per_condition_min"),
+    ("condition", "sample", "has_replicates"),
+    ("time", "sample", "samples_per_timepoint_min"),
+    ("condition", "batch", "batch_condition_confounded"),
+    ("batch", "time", "batch_time_confounded"),
+])
+def test_missing_column_takes_precedence(missing_role, other_role, key, other):
+    row = _rows(_roles_adata(), {**ROLE_COLUMNS, missing_role: "missing", other_role: other})[key]
+    assert row["status"] == "not_in_input"
+
+
+def test_role_on_a_point_cloud_is_not_in_input():
+    rows = _rows(np.ones((200, 5)), ROLE_COLUMNS)
+    assert all(rows[key]["status"] == "not_in_input" for key in ROLE_KEYS)
+
+
+def test_role_absent_on_a_point_cloud_gives_the_documented_values():
+    rows = _rows(np.ones((200, 5)), dict.fromkeys(ROLE_COLUMNS, "absent"))
+    for _, key, value in ABSENT_CASES:
+        assert rows[key]["status"] == "ok"
+        assert rows[key]["value"] == value
+
+
+@pytest.mark.parametrize("role,key", [("batch", "n_technical_batches"), ("sample", "n_samples"),
+                                      ("condition", "n_condition_levels")])
+@pytest.mark.parametrize("all_missing", [False, True])
+def test_role_column_with_missing_values(role, key, all_missing):
+    data = _roles_adata()
+    if all_missing:
+        data.obs["with_nan"] = None
+    row = _rows(data, {**ROLE_COLUMNS, role: "with_nan"})[key]
+    assert row["status"] == "undefined"
+    assert row["reason"]
+
+
+def test_unused_categories_are_not_levels():
+    rows = _rows(_roles_adata(), {**ROLE_COLUMNS, "condition": "cat_unused"})
+    assert rows["n_condition_levels"]["value"] == 2
+    assert rows["samples_per_condition_min"]["value"] == 3
+
+
+def test_two_roles_may_name_one_column():
+    rows = _rows(_roles_adata(), {**ROLE_COLUMNS, "batch": "donor"})
+    assert rows["technical_batch_column"]["value"] == "donor"
+    assert rows["sample_column"]["value"] == "donor"
+    assert rows["n_samples"]["value"] == rows["n_technical_batches"]["value"] == 6
+    assert rows["batch_condition_confounded"]["value"] is True
+
+
+def test_time_and_condition_are_reported_independently():
+    rows = _rows(_roles_adata(), ROLE_COLUMNS)
+    for key, value in {"has_time_column": True, "n_timepoints": 3,
+                       "has_condition_column": True, "n_condition_levels": 2,
+                       "has_batch_column": True, "n_technical_batches": 3,
+                       "n_samples": 6, "sample_column": "donor",
+                       "technical_batch_column": "batch"}.items():
+        assert rows[key]["status"] == "ok"
+        assert rows[key]["value"] == value
+        assert rows[key]["source"] == "role"
+
+
+def test_counts_per_level_and_replicates():
+    rows = _rows(_roles_adata(), ROLE_COLUMNS)
+    assert rows["samples_per_condition_min"]["value"] == 3
+    assert rows["has_replicates"]["value"] is True
+    assert rows["samples_per_timepoint_min"]["value"] == 2
+    rows = _rows(_roles_adata(), {**ROLE_COLUMNS, "sample": "condition"})
+    assert rows["samples_per_condition_min"]["value"] == 1
+    assert rows["has_replicates"]["value"] is False
+
+
+def test_confounding():
+    data = _roles_adata()
+    rows = _rows(data, ROLE_COLUMNS)
+    assert rows["batch_condition_confounded"]["value"] is False
+    assert rows["batch_time_confounded"]["value"] is True
+    rows = _rows(data, {**ROLE_COLUMNS, "batch": "donor"})
+    assert rows["batch_condition_confounded"]["value"] is True
+    data.obs["day"] = np.arange(120) % 4
+    assert _rows(data, ROLE_COLUMNS)["batch_time_confounded"]["value"] is False
+
+
+@pytest.mark.parametrize("role,key", [("condition", "batch_condition_confounded"),
+                                      ("time", "batch_time_confounded")])
+def test_confounding_with_one_level_is_undefined(role, key):
+    data = _roles_adata()
+    data.obs[ROLE_COLUMNS[role]] = 1
+    assert _rows(data, ROLE_COLUMNS)[key]["status"] == "undefined"
+
+
+@pytest.mark.parametrize("ordered,expected", [(None, False), (False, False), (True, True)])
+def test_time_column_must_be_numeric_or_ordered(ordered, expected):
+    import pandas as pd
+
+    data = _roles_adata()
+    values = ["early", "late"] * 60
+    data.obs["day"] = values if ordered is None else pd.Categorical(values, ordered=ordered)
+    assert _rows(data, ROLE_COLUMNS)["has_time_column"]["value"] is expected
+
+
+def test_timepoints_count_observed_nonmissing_values():
+    data = _roles_adata()
+    data.obs.loc[data.obs.index[0], "day"] = np.nan
+    assert _rows(data, ROLE_COLUMNS)["n_timepoints"]["value"] == 3
+    data.obs["day"] = np.nan
+    rows = _rows(data, ROLE_COLUMNS)
+    assert rows["n_timepoints"]["value"] == 0
+    assert rows["has_time_column"]["value"] is False
+
+
+@pytest.mark.parametrize("column,expected", [("leiden", False), ("Cluster_id", False),
+                                           ("my_LOUVAIN", False), ("cell_type", True)])
+def test_cell_labels_named_like_clustering_are_not_labels(column, expected):
+    data = _roles_adata()
+    data.obs[column] = data.obs["cell_type"]
+    assert _rows(data, {**ROLE_COLUMNS, "labels": column})["has_cell_labels"]["value"] is expected
+
+
+def test_single_observed_level_does_not_establish_multiple_groups():
+    data = _roles_adata()
+    for column in ROLE_COLUMNS.values():
+        data.obs[column] = 1
+    rows = _rows(data, ROLE_COLUMNS)
+    for key in ("has_batch_column", "has_condition_column", "has_time_column", "has_cell_labels"):
+        assert rows[key]["value"] is False
+
+
+@pytest.mark.parametrize("key,roles", [
+    ("samples_per_condition_min", {"sample": "with_nan"}),
+    ("has_replicates", {"condition": "with_nan"}),
+    ("samples_per_timepoint_min", {"time": "with_nan"}),
+    ("batch_condition_confounded", {"batch": "with_nan"}),
+    ("batch_time_confounded", {"time": "with_nan"}),
+])
+def test_two_role_calculations_with_missing_values_are_undefined(key, roles):
+    row = _rows(_roles_adata(), {**ROLE_COLUMNS, **roles})[key]
+    assert row["status"] == "undefined"
+    assert row["reason"]
+
+
+def test_all_rows_remain_native_and_json_serializable_with_roles():
+    import json
+
+    rows = df.dataset_features(_roles_adata(), ROLE_COLUMNS)
+    assert json.loads(json.dumps(rows, allow_nan=False)) == rows
+    assert all(type(row["value"]) in (bool, int, float, str, type(None)) for row in rows)
+
+
+@pytest.mark.parametrize("constructor", [sp.csr_matrix, sp.csc_matrix, sp.csr_array, sp.csc_array])
+def test_duplicate_sparse_entries_are_read_without_mutation(constructor):
+    if constructor in (sp.csr_matrix, sp.csr_array):
+        indices, indptr = [0, 0, 1], [0, 3]
+    else:
+        indices, indptr = [0, 0, 0], [0, 2, 3]
+    matrix = constructor(([1., -1., 3.], indices, indptr), shape=(1, 2))
+    before = {attr: getattr(matrix, attr).copy() for attr in ("data", "indices", "indptr")}
+    rows = _rows(matrix)
+    assert rows["sparsity"]["value"] == 0.5
+    for attr, original in before.items():
+        np.testing.assert_array_equal(getattr(matrix, attr), original)
+
+
+def test_counts_like_uses_the_seeded_sample_above_the_cap():
+    matrix = np.ones((2000, 100))
+    sampled = np.random.default_rng(0).choice(matrix.size, 100_000, replace=False)
+    outside = np.setdiff1d(np.arange(matrix.size), sampled)[0]
+    matrix.flat[outside] = -1
+    assert df.counts_like(matrix) == "raw_integer"
+    matrix.flat[sampled[0]] = -1
+    assert df.counts_like(matrix) == "processed"
