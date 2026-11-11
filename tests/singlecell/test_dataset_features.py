@@ -266,3 +266,133 @@ def test_small_matrix_has_undefined_counts_with_a_reason():
     assert row["status"] == "undefined"
     assert row["value"] is None
     assert row["reason"]
+
+
+@pytest.mark.parametrize("key,value", [("modality", "snRNA-seq"), ("technology", "plate"),
+                                       ("species", "other"), ("spatial_resolution", "array_spot")])
+@pytest.mark.parametrize("point_cloud", [False, True])
+def test_override_wins_and_is_recorded_as_person(key, value, point_cloud):
+    data = np.ones((200, 5)) if point_cloud else _adata()
+    if not point_cloud:
+        data.uns.update(modality="spatial", technology="droplet", species="human", platform="iss")
+    row = _rows(data, overrides={key: value})[key]
+    assert row["value"] == value
+    assert row["status"] == "ok"
+    assert row["source"] == "person"
+
+
+@pytest.mark.parametrize("key,value", [
+    ("modality", value) for value in ("scRNA-seq", "snRNA-seq", "scATAC", "multiome", "CITE-seq", "spatial")
+] + [("technology", value) for value in ("droplet", "plate", "unknown")]
+  + [("species", value) for value in ("human", "mouse", "other")])
+def test_uns_metadata_used_when_in_enum(key, value):
+    data = _adata()
+    data.uns[key] = value
+    row = _rows(data)[key]
+    assert row["value"] == value
+    assert row["source"] == "metadata"
+
+
+@pytest.mark.parametrize("key,expected,source", [("modality", "scRNA-seq", "data"),
+                                                 ("technology", "unknown", "metadata"),
+                                                 ("species", "human", "data")])
+def test_uns_value_outside_enum_is_ignored(key, expected, source):
+    data = _adata()
+    data.uns[key] = "unrecognised"
+    row = _rows(data)[key]
+    assert row["value"] == expected
+    assert row["source"] == source
+
+
+def _metadata_adata(names, feature_types=None, spatial=False):
+    from anndata import AnnData
+
+    data = AnnData(np.ones((2, len(names))))
+    data.var_names = names
+    if feature_types is not None:
+        data.var["feature_types"] = feature_types
+    if spatial:
+        data.obsm["spatial"] = np.zeros((2, 2))
+    return data
+
+
+@pytest.mark.parametrize("names,types,spatial,expected", [
+    (["chr1:1-2", "chrX-3-4"], ["Peaks", "Gene Expression"], True, "spatial"),
+    (["chr1:1-2", "chrX-3-4"], ["Peaks", "Gene Expression"], False, "multiome"),
+    (["chr1:1-2", "chrX-3-4"], ["Antibody Capture", "Gene Expression"], False, "scATAC"),
+    (["GENE", "OTHER"], ["Antibody Capture", "Gene Expression"], False, "CITE-seq"),
+    (["GENE"], ["Antibody Capture"], False, "CITE-seq"),
+    (["GENE"], ["Peaks"], False, "scRNA-seq"),
+    (["chr1:1-2", "GENE"], None, False, "scRNA-seq"),
+    (["chrUn_gl1:1-2", "chrX-3-4"], None, False, "scATAC"),
+    (["chr1_1_2"], None, False, "scRNA-seq"),
+    ([], None, False, "scRNA-seq"),
+])
+def test_modality_heuristics_follow_the_resolved_order(names, types, spatial, expected):
+    row = _rows(_metadata_adata(names, types, spatial))["modality"]
+    assert row["value"] == expected
+    assert row["source"] == "data"
+
+
+def test_single_nucleus_only_from_override_or_metadata():
+    data = _metadata_adata(["GENE"])
+    assert _rows(data)["modality"]["value"] == "scRNA-seq"
+    data.uns["modality"] = "snRNA-seq"
+    assert _rows(data)["modality"]["value"] == "snRNA-seq"
+    assert _rows(data, overrides={"modality": "spatial"})["modality"]["value"] == "spatial"
+
+
+@pytest.mark.parametrize("names,expected", [
+    (["MT-one", "lower"], "human"), (["mt-one", "UPPER"], "mouse"),
+    (["ONE", "TWO", "THREE", "FOUR", "lower"], "human"),
+    (["One", "Two", "Three", "Four", "lower"], "mouse"),
+    (["ONE", "Two", "lower", "123"], None),
+    (["MT-one", "mt-two"], None), (["123", "456"], None), ([], None),
+])
+def test_species_from_mito_prefix_or_case_majority(names, expected):
+    row = _rows(_metadata_adata(names))["species"]
+    assert row["value"] == expected
+    assert row["source"] == "data"
+    assert row["status"] == ("undefined" if expected is None else "ok")
+    if expected is None:
+        assert row["reason"]
+
+
+def test_technology_has_no_heuristic():
+    data = _adata()
+    data.uns["platform"] = "droplet"
+    assert _rows(data)["technology"]["value"] == "unknown"
+
+
+@pytest.mark.parametrize("platform", ["visium", "visiumhd", "st", "slideseq", "slideseqv2", "hdst",
+                                      "Visium HD", "Slide-Seq_v2"])
+def test_spatial_resolution_from_array_platform(platform):
+    data = _adata()
+    data.uns["platform"] = platform
+    row = _rows(data)["spatial_resolution"]
+    assert row["value"] == "array_spot"
+    assert row["source"] == "metadata"
+
+
+@pytest.mark.parametrize("platform", ["merfish", "seqfish", "seqfishplus", "iss", "xenium", "cosmx"])
+def test_spatial_resolution_from_image_platform(platform):
+    data = _adata()
+    data.uns["platform"] = platform
+    assert _rows(data)["spatial_resolution"]["value"] == "image_single_cell"
+
+
+@pytest.mark.parametrize("platform", [None, "stereoseq", "visium-extra", "other", 1])
+def test_spatial_resolution_requires_whole_platform_match(platform):
+    data = _adata()
+    if platform is not None:
+        data.uns["platform"] = platform
+    assert _rows(data)["spatial_resolution"]["value"] == "unknown"
+
+
+@pytest.mark.parametrize("overrides", [{"bad": "human"}, {"modality": "scATAC-seq"},
+                                       {"technology": "invalid"}, {"species": "invalid"},
+                                       {"spatial_resolution": "invalid"}, {"species": None},
+                                       {"species": ["human"]}])
+def test_bad_override_raises(overrides):
+    with pytest.raises(ValueError, match="override"):
+        _rows(_adata(), overrides=overrides)

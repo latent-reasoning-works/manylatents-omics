@@ -5,6 +5,8 @@ preprocessing instead operates on arrays and names. No data is loaded here.
 The versioned classifier does not replace preprocessing.looks_like_counts.
 """
 
+import re
+
 import numpy as np
 from scipy import sparse
 
@@ -143,8 +145,83 @@ def dataset_features(data, roles, *, layer=None, overrides=None) -> list[dict]:
     rows = _data_rows(annotated, matrix, layer)
     rows.extend(_row(key, status="not_supplied", reason="No role supplied", source="role")
                 for key in _ROLE_KEYS)
-    rows.extend(_row(key, status="not_applicable" if annotated is None else "not_supplied",
-                     reason="Input has no gene axis" if annotated is None else "No metadata supplied",
-                     source="metadata") for key in _METADATA_KEYS)
+    rows.extend(_metadata_rows(annotated, overrides or {}))
     by_key = {row["key"]: row for row in rows}
     return [by_key[key] for key, _ in KEYS]
+
+
+OVERRIDABLE = ("modality", "technology", "species", "spatial_resolution")
+MODALITIES = ("scRNA-seq", "snRNA-seq", "scATAC", "multiome", "CITE-seq", "spatial")
+TECHNOLOGIES = ("droplet", "plate", "unknown")
+SPECIES = ("human", "mouse", "other")
+SPATIAL_RESOLUTIONS = ("array_spot", "image_single_cell", "unknown")
+PLATFORM_RESOLUTION = {
+    **dict.fromkeys(("visium", "visiumhd", "st", "slideseq", "slideseqv2", "hdst"), "array_spot"),
+    **dict.fromkeys(("merfish", "seqfish", "seqfishplus", "iss", "xenium", "cosmx"), "image_single_cell"),
+}
+SPECIES_CASE_FRACTION = 0.8
+_ENUMS = dict(modality=MODALITIES, technology=TECHNOLOGIES, species=SPECIES,
+              spatial_resolution=SPATIAL_RESOLUTIONS)
+_PEAK_NAME = re.compile(r"^chr[0-9A-Za-z_]+[:-][0-9]+-[0-9]+$")
+
+
+def _modality(data):
+    if "spatial" in data.obsm:
+        return "spatial"
+    feature_types = set(data.var["feature_types"].dropna()) if "feature_types" in data.var else set()
+    if {"Peaks", "Gene Expression"} <= feature_types:
+        return "multiome"
+    if len(data.var_names) and all(_PEAK_NAME.fullmatch(name) for name in data.var_names):
+        return "scATAC"
+    if "Antibody Capture" in feature_types:
+        return "CITE-seq"
+    return "scRNA-seq"
+
+
+def _species(data):
+    names = data.var_names
+    upper_mito = any(name.startswith("MT-") for name in names)
+    lower_mito = any(name.startswith("mt-") for name in names)
+    if upper_mito and not lower_mito:
+        return "human"
+    if lower_mito and not upper_mito:
+        return "mouse"
+    alphabetic = [name for name in names if name.isalpha()]
+    if alphabetic:
+        if sum(name.isupper() for name in alphabetic) / len(alphabetic) >= SPECIES_CASE_FRACTION:
+            return "human"
+        if sum(name[0].isupper() and name[1:].islower() for name in alphabetic) / len(alphabetic) >= SPECIES_CASE_FRACTION:
+            return "mouse"
+    return None
+
+
+def _metadata_rows(data, overrides):
+    for key, value in overrides.items():
+        if key not in OVERRIDABLE:
+            raise ValueError(f"Unknown override: {key!r}")
+        if not isinstance(value, str) or value not in _ENUMS[key]:
+            raise ValueError(f"Invalid override for {key!r}: {value!r}")
+    rows = []
+    for key in OVERRIDABLE:
+        if key in overrides:
+            rows.append(_row(key, str(overrides[key]), source="person"))
+            continue
+        if data is None:
+            rows.append(_row(key, status="not_applicable", reason="Input has no gene axis", source="metadata"))
+            continue
+        value = data.uns.get(key)
+        if key != "spatial_resolution" and isinstance(value, str) and value in _ENUMS[key]:
+            rows.append(_row(key, str(value), source="metadata"))
+        elif key == "modality":
+            rows.append(_row(key, _modality(data)))
+        elif key == "species":
+            value = _species(data)
+            rows.append(_row(key, value) if value is not None else
+                        _row(key, status="undefined", reason="Gene names do not establish a species"))
+        elif key == "technology":
+            rows.append(_row(key, "unknown", source="metadata"))
+        else:
+            platform = data.uns.get("platform", "")
+            platform = re.sub(r"[ _-]", "", platform.lower()) if isinstance(platform, str) else ""
+            rows.append(_row(key, PLATFORM_RESOLUTION.get(platform, "unknown"), source="metadata"))
+    return rows
