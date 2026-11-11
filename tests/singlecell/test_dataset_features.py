@@ -104,3 +104,165 @@ def test_counts_like_nonfinite_is_unknown(value):
     matrix[0, 0] = value
     assert df.counts_like(matrix) == "unknown"
 
+
+def _adata():
+    from anndata import AnnData
+
+    matrix = sp.csr_matrix(_counts(300, 40))
+    matrix.data[:3] = 0
+    data = AnnData(matrix)
+    data.var_names = [f"MT-{i}" if i < 3 else f"GENE{i}" for i in range(40)]
+    for layer in ("counts", "spliced", "unspliced"):
+        data.layers[layer] = matrix.copy()
+    return data
+
+
+def _rows(data, roles=None, **kwargs):
+    return {row["key"]: row for row in df.dataset_features(data, roles or {}, **kwargs)}
+
+
+EXPECTED_KEYS = (
+    ("n_cells", "int"), ("n_genes", "int"), ("tested_matrix", "str"),
+    ("counts_like", "enum"), ("sparsity", "float"), ("modality", "enum"),
+    ("technology", "enum"), ("species", "enum"), ("has_mito_genes", "bool"),
+    ("technical_batch_column", "str"), ("n_technical_batches", "int"),
+    ("sample_column", "str"), ("n_samples", "int"), ("has_batch_column", "bool"),
+    ("has_condition_column", "bool"), ("n_condition_levels", "int"),
+    ("samples_per_condition_min", "int"), ("has_replicates", "bool"),
+    ("has_time_column", "bool"), ("n_timepoints", "int"),
+    ("samples_per_timepoint_min", "int"), ("has_cell_labels", "bool"),
+    ("batch_condition_confounded", "bool"), ("batch_time_confounded", "bool"),
+    ("median_genes_per_cell", "float"), ("spatial_resolution", "enum"),
+    ("has_spliced_unspliced_layers", "bool"),
+)
+ROLE_KEYS = [key for key, _ in EXPECTED_KEYS[9:24]]
+GENE_KEYS = ["n_genes", "modality", "technology", "species", "has_mito_genes",
+             "median_genes_per_cell", "spatial_resolution", "has_spliced_unspliced_layers"]
+
+
+def test_rows_follow_the_row_schema():
+    rows = df.dataset_features(_adata(), {})
+    assert df.KEYS == EXPECTED_KEYS
+    assert [row["key"] for row in rows] == [key for key, _ in EXPECTED_KEYS]
+    assert len(rows) == 27
+    for row, (_, kind) in zip(rows, EXPECTED_KEYS):
+        assert set(row) == set(df.FIELDS) == {
+            "key", "value", "type", "status", "reason", "source", "definition_version"
+        }
+        assert row["definition_version"] == "dataset_features/1"
+        assert row["status"] in df.STATUSES
+        assert row["type"] == kind
+        if row["status"] == "ok":
+            assert row["reason"] is None
+        else:
+            assert row["value"] is None
+            assert isinstance(row["reason"], str) and row["reason"]
+
+
+@pytest.mark.parametrize("array", [False, True])
+def test_values_are_native_python(array):
+    data = _counts() if array else _adata()
+    for row in df.dataset_features(data, {}):
+        assert type(row["value"]) in (bool, int, float, str, type(None))
+
+
+def test_data_keys_on_anndata():
+    data = _adata()
+    rows = _rows(data)
+    expected = {"n_cells": 300, "n_genes": 40, "tested_matrix": "X",
+                "counts_like": "raw_integer", "has_mito_genes": True,
+                "has_spliced_unspliced_layers": True,
+                "sparsity": pytest.approx(1 - np.count_nonzero(data.X.data) / 12000),
+                "median_genes_per_cell": float(np.median(np.asarray((data.X != 0).sum(1)).ravel()))}
+    for key, value in expected.items():
+        assert rows[key]["value"] == value
+        assert rows[key]["status"] == "ok"
+        assert rows[key]["source"] == "data"
+
+
+def test_median_genes_counts_nonzero_not_positive():
+    from anndata import AnnData
+
+    rows = _rows(AnnData(sp.csr_matrix([[-1., 0, 1], [-2, -3, 4]])))
+    assert rows["median_genes_per_cell"]["value"] == 2.5
+
+
+def test_layer_parameter_reads_the_named_layer():
+    data = _adata()
+    data.X = data.X.log1p()
+    rows = _rows(data, layer="counts")
+    assert rows["tested_matrix"]["value"] == "layers:counts"
+    assert rows["counts_like"]["value"] == "raw_integer"
+    assert _rows(data)["counts_like"]["value"] == "processed"
+
+
+@pytest.mark.parametrize("array", [False, True])
+def test_unknown_layer_raises(array):
+    with pytest.raises(ValueError, match="layer"):
+        _rows(_counts() if array else _adata(), layer="missing")
+
+
+@pytest.mark.parametrize("sparse_input", [False, True])
+def test_point_cloud_gives_the_point_cloud_column(sparse_input):
+    matrix = np.random.default_rng(0).normal(size=(200, 5))
+    matrix -= matrix.mean(0)
+    rows = _rows(sp.csr_matrix(matrix) if sparse_input else matrix)
+    for key, value in {"n_cells": 200, "tested_matrix": "X", "counts_like": "processed",
+                       "sparsity": 0.0}.items():
+        assert rows[key]["value"] == value
+        assert rows[key]["status"] == "ok"
+    for key in GENE_KEYS:
+        assert rows[key]["status"] == "not_applicable"
+        assert rows[key]["value"] is None
+    for key in ROLE_KEYS:
+        assert rows[key]["status"] == "not_supplied"
+
+
+def test_dataset_features_never_densifies(monkeypatch):
+    data = _adata()
+    monkeypatch.setattr(sp.csr_matrix, "toarray", lambda *a, **k: pytest.fail("densified"))
+    for layer in (None, *data.layers):
+        assert len(df.dataset_features(data, {}, layer=layer)) == 27
+
+
+def test_input_is_not_mutated():
+    from pandas.testing import assert_frame_equal
+
+    data = _adata()
+    data.obs["sample"] = "one"
+    data.uns["nested"] = {"species": "human"}
+    data.obsm["coordinates"] = np.ones((300, 2))
+    before = data.copy()
+    _rows(data, {"sample": "sample"}, layer="counts")
+    for left, right in [(data.X, before.X), *[(data.layers[k], before.layers[k]) for k in data.layers]]:
+        for attr in ("data", "indices", "indptr"):
+            np.testing.assert_array_equal(getattr(left, attr), getattr(right, attr))
+    assert_frame_equal(data.obs, before.obs)
+    assert_frame_equal(data.var, before.var)
+    assert data.uns == before.uns
+    np.testing.assert_array_equal(data.obsm["coordinates"], before.obsm["coordinates"])
+
+
+@pytest.mark.parametrize("data,roles,error", [
+    (np.ones((2, 2)), {"species": "human"}, ValueError),
+    (np.ones((2, 2)), {"sample": 3}, ValueError),
+    (np.ones(2), {}, TypeError), (np.ones((2, 2, 2)), {}, TypeError),
+    ([[1, 2]], {}, TypeError), (object(), {}, TypeError),
+])
+def test_bad_inputs_raise(data, roles, error):
+    with pytest.raises(error):
+        df.dataset_features(data, roles)
+
+
+@pytest.mark.parametrize("shape", [(0, 3), (3, 0)])
+def test_empty_matrix_has_undefined_sparsity(shape):
+    rows = _rows(np.zeros(shape))
+    assert rows["sparsity"]["status"] == "undefined"
+    assert rows["counts_like"]["status"] == "undefined"
+
+
+def test_small_matrix_has_undefined_counts_with_a_reason():
+    row = _rows(np.ones((10, 10)))["counts_like"]
+    assert row["status"] == "undefined"
+    assert row["value"] is None
+    assert row["reason"]
